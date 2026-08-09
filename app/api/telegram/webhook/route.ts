@@ -93,6 +93,19 @@ const log = (msg: string, data?: any) => {
 const parseNums = (s: string): number[] =>
   s.trim().split(/\s+/).map(Number).filter((n) => Number.isFinite(n));
 
+type NlIntent = 'today' | 'profit' | 'recent' | 'rate';
+/** จับ intent จากข้อความธรรมชาติ (ไม่ต้องมี /); คืน null ถ้าไม่ match */
+function matchNlIntent(text?: string): NlIntent | null {
+  if (!text) return null;
+  const t = text.trim().toLowerCase();
+  if (t.startsWith('/')) return null;
+  if (/(^|\s)(ยอด|สรุป)?วันนี้(\s|$)|today|summary/i.test(t)) return 'today';
+  if (/กำไร|profit/i.test(t)) return 'profit';
+  if (/(ลูกค้า|รายการ)?ล่าสุด|recent|ผู้รับล่าสุด/i.test(t)) return 'recent';
+  if (/(เรท|เรต|rate|exchange)/i.test(t)) return 'rate';
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   if (WEBHOOK_CONFIG_ISSUES.length > 0 || !WEBHOOK_SECRET || !getSupabaseAdminKey()) {
     return NextResponse.json(
@@ -177,6 +190,26 @@ async function handleUpdate(update: any): Promise<void> {
   if ((requiresAdminAccess(text) || Boolean(msg.photo)) && !admin) {
     await sendMessage(chatId, UI.error('คำสั่งนี้ใช้ได้เฉพาะผู้ดูแลระบบ — ติดต่อ SuperAdmin เพื่อเพิ่มสิทธิ์'));
     return;
+  }
+
+  // ----- ภาษาธรรมชาติ (NL): พิมพ์ 'ยอดวันนี้' / 'กำไรวันนี้' / 'ลูกค้าล่าสุด' / 'เรทตอนนี้' -----
+  const intent = matchNlIntent(text);
+  if (intent && !cmd) {
+    if (intent === 'today' || intent === 'profit') { await sendLedger(chatId); return; }
+    if (intent === 'recent') {
+      try {
+        const pairs = await getRecentPairs(chatId, undefined, 5);
+        await sendMessage(chatId, UI.recentListTemplate(pairs));
+      } catch (e: any) {
+        await sendMessage(chatId, UI.error(e?.message ?? 'ไม่สามารถดึงรายการล่าสุดได้'));
+      }
+      return;
+    }
+    if (intent === 'rate') {
+      const r = await getLatestRates();
+      await sendMessage(chatId, UI.rateShow(r.sellRate, r.marketUsdtRate, r.marketSource));
+      return;
+    }
   }
 
   // ----- /summary : สรุปวันนี้ (ส่งไปกลุ่มแจ้งเตือน CEempire) -----
@@ -1096,6 +1129,71 @@ async function handleCallback(cb: any): Promise<void> {
     await answerCallback(id, 'ยกเลิกแล้ว');
     await sendMessage(chatId, UI.cancelled());
     return;
+  }
+
+  // ----- Quick Actions (qa:*) — edit the same message in place -----
+  if (action === 'qa') {
+    const msgId: number | undefined = cb.message?.message_id;
+    if (arg === 'today') {
+      await answerCallback(id, '📊 ยอดวันนี้');
+      const room = await getRoom(chatId);
+      const [led, staff, recent] = await Promise.all([
+        getTodayLedger(room.dayCutAt, chatId),
+        getStaffLeaderboard(room.dayCutAt, chatId),
+        getRecentPairs(chatId, room.dayCutAt, 5),
+      ]);
+      const view = UI.ledgerCard({
+        incomingList: led.incomingList,
+        outgoingList: led.outgoingList,
+        totalThb: led.totalThb,
+        totalIncomingUsdt: led.totalIncomingUsdt,
+        totalOutgoingUsdt: led.totalOutgoingUsdt,
+        fixedRate: room.rate,
+        feePercent: 0,
+        netProfitThb: led.netProfitThb,
+        lastAdminName: led.lastAdminName,
+        roomName: room.name,
+        staff,
+        recent,
+      });
+      if (msgId) await editMessage(chatId, msgId, view);
+      else await sendMessage(chatId, view);
+      return;
+    }
+    if (arg === 'rate') {
+      await answerCallback(id, '📈 Rate');
+      const r = await getLatestRates();
+      const view = UI.rateShow(r.sellRate, r.marketUsdtRate, r.marketSource);
+      if (msgId) await editMessage(chatId, msgId, view);
+      else await sendMessage(chatId, view);
+      return;
+    }
+    if (arg === 'receiver') {
+      await answerCallback(id, '👤 ผู้รับ');
+      try {
+        const pairs = await getRecentPairs(chatId, undefined, 5);
+        const view = UI.recentListTemplate(pairs);
+        if (msgId) await editMessage(chatId, msgId, view);
+        else await sendMessage(chatId, view);
+      } catch (e: any) {
+        await sendMessage(chatId, UI.error(e?.message ?? 'ไม่สามารถดึงรายการล่าสุดได้'));
+      }
+      return;
+    }
+    if (arg === 'export') {
+      await answerCallback(id, '📄 กำลังสร้างไฟล์...');
+      const room = await getRoom(chatId);
+      const { csv, rows } = await exportRoomCsv(chatId, room.dayCutAt);
+      if (rows === 0) {
+        await sendMessage(chatId, UI.emptyState('ส่งออกรายการ', 'Export Transactions', 'ยังไม่มีธุรกรรมให้ส่งออก'));
+        return;
+      }
+      const stamp = new Date().toISOString().slice(0, 10);
+      const filename = `ce-vault-${room.name || chatId}-${stamp}.csv`;
+      await sendDocument(chatId, filename, csv, `📄 <b>${rows} รายการ</b> · ${room.name || 'ห้องนี้'} (วันนี้)`);
+      return;
+    }
+    return await answerCallback(id);
   }
 
   if (action === 'refresh') {
