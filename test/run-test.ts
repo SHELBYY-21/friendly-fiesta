@@ -129,7 +129,7 @@ assert(pickExplicitThbAmount('เลขอ้างอิง 999999 ยอดค
 assert(pickExplicitThbAmount('ยอดโอน 500 บาท ยอดเงิน 600 บาท') === null, 'OCR fallback rejects conflicting explicit amounts');
 
 const unclearUi = UI.slipUnclear(999999);
-assert(unclearUi.text.includes('(OCR Unclear)'), 'OCR unclear UI includes the bilingual status');
+assert(unclearUi.text.includes('(OCR Failed)'), 'OCR unclear UI uses standard OCR Failed label');
 assert(unclearUi.text.includes('+500B') && !unclearUi.text.includes('999999'), 'OCR unclear UI never guesses an amount');
 
 const mismatchUi = UI.accountMismatch('<script>bad</script>');
@@ -159,6 +159,12 @@ assert(
   'recorded transaction UI follows the TH + EN terminology standard',
 );
 assert(!incomingUi.text.includes('<Admin>') && !incomingUi.text.includes('<BANK>'), 'transaction UI escapes operator and bank data');
+assert(
+  Array.isArray((incomingUi.reply_markup as any)?.inline_keyboard) &&
+    JSON.stringify(incomingUi.reply_markup).includes('qa:today') &&
+    JSON.stringify(incomingUi.reply_markup).includes('qa:rate'),
+  'success card carries Quick Action inline keyboard',
+);
 
 const ledgerUi = UI.ledgerCard({
   incomingList: [{ time: '10:00', thb: 500, usdt: 13.6 }],
@@ -173,9 +179,10 @@ const ledgerUi = UI.ledgerCard({
   roomName: '<Room>',
 });
 assert(
-  ledgerUi.text.includes('สรุปวันนี้ (Today Summary)') &&
-    ledgerUi.text.includes('ปริมาณ (Volume)') &&
+  ledgerUi.text.includes('สรุปวันนี้') &&
+    ledgerUi.text.includes("(Today's Summary)") &&
     ledgerUi.text.includes('กำไรสุทธิ (Net Profit)') &&
+    ledgerUi.text.includes('ปริมาณ (Volume)') &&
     ledgerUi.text.includes('Settled'),
   'today ledger UI follows the enterprise summary standard',
 );
