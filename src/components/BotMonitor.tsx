@@ -22,16 +22,42 @@ interface BotMessage {
   description?: string;
 }
 
+interface ApiEndpoints {
+  webhookUrl: string;
+  ocrApiUrl: string;
+  binanceApiUrl: string;
+  telegramApiUrl: string;
+}
+
+interface ResponseTemplates {
+  successPrefix: string;
+  errorPrefix: string;
+  waitingPrefix: string;
+  duplicatePrefix: string;
+}
+
+interface ErrorThresholds {
+  ocrMinConfidence: number;
+  maxRetries: number;
+  timeoutMs: number;
+  maxErrorsPerHour: number;
+}
+
+interface RateLimits {
+  maxRequestsPerMinute: number;
+  maxRequestsPerHour: number;
+  cooldownSeconds: number;
+  burstLimit: number;
+}
+
 interface BotSettings {
   botEnabled: boolean;
   maintenanceMessage: string;
+  apiEndpoints: ApiEndpoints | null;
+  responseTemplates: ResponseTemplates | null;
+  errorThresholds: ErrorThresholds | null;
+  rateLimits: RateLimits | null;
   updatedAt: string | null;
-}
-
-interface AiInsight {
-  title: string;
-  body: string;
-  type: 'tip' | 'alert' | 'info';
 }
 
 type Tab = 'activity' | 'messages' | 'settings' | 'ai';
@@ -52,6 +78,34 @@ const EDITABLE_MESSAGES: BotMessage[] = [
 ];
 
 const STORAGE_KEY = 'botMonitor.messages.v1';
+
+const DEFAULT_API_ENDPOINTS: ApiEndpoints = {
+  webhookUrl: '/api/telegram/webhook',
+  ocrApiUrl: 'https://api.ocr.space/parse/image',
+  binanceApiUrl: 'https://api.binance.com/api/v3/ticker/price',
+  telegramApiUrl: 'https://api.telegram.org',
+};
+
+const DEFAULT_RESPONSE_TEMPLATES: ResponseTemplates = {
+  successPrefix: '✅',
+  errorPrefix: '❌',
+  waitingPrefix: '⏳',
+  duplicatePrefix: '⚠️',
+};
+
+const DEFAULT_ERROR_THRESHOLDS: ErrorThresholds = {
+  ocrMinConfidence: 85,
+  maxRetries: 3,
+  timeoutMs: 10000,
+  maxErrorsPerHour: 20,
+};
+
+const DEFAULT_RATE_LIMITS: RateLimits = {
+  maxRequestsPerMinute: 30,
+  maxRequestsPerHour: 500,
+  cooldownSeconds: 5,
+  burstLimit: 10,
+};
 
 // ─── Mock activity generator ─────────────────────────────────
 function generateActivity(): BotActivity[] {
@@ -230,12 +284,39 @@ function MessageEditor() {
   );
 }
 
+// ─── Settings sub-section components ─────────────────────────
+
+interface SectionFeedbackProps {
+  feedback: { ok: boolean; text: string } | null;
+}
+function SectionFeedback({ feedback }: SectionFeedbackProps) {
+  if (!feedback) return null;
+  return (
+    <span className={`text-xs ${feedback.ok ? 'text-emerald-400' : 'text-rose-400'}`}>
+      {feedback.text}
+    </span>
+  );
+}
+
 function SettingsPanel() {
   const [settings, setSettings] = useState<BotSettings | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
-  const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
+  const [saving, setSaving] = useState<string | null>(null);
+
+  // Local draft states
+  const [maintenanceMsg, setMaintenanceMsg] = useState('');
+  const [apiEndpoints, setApiEndpoints] = useState<ApiEndpoints>(DEFAULT_API_ENDPOINTS);
+  const [responseTemplates, setResponseTemplates] = useState<ResponseTemplates>(DEFAULT_RESPONSE_TEMPLATES);
+  const [errorThresholds, setErrorThresholds] = useState<ErrorThresholds>(DEFAULT_ERROR_THRESHOLDS);
+  const [rateLimits, setRateLimits] = useState<RateLimits>(DEFAULT_RATE_LIMITS);
+
+  // Per-section feedback
+  const [feedback, setFeedback] = useState<Record<string, { ok: boolean; text: string } | null>>({});
+
+  const showFeedback = (section: string, ok: boolean, text: string) => {
+    setFeedback((f) => ({ ...f, [section]: { ok, text } }));
+    setTimeout(() => setFeedback((f) => ({ ...f, [section]: null })), 3000);
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -243,8 +324,13 @@ function SettingsPanel() {
       const res = await fetch('/api/admin/settings', { cache: 'no-store' });
       const json = await res.json();
       if (json.data) {
-        setSettings(json.data);
-        setMessage(json.data.maintenanceMessage ?? '');
+        const d = json.data as BotSettings;
+        setSettings(d);
+        setMaintenanceMsg(d.maintenanceMessage ?? '');
+        if (d.apiEndpoints) setApiEndpoints({ ...DEFAULT_API_ENDPOINTS, ...d.apiEndpoints });
+        if (d.responseTemplates) setResponseTemplates({ ...DEFAULT_RESPONSE_TEMPLATES, ...d.responseTemplates });
+        if (d.errorThresholds) setErrorThresholds({ ...DEFAULT_ERROR_THRESHOLDS, ...d.errorThresholds });
+        if (d.rateLimits) setRateLimits({ ...DEFAULT_RATE_LIMITS, ...d.rateLimits });
       }
     } catch { /* ignore */ }
     setLoading(false);
@@ -252,9 +338,8 @@ function SettingsPanel() {
 
   useEffect(() => { load(); }, [load]);
 
-  const patch = async (key: string, value: any) => {
-    setSaving(true);
-    setFeedback(null);
+  const patch = async (section: string, key: string, value: any) => {
+    setSaving(section);
     try {
       const res = await fetch('/api/admin/settings', {
         method: 'PATCH',
@@ -263,13 +348,12 @@ function SettingsPanel() {
       });
       const json = await res.json();
       if (json.error) throw new Error(json.error.message);
-      setFeedback({ ok: true, text: 'บันทึกแล้ว ✓' });
+      showFeedback(section, true, 'บันทึกแล้ว ✓');
       await load();
     } catch (e: any) {
-      setFeedback({ ok: false, text: e.message ?? 'เกิดข้อผิดพลาด' });
+      showFeedback(section, false, e.message ?? 'เกิดข้อผิดพลาด');
     }
-    setSaving(false);
-    setTimeout(() => setFeedback(null), 3000);
+    setSaving(null);
   };
 
   if (loading) return (
@@ -278,7 +362,8 @@ function SettingsPanel() {
 
   return (
     <div className="space-y-4">
-      {/* Bot toggle */}
+
+      {/* ── Bot toggle ── */}
       <div className="rounded-xl border border-[color:var(--border)] bg-white/[0.02] p-4">
         <div className="flex items-center justify-between">
           <div>
@@ -286,11 +371,11 @@ function SettingsPanel() {
             <p className="text-xs text-[color:var(--muted)]">เปิด/ปิดการรับ webhook จาก Telegram</p>
           </div>
           <button
-            onClick={() => patch('bot_enabled', !settings?.botEnabled)}
-            disabled={saving}
+            onClick={() => patch('bot_toggle', 'bot_enabled', !settings?.botEnabled)}
+            disabled={saving === 'bot_toggle'}
             className={`relative h-7 w-12 rounded-full border transition-colors ${
               settings?.botEnabled
-                ? 'border-emerald-500/60 bg-emerald-500/20' :'border-[color:var(--border)] bg-white/5'
+                ? 'border-emerald-500/60 bg-emerald-500/20' : 'border-[color:var(--border)] bg-white/5'
             }`}
           >
             <span className={`absolute top-0.5 h-6 w-6 rounded-full shadow transition-all ${
@@ -302,36 +387,274 @@ function SettingsPanel() {
         </div>
         <div className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
           settings?.botEnabled
-            ? 'bg-emerald-500/10 text-emerald-300' :'bg-rose-500/10 text-rose-300'
+            ? 'bg-emerald-500/10 text-emerald-300' : 'bg-rose-500/10 text-rose-300'
         }`}>
           <span className={`h-1.5 w-1.5 rounded-full ${settings?.botEnabled ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`} />
           {settings?.botEnabled ? 'บอทกำลังทำงาน' : 'บอทหยุดทำงาน'}
         </div>
       </div>
 
-      {/* Maintenance message */}
+      {/* ── Maintenance message ── */}
       <div className="rounded-xl border border-[color:var(--border)] bg-white/[0.02] p-4">
         <p className="text-sm font-semibold text-[color:var(--text)]">🔧 ข้อความปิดปรับปรุง</p>
         <p className="mb-2 text-xs text-[color:var(--muted)]">แสดงเมื่อบอทถูกปิด</p>
         <textarea
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
+          value={maintenanceMsg}
+          onChange={(e) => setMaintenanceMsg(e.target.value)}
           rows={3}
           className="w-full rounded-lg border border-[color:var(--border)] bg-black/40 px-3 py-2 text-sm text-[color:var(--text)] focus:border-emerald-500/60 focus:outline-none"
         />
         <div className="mt-2 flex items-center justify-between">
-          {feedback && (
-            <span className={`text-xs ${feedback.ok ? 'text-emerald-400' : 'text-rose-400'}`}>{feedback.text}</span>
-          )}
+          <SectionFeedback feedback={feedback['maintenance'] ?? null} />
           <div className="ml-auto">
             <button
-              onClick={() => patch('maintenance_message', message)}
-              disabled={saving}
+              onClick={() => patch('maintenance', 'maintenance_message', maintenanceMsg)}
+              disabled={saving === 'maintenance'}
               className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-300 transition hover:bg-emerald-500/20 disabled:opacity-50"
             >
-              {saving ? '⏳ กำลังบันทึก…' : '💾 บันทึก'}
+              {saving === 'maintenance' ? '⏳ กำลังบันทึก…' : '💾 บันทึก'}
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* ── API Endpoint URLs ── */}
+      <div className="rounded-xl border border-blue-500/20 bg-blue-500/[0.03] p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <span className="text-base">🔗</span>
+          <div>
+            <p className="text-sm font-semibold text-[color:var(--text)]">API Endpoint URLs</p>
+            <p className="text-[10px] text-[color:var(--muted)]">URL ของ API ที่บอทใช้งาน · ซิงค์กับ Supabase</p>
+          </div>
+        </div>
+        <div className="space-y-2.5">
+          {(
+            [
+              { field: 'webhookUrl' as keyof ApiEndpoints, label: 'Webhook URL', placeholder: '/api/telegram/webhook' },
+              { field: 'ocrApiUrl' as keyof ApiEndpoints, label: 'OCR API URL', placeholder: 'https://api.ocr.space/parse/image' },
+              { field: 'binanceApiUrl' as keyof ApiEndpoints, label: 'Binance API URL', placeholder: 'https://api.binance.com/api/v3/ticker/price' },
+              { field: 'telegramApiUrl' as keyof ApiEndpoints, label: 'Telegram API URL', placeholder: 'https://api.telegram.org' },
+            ] as const
+          ).map(({ field, label, placeholder }) => (
+            <div key={field}>
+              <label className="mb-1 block text-[10px] font-medium text-[color:var(--muted)] uppercase tracking-wide">{label}</label>
+              <input
+                type="text"
+                value={apiEndpoints[field]}
+                onChange={(e) => setApiEndpoints((prev) => ({ ...prev, [field]: e.target.value }))}
+                placeholder={placeholder}
+                className="w-full rounded-lg border border-[color:var(--border)] bg-black/40 px-3 py-2 font-mono text-xs text-[color:var(--text)] placeholder:text-[color:var(--muted)] focus:border-blue-500/60 focus:outline-none"
+              />
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 flex items-center justify-between">
+          <SectionFeedback feedback={feedback['api_endpoints'] ?? null} />
+          <button
+            onClick={() => patch('api_endpoints', 'api_endpoints', apiEndpoints)}
+            disabled={saving === 'api_endpoints'}
+            className="ml-auto rounded-md border border-blue-500/40 bg-blue-500/10 px-3 py-1.5 text-xs font-medium text-blue-300 transition hover:bg-blue-500/20 disabled:opacity-50"
+          >
+            {saving === 'api_endpoints' ? '⏳ กำลังบันทึก…' : '💾 บันทึก Endpoints'}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Response Templates ── */}
+      <div className="rounded-xl border border-violet-500/20 bg-violet-500/[0.03] p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <span className="text-base">✉️</span>
+          <div>
+            <p className="text-sm font-semibold text-[color:var(--text)]">Response Templates</p>
+            <p className="text-[10px] text-[color:var(--muted)]">Prefix emoji/ข้อความนำหน้าแต่ละประเภทการตอบกลับ</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2.5">
+          {(
+            [
+              { field: 'successPrefix' as keyof ResponseTemplates, label: '✅ Success Prefix' },
+              { field: 'errorPrefix' as keyof ResponseTemplates, label: '❌ Error Prefix' },
+              { field: 'waitingPrefix' as keyof ResponseTemplates, label: '⏳ Waiting Prefix' },
+              { field: 'duplicatePrefix' as keyof ResponseTemplates, label: '⚠️ Duplicate Prefix' },
+            ] as const
+          ).map(({ field, label }) => (
+            <div key={field}>
+              <label className="mb-1 block text-[10px] font-medium text-[color:var(--muted)] uppercase tracking-wide">{label}</label>
+              <input
+                type="text"
+                value={responseTemplates[field]}
+                onChange={(e) => setResponseTemplates((prev) => ({ ...prev, [field]: e.target.value }))}
+                className="w-full rounded-lg border border-[color:var(--border)] bg-black/40 px-3 py-2 text-sm text-[color:var(--text)] focus:border-violet-500/60 focus:outline-none"
+              />
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 flex items-center justify-between">
+          <SectionFeedback feedback={feedback['response_templates'] ?? null} />
+          <button
+            onClick={() => patch('response_templates', 'response_templates', responseTemplates)}
+            disabled={saving === 'response_templates'}
+            className="ml-auto rounded-md border border-violet-500/40 bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-300 transition hover:bg-violet-500/20 disabled:opacity-50"
+          >
+            {saving === 'response_templates' ? '⏳ กำลังบันทึก…' : '💾 บันทึก Templates'}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Error Handling Thresholds ── */}
+      <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.03] p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <span className="text-base">⚠️</span>
+          <div>
+            <p className="text-sm font-semibold text-[color:var(--text)]">Error Handling Thresholds</p>
+            <p className="text-[10px] text-[color:var(--muted)]">ค่า threshold สำหรับจัดการข้อผิดพลาด · ซิงค์กับ Supabase</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2.5">
+          <div>
+            <label className="mb-1 block text-[10px] font-medium text-[color:var(--muted)] uppercase tracking-wide">
+              OCR Min Confidence (%)
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min={50}
+                max={99}
+                value={errorThresholds.ocrMinConfidence}
+                onChange={(e) => setErrorThresholds((prev) => ({ ...prev, ocrMinConfidence: Number(e.target.value) }))}
+                className="flex-1 accent-amber-400"
+              />
+              <span className="w-8 text-right text-xs font-mono font-semibold text-amber-300">{errorThresholds.ocrMinConfidence}</span>
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-medium text-[color:var(--muted)] uppercase tracking-wide">
+              Max Retries
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={10}
+              value={errorThresholds.maxRetries}
+              onChange={(e) => setErrorThresholds((prev) => ({ ...prev, maxRetries: Number(e.target.value) }))}
+              className="w-full rounded-lg border border-[color:var(--border)] bg-black/40 px-3 py-2 text-sm text-[color:var(--text)] focus:border-amber-500/60 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-medium text-[color:var(--muted)] uppercase tracking-wide">
+              Timeout (ms)
+            </label>
+            <input
+              type="number"
+              min={1000}
+              max={60000}
+              step={500}
+              value={errorThresholds.timeoutMs}
+              onChange={(e) => setErrorThresholds((prev) => ({ ...prev, timeoutMs: Number(e.target.value) }))}
+              className="w-full rounded-lg border border-[color:var(--border)] bg-black/40 px-3 py-2 text-sm text-[color:var(--text)] focus:border-amber-500/60 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-medium text-[color:var(--muted)] uppercase tracking-wide">
+              Max Errors / Hour
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={500}
+              value={errorThresholds.maxErrorsPerHour}
+              onChange={(e) => setErrorThresholds((prev) => ({ ...prev, maxErrorsPerHour: Number(e.target.value) }))}
+              className="w-full rounded-lg border border-[color:var(--border)] bg-black/40 px-3 py-2 text-sm text-[color:var(--text)] focus:border-amber-500/60 focus:outline-none"
+            />
+          </div>
+        </div>
+        <div className="mt-3 flex items-center justify-between">
+          <SectionFeedback feedback={feedback['error_thresholds'] ?? null} />
+          <button
+            onClick={() => patch('error_thresholds', 'error_thresholds', errorThresholds)}
+            disabled={saving === 'error_thresholds'}
+            className="ml-auto rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-300 transition hover:bg-amber-500/20 disabled:opacity-50"
+          >
+            {saving === 'error_thresholds' ? '⏳ กำลังบันทึก…' : '💾 บันทึก Thresholds'}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Rate Limits ── */}
+      <div className="rounded-xl border border-rose-500/20 bg-rose-500/[0.03] p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <span className="text-base">🚦</span>
+          <div>
+            <p className="text-sm font-semibold text-[color:var(--text)]">Rate Limits</p>
+            <p className="text-[10px] text-[color:var(--muted)]">จำกัดอัตราการรับ request · ป้องกัน spam · ซิงค์กับ Supabase</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2.5">
+          <div>
+            <label className="mb-1 block text-[10px] font-medium text-[color:var(--muted)] uppercase tracking-wide">
+              Max Req / Minute
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={300}
+              value={rateLimits.maxRequestsPerMinute}
+              onChange={(e) => setRateLimits((prev) => ({ ...prev, maxRequestsPerMinute: Number(e.target.value) }))}
+              className="w-full rounded-lg border border-[color:var(--border)] bg-black/40 px-3 py-2 text-sm text-[color:var(--text)] focus:border-rose-500/60 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-medium text-[color:var(--muted)] uppercase tracking-wide">
+              Max Req / Hour
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={10000}
+              value={rateLimits.maxRequestsPerHour}
+              onChange={(e) => setRateLimits((prev) => ({ ...prev, maxRequestsPerHour: Number(e.target.value) }))}
+              className="w-full rounded-lg border border-[color:var(--border)] bg-black/40 px-3 py-2 text-sm text-[color:var(--text)] focus:border-rose-500/60 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-medium text-[color:var(--muted)] uppercase tracking-wide">
+              Cooldown (seconds)
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min={1}
+                max={60}
+                value={rateLimits.cooldownSeconds}
+                onChange={(e) => setRateLimits((prev) => ({ ...prev, cooldownSeconds: Number(e.target.value) }))}
+                className="flex-1 accent-rose-400"
+              />
+              <span className="w-8 text-right text-xs font-mono font-semibold text-rose-300">{rateLimits.cooldownSeconds}s</span>
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-medium text-[color:var(--muted)] uppercase tracking-wide">
+              Burst Limit
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={100}
+              value={rateLimits.burstLimit}
+              onChange={(e) => setRateLimits((prev) => ({ ...prev, burstLimit: Number(e.target.value) }))}
+              className="w-full rounded-lg border border-[color:var(--border)] bg-black/40 px-3 py-2 text-sm text-[color:var(--text)] focus:border-rose-500/60 focus:outline-none"
+            />
+          </div>
+        </div>
+        <div className="mt-3 flex items-center justify-between">
+          <SectionFeedback feedback={feedback['rate_limits'] ?? null} />
+          <button
+            onClick={() => patch('rate_limits', 'rate_limits', rateLimits)}
+            disabled={saving === 'rate_limits'}
+            className="ml-auto rounded-md border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50"
+          >
+            {saving === 'rate_limits' ? '⏳ กำลังบันทึก…' : '💾 บันทึก Rate Limits'}
+          </button>
         </div>
       </div>
 
@@ -345,9 +668,8 @@ function SettingsPanel() {
 }
 
 function AiInsightsPanel() {
-  const [insights, setInsights] = useState<AiInsight[]>([]);
+  const [insights, setInsights] = useState<{ title: string; body: string; type: 'tip' | 'alert' | 'info' }[]>([]);
   const [loading, setLoading] = useState(false);
-  const [prompt, setPrompt] = useState('');
   const [chatHistory, setChatHistory] = useState<{ role: 'user' | 'assistant'; text: string }[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
@@ -494,7 +816,6 @@ export default function BotMonitor() {
   const [liveCount, setLiveCount] = useState(0);
 
   useEffect(() => {
-    // Simulate live activity counter
     const t = setInterval(() => {
       setLiveCount((c) => c + Math.floor(Math.random() * 2));
     }, 8000);

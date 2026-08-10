@@ -7,7 +7,14 @@ import { invalidateBotGateCache } from '@/lib/systemSettings';
 export const runtime = 'nodejs';
 export const revalidate = 0;
 
-const EDITABLE_KEYS = new Set(['bot_enabled', 'maintenance_message']);
+const EDITABLE_KEYS = new Set([
+  'bot_enabled',
+  'maintenance_message',
+  'api_endpoints',
+  'response_templates',
+  'error_thresholds',
+  'rate_limits',
+]);
 
 export async function GET() {
   const { data, error } = await supabaseAdmin
@@ -28,6 +35,10 @@ export async function GET() {
     data: {
       botEnabled: settings.bot_enabled !== false,
       maintenanceMessage: settings.maintenance_message ?? '',
+      apiEndpoints: settings.api_endpoints ?? null,
+      responseTemplates: settings.response_templates ?? null,
+      errorThresholds: settings.error_thresholds ?? null,
+      rateLimits: settings.rate_limits ?? null,
       updatedAt: (data ?? []).reduce<string | null>(
         (latest, r) => (!latest || r.updated_at > latest ? r.updated_at : latest),
         null
