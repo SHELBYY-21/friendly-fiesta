@@ -1,9 +1,9 @@
 /**
  * supabaseServer.ts
- * Server-side Supabase client using @supabase/server
+ * Server-side Supabase client using @supabase/supabase-js
  * ใช้ใน API routes / Server Components เท่านั้น — ห้าม import ใน client components
  */
-import { createClient } from '@supabase/server';
+import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY || '';
