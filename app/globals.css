@@ -210,3 +210,64 @@ body {
     transition: none !important;
   }
 }
+
+/* ─────────────────────────────────────────────────────────
+   CE EMPIRE Premium Motion System
+   ───────────────────────────────────────────────────────── */
+
+/* Transaction new glow */
+@keyframes transactionGlow {
+  0% {
+    box-shadow:
+      inset 0 0 0 2px rgba(0, 230, 118, 0.5),
+      0 0 20px rgba(0, 230, 118, 0.4);
+  }
+  50% {
+    box-shadow:
+      inset 0 0 0 2px rgba(0, 230, 118, 0.3),
+      0 0 40px rgba(0, 230, 118, 0.2);
+  }
+  100% {
+    box-shadow:
+      inset 0 0 0 2px transparent,
+      0 0 0 transparent;
+  }
+}
+
+.animate-transaction-glow {
+  animation: transactionGlow 1.2s ease-out forwards;
+}
+
+/* Status transition flow */
+@keyframes statusFlash {
+  0% {
+    background: rgba(0, 230, 118, 0.1);
+  }
+  50% {
+    background: rgba(0, 230, 118, 0.05);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+.animate-status-change {
+  animation: statusFlash 0.8s ease-out forwards;
+}
+
+/* Number update smooth transition */
+@keyframes numberUpdate {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.animate-number-update {
+  animation: numberUpdate 0.5s ease-out forwards;
+}
