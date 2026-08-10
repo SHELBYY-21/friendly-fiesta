@@ -1,6 +1,7 @@
 'use client';
 
 import CountUp from './CountUp';
+import SyncBadge, { type SyncStatus } from './SyncBadge';
 
 export interface SummaryTodayProps {
   account: {
@@ -18,6 +19,8 @@ export interface SummaryTodayProps {
     sellRate: number;
     marketRate: number;
   };
+  lastSync?: Date | null;
+  syncStatus?: SyncStatus;
 }
 
 function StatField({
@@ -41,7 +44,7 @@ function StatField({
   );
 }
 
-export default function SummaryToday({ account, daily, rates }: SummaryTodayProps) {
+export default function SummaryToday({ account, daily, rates, lastSync, syncStatus }: SummaryTodayProps) {
   const nf = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2 });
 
   return (
@@ -54,8 +57,9 @@ export default function SummaryToday({ account, daily, rates }: SummaryTodayProp
             {account.name} • {account.bankName} •••• {account.last4}
           </p>
         </div>
-        <div className="text-right">
+        <div className="flex flex-col items-end gap-1.5">
           <p className="text-xs font-medium text-[color:var(--good)]">🟢 Active</p>
+          <SyncBadge lastSync={lastSync} status={syncStatus} />
         </div>
       </div>
 

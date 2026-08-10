@@ -1,10 +1,13 @@
 // ตารางธุรกรรม — glass + row glow + badge/pill (ธีม CE Vault)
 import Link from 'next/link';
 import type { Transaction } from '@/types/transactions';
+import SyncBadge, { type SyncStatus } from './SyncBadge';
 
 interface TransactionsTableProps {
   transactions: Transaction[];
   feeWarningThreshold: number;
+  lastSync?: Date | null;
+  syncStatus?: SyncStatus;
 }
 
 function TypeBadge({ type }: { type: Transaction['type'] }) {
@@ -24,6 +27,8 @@ function TypeBadge({ type }: { type: Transaction['type'] }) {
 export default function TransactionsTable({
   transactions,
   feeWarningThreshold,
+  lastSync,
+  syncStatus,
 }: TransactionsTableProps) {
   const nf = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2 });
 
@@ -33,9 +38,12 @@ export default function TransactionsTable({
         <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
           <span>⚡</span> ธุรกรรมล่าสุด
         </h2>
-        <span className="flex items-center gap-1.5 text-[11px] text-[color:var(--muted)]">
-          <span className="live-dot" /> realtime
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="flex items-center gap-1.5 text-[11px] text-[color:var(--muted)]">
+            <span className="live-dot" /> realtime
+          </span>
+          <SyncBadge lastSync={lastSync} status={syncStatus} />
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">

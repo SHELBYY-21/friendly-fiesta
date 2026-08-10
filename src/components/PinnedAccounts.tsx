@@ -1,5 +1,7 @@
 'use client';
 
+import SyncBadge, { type SyncStatus } from './SyncBadge';
+
 export interface PinnedAccount {
   id: string;
   bankAccountId: string;
@@ -18,6 +20,8 @@ interface PinnedAccountsProps {
   selectedAccountId?: string;
   onSelectAccount?: (id: string) => void;
   isLoading?: boolean;
+  lastSync?: Date | null;
+  syncStatus?: SyncStatus;
 }
 
 function StatusIcon({ status }: { status: PinnedAccount['status'] }) {
@@ -36,13 +40,18 @@ export default function PinnedAccounts({
   selectedAccountId,
   onSelectAccount,
   isLoading,
+  lastSync,
+  syncStatus,
 }: PinnedAccountsProps) {
   const nf = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2 });
 
   if (accounts.length === 0) {
     return (
       <div className="glass accent-top reveal p-5" style={{ animationDelay: '80ms' }}>
-        <p className="text-sm text-[color:var(--muted)]">ยังไม่มีบัญชีที่ปักหมุด</p>
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-[color:var(--muted)]">ยังไม่มีบัญชีที่ปักหมุด</p>
+          <SyncBadge lastSync={lastSync} status={syncStatus} />
+        </div>
       </div>
     );
   }
@@ -54,7 +63,10 @@ export default function PinnedAccounts({
         <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
           <span>📌</span> Pinned Accounts
         </h2>
-        <span className="text-xs text-[color:var(--muted)]">{accounts.length}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-[color:var(--muted)]">{accounts.length}</span>
+          <SyncBadge lastSync={lastSync} status={syncStatus} />
+        </div>
       </div>
 
       {/* Account List */}

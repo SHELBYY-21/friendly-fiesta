@@ -17,6 +17,7 @@ import RecentSlips, { type RecentSlip } from '@/components/RecentSlips';
 import ApiMonitor, { type ApiEndpoint } from '@/components/ApiMonitor';
 import AdminConsole from '@/components/admin/AdminConsole';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import SyncBadge, { type SyncStatus } from '@/components/SyncBadge';
 import type { Admin, Transaction } from '@/types/transactions';
 
 const API_ENDPOINTS: ApiEndpoint[] = [
@@ -51,7 +52,25 @@ export default function DashboardPage() {
   const [pinnedAccounts, setPinnedAccounts] = useState<PinnedAccount[]>([]);
   const [recentSlips, setRecentSlips] = useState<RecentSlip[]>([]);
 
+  // Last-sync timestamps per data section
+  const [syncTimes, setSyncTimes] = useState<{
+    main: Date | null;
+    market: Date | null;
+    pinned: Date | null;
+    slips: Date | null;
+    summary: Date | null;
+  }>({ main: null, market: null, pinned: null, slips: null, summary: null });
+
+  const [syncStatuses, setSyncStatuses] = useState<{
+    main: SyncStatus;
+    market: SyncStatus;
+    pinned: SyncStatus;
+    slips: SyncStatus;
+    summary: SyncStatus;
+  }>({ main: 'syncing', market: 'syncing', pinned: 'syncing', slips: 'syncing', summary: 'syncing' });
+
   async function load() {
+    setSyncStatuses((s) => ({ ...s, main: 'syncing' }));
     const [tx, ad, rt] = await Promise.all([
       supabase
         .from('transactions')
@@ -70,44 +89,56 @@ export default function DashboardPage() {
     setAdmins((ad.data as Admin[]) ?? []);
     setRate((rt.data as RateRow) ?? null);
     setLoading(false);
+    setSyncTimes((s) => ({ ...s, main: new Date() }));
+    setSyncStatuses((s) => ({ ...s, main: tx.error ? 'error' : 'live' }));
   }
 
   async function loadMarketRate() {
+    setSyncStatuses((s) => ({ ...s, market: 'syncing' }));
     try {
       const res = await fetch('/api/market-rate', { cache: 'no-store' });
       const json = await res.json();
       if (json?.marketUsdtRate) setLiveMarket(Number(json.marketUsdtRate));
+      setSyncTimes((s) => ({ ...s, market: new Date() }));
+      setSyncStatuses((s) => ({ ...s, market: 'live' }));
     } catch {
-      /* เงียบไว้ ใช้ค่าเดิม */
+      setSyncStatuses((s) => ({ ...s, market: 'error' }));
     }
   }
 
   async function loadPinnedAccounts() {
+    setSyncStatuses((s) => ({ ...s, pinned: 'syncing' }));
     try {
-      // Get first chat_id from transactions
       const tx = transactions.find((t) => (t as any).chat_id);
       const chatId = tx ? (tx as any).chat_id : null;
-      if (!chatId) return;
-
+      if (!chatId) {
+        setSyncStatuses((s) => ({ ...s, pinned: 'live' }));
+        return;
+      }
       const res = await fetch(`/api/dashboard/pinned-accounts?chatId=${chatId}`, { cache: 'no-store' });
       const json = await res.json();
       if (!json.error && json.data) {
         setPinnedAccounts(json.data);
       }
+      setSyncTimes((s) => ({ ...s, pinned: new Date() }));
+      setSyncStatuses((s) => ({ ...s, pinned: json.error ? 'error' : 'live' }));
     } catch {
-      /* Graceful degradation */
+      setSyncStatuses((s) => ({ ...s, pinned: 'error' }));
     }
   }
 
   async function loadRecentSlips() {
+    setSyncStatuses((s) => ({ ...s, slips: 'syncing' }));
     try {
       const res = await fetch('/api/dashboard/recent-slips?limit=10', { cache: 'no-store' });
       const json = await res.json();
       if (!json.error && json.data) {
         setRecentSlips(json.data);
       }
+      setSyncTimes((s) => ({ ...s, slips: new Date() }));
+      setSyncStatuses((s) => ({ ...s, slips: json.error ? 'error' : 'live' }));
     } catch {
-      /* Graceful degradation */
+      setSyncStatuses((s) => ({ ...s, slips: 'error' }));
     }
   }
 
@@ -116,14 +147,17 @@ export default function DashboardPage() {
       setSummaryToday(null);
       return;
     }
+    setSyncStatuses((s) => ({ ...s, summary: 'syncing' }));
     try {
       const res = await fetch(`/api/dashboard/summary-today?accountId=${selectedAccountId}`, { cache: 'no-store' });
       const json = await res.json();
       if (!json.error && json.data) {
         setSummaryToday(json.data);
       }
+      setSyncTimes((s) => ({ ...s, summary: new Date() }));
+      setSyncStatuses((s) => ({ ...s, summary: json.error ? 'error' : 'live' }));
     } catch {
-      /* Graceful degradation */
+      setSyncStatuses((s) => ({ ...s, summary: 'error' }));
     }
   }
 
@@ -228,9 +262,7 @@ export default function DashboardPage() {
           >
             ⬇ Export CSV
           </button>
-          <span className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-white/5 px-3.5 py-1.5 text-xs font-medium text-[color:var(--text)] backdrop-blur">
-            <span className="live-dot" /> LIVE
-          </span>
+          <SyncBadge lastSync={syncTimes.main} status={syncStatuses.main} />
         </div>
       </header>
 
@@ -245,7 +277,7 @@ export default function DashboardPage() {
       {summaryToday && selectedAccountId && (
         <div className="mt-6">
           <ErrorBoundary label="Summary Today">
-            <SummaryToday {...summaryToday} />
+            <SummaryToday {...summaryToday} lastSync={syncTimes.summary} syncStatus={syncStatuses.summary} />
           </ErrorBoundary>
         </div>
       )}
@@ -258,6 +290,8 @@ export default function DashboardPage() {
             selectedAccountId={selectedAccountId}
             onSelectAccount={setSelectedAccountId}
             isLoading={loading}
+            lastSync={syncTimes.pinned}
+            syncStatus={syncStatuses.pinned}
           />
         </ErrorBoundary>
       </div>
@@ -273,6 +307,8 @@ export default function DashboardPage() {
             currentSellRate={rate?.sell_rate ?? null}
             currentMarketRate={liveMarket ?? rate?.market_usdt_rate ?? null}
             marketIsLive={liveMarket != null}
+            lastSync={syncTimes.market}
+            syncStatus={syncStatuses.market}
           />
         </ErrorBoundary>
       </div>
@@ -284,7 +320,10 @@ export default function DashboardPage() {
             <h2 className="text-sm font-semibold tracking-wide text-[color:var(--text)]">
               🏠 กำไรแยกห้อง <span className="text-[color:var(--muted)]">({rooms.length})</span>
             </h2>
-            <span className="text-xs text-[color:var(--muted)]">เรียงกำไรมากสุด</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[color:var(--muted)]">เรียงกำไรมากสุด</span>
+              <SyncBadge lastSync={syncTimes.main} status={syncStatuses.main} />
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[440px] text-sm">
@@ -320,7 +359,7 @@ export default function DashboardPage() {
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-1">
           <ErrorBoundary label="Admin Holdings">
-            <AdminHoldings admins={admins} />
+            <AdminHoldings admins={admins} lastSync={syncTimes.main} syncStatus={syncStatuses.main} />
           </ErrorBoundary>
         </div>
         <div className="lg:col-span-2">
@@ -333,6 +372,8 @@ export default function DashboardPage() {
               <TransactionsTable
                 transactions={transactions}
                 feeWarningThreshold={FEE_WARNING_THRESHOLD}
+                lastSync={syncTimes.main}
+                syncStatus={syncStatuses.main}
               />
             </ErrorBoundary>
           )}
@@ -347,6 +388,8 @@ export default function DashboardPage() {
             selectedSlipId={selectedSlipId}
             onSelectSlip={setSelectedSlipId}
             isLive={liveMarket != null}
+            lastSync={syncTimes.slips}
+            syncStatus={syncStatuses.slips}
           />
         </ErrorBoundary>
       </div>

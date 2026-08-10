@@ -1,11 +1,14 @@
 // เหรียญตกค้างต่อแอดมิน — glass + gradient ring + แถบสัดส่วน (ธีม CE Vault)
 import type { Admin } from '@/types/transactions';
+import SyncBadge, { type SyncStatus } from './SyncBadge';
 
 interface AdminHoldingsProps {
   admins: Admin[];
+  lastSync?: Date | null;
+  syncStatus?: SyncStatus;
 }
 
-export default function AdminHoldings({ admins }: AdminHoldingsProps) {
+export default function AdminHoldings({ admins, lastSync, syncStatus }: AdminHoldingsProps) {
   const nf = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2 });
   const totalHolding = admins.reduce((s, a) => s + Number(a.holding_usdt), 0);
   const max = Math.max(1, ...admins.map((a) => Number(a.holding_usdt)));
@@ -16,9 +19,12 @@ export default function AdminHoldings({ admins }: AdminHoldingsProps) {
         <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
           <span>💼</span> เหรียญตกค้างต่อแอดมิน
         </h2>
-        <span className="rounded-full border border-[color:var(--border)] bg-white/5 px-3 py-1 text-xs font-bold text-emerald-300">
-          รวม {nf.format(totalHolding)} USDT
-        </span>
+        <div className="flex flex-col items-end gap-1.5">
+          <span className="rounded-full border border-[color:var(--border)] bg-white/5 px-3 py-1 text-xs font-bold text-emerald-300">
+            รวม {nf.format(totalHolding)} USDT
+          </span>
+          <SyncBadge lastSync={lastSync} status={syncStatus} />
+        </div>
       </div>
 
       <ul className="space-y-3">
