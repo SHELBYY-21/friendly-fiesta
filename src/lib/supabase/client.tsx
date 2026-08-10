@@ -1,5 +1,12 @@
-export function createClient(...args) {
-  // eslint-disable-next-line no-console
-  console.warn('Placeholder: createClient is not implemented yet.', args);
-  return null;
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+
+const supabaseUrl =
+  process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseAnonKey =
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+  'placeholder-anon-key';
+
+export function createClient() {
+  return createSupabaseClient(supabaseUrl, supabaseAnonKey);
 }

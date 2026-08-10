@@ -18,6 +18,7 @@ import ApiMonitor, { type ApiEndpoint } from '@/components/ApiMonitor';
 import AdminConsole from '@/components/admin/AdminConsole';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import SyncBadge, { type SyncStatus } from '@/components/SyncBadge';
+import BotMonitor from '@/components/BotMonitor';
 import type { Admin, Transaction } from '@/types/transactions';
 
 const API_ENDPOINTS: ApiEndpoint[] = [
@@ -398,6 +399,13 @@ export default function DashboardPage() {
       <div className="mt-6">
         <ErrorBoundary label="API Monitor">
           <ApiMonitor endpoints={API_ENDPOINTS} autoRefreshMs={30_000} />
+        </ErrorBoundary>
+      </div>
+
+      {/* Bot Monitor — activity, messages, settings, AI insights */}
+      <div className="mt-6">
+        <ErrorBoundary label="Bot Monitor">
+          <BotMonitor />
         </ErrorBoundary>
       </div>
     </main>
