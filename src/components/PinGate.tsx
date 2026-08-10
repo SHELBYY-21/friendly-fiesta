@@ -134,9 +134,7 @@ export default function PinGate({ nextPath = '/dashboard' }: { nextPath?: string
               maxLength={6}
               aria-label={`PIN หลักที่ ${i + 1}`}
               className={`h-12 w-11 rounded-xl border bg-black/40 text-center text-xl font-bold tabular-nums text-[color:var(--text)] transition focus:outline-none disabled:opacity-50 ${
-                status === 'error' || status === 'locked'
-                  ? 'border-rose-500/60 focus:border-rose-400'
-                  : 'border-[color:var(--border)] focus:border-emerald-500/70'
+                status === 'error' || status === 'locked' ?'border-rose-500/60 focus:border-rose-400' :'border-[color:var(--border)] focus:border-emerald-500/70'
               }`}
             />
           ))}

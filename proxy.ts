@@ -24,4 +24,3 @@ export async function middleware(req: NextRequest) {
   url.search = `?next=${encodeURIComponent(req.nextUrl.pathname)}`;
   return NextResponse.redirect(url);
 }
-

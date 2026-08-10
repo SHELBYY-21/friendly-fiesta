@@ -2,7 +2,7 @@
 // Service กลางสำหรับบันทึกธุรกรรม — ใช้ร่วมกันทั้ง API route และ Telegram webhook
 // ============================================================
 import { supabaseAdmin } from './supabaseAdmin';
-import { calculateProfit, calculateDepositProfit, ProfitResult } from './profit';
+import { calculateDepositProfit, ProfitResult } from './profit';
 import { calculateFee, FeeResult } from './fees';
 import { fetchBinanceThUsdtRate } from './binance';
 import { notifyIncome, notifyOutflow, notifyEdit, notifyDelete } from './notifier';
@@ -333,7 +333,7 @@ export async function editTransaction(
       p_market_rate: marketRate,
     });
     if (error) throw new Error(`DATABASE_MIGRATION_REQUIRED: ${error.message}`);
-    const tx = { ...old, ...(data as object) };
+    let tx = { ...old, ...(data as object) };
     notifyEdit({ adminName: old.admins?.name ?? '-', note: String(old.ledger_ref) }).catch(() => undefined);
     return {
       tx,
@@ -344,7 +344,7 @@ export async function editTransaction(
   if (old.type === 'THB_DEPOSIT') {
     const rates = await getLatestRates();
     const sellRate = Number(old.sell_rate) || rates.sellRate;
-    const marketUsdtRate = rates.marketUsdtRate;
+    let marketUsdtRate = rates.marketUsdtRate;
     const newThb = patch.newThb ?? Number(old.thb_amount);
     const newUsdt = patch.newUsdt;
 

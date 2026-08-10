@@ -850,8 +850,7 @@ export function rateShow(
   source?: 'binance_th' | 'manual' | 'default',
 ): OutgoingMessage {
   const src = source === 'binance_th' ? 'LIVE · Binance TH'
-    : source === 'manual' ? 'Manual'
-    : 'Default';
+    : source === 'manual'? 'Manual' :'Default';
   const spread = sell - market;
   const spreadPct = market > 0 ? (spread / market) * 100 : 0;
   return card({
@@ -1448,3 +1447,7 @@ export function error(detail: string): OutgoingMessage {
     note: 'ตรวจข้อมูลแล้วลองใหม่ · หากยังไม่สำเร็จให้แจ้งผู้ดูแลระบบ',
   });
 }
+
+const UI: any = null;
+
+export default UI;

@@ -7,10 +7,10 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   const rate = await fetchBinanceThUsdtRate();
-  return NextResponse.json({
+  return NextResponse?.json({
     symbol: 'USDTTHB',
     source: 'binance_th',
     marketUsdtRate: rate,
-    at: new Date().toISOString(),
+    at: new Date()?.toISOString(),
   });
 }

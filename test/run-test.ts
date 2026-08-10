@@ -1,3 +1,5 @@
+import { Admin } from '@/types/transactions';
+
 const { parseSlipText, computeShouldSend } = require('../src/bot/parse');
 const { parseAmounts, parseAmountTokens } = require('../src/lib/amounts');
 const {

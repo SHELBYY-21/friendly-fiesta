@@ -32,8 +32,7 @@ function requireCircleEnv(): { apiKey: string; entitySecret: string } {
   if (!entitySecret) {
     throw new Error(
       '[circle] ENTITY_SECRET is not set. ' +
-        'Register an entity secret first: ' +
-        'https://developers.circle.com/wallets/dev-controlled/register-entity-secret',
+        'Register an entity secret first: '+ 'https://developers.circle.com/wallets/dev-controlled/register-entity-secret',
     );
   }
 

@@ -16,7 +16,10 @@
   "dependencies": {
     "@circle-fin/developer-controlled-wallets": "^10.8.0",
     "@circle-fin/smart-contract-platform": "^10.8.0",
+    "@jest/globals": "^30.4.1",
+    "@supabase/server": "^1.4.1",
     "@supabase/supabase-js": "^2.45.4",
+    "axios": "^1.19.0",
     "next": "^16.2.10",
     "pg": "^8.22.0",
     "react": "^19.2.7",

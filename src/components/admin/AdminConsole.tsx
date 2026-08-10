@@ -238,8 +238,7 @@ export default function AdminConsole() {
             <span
               className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
                 settings.botEnabled
-                  ? 'bg-emerald-500/15 text-emerald-300'
-                  : 'bg-rose-500/15 text-rose-300'
+                  ? 'bg-emerald-500/15 text-emerald-300' :'bg-rose-500/15 text-rose-300'
               }`}
             >
               {settings.botEnabled ? '🟢 บอททำงาน' : '🔴 บอทหยุด'}
@@ -262,8 +261,7 @@ export default function AdminConsole() {
             onClick={() => setTab(t.id)}
             className={`rounded-full px-3.5 py-1.5 text-xs font-medium transition ${
               tab === t.id
-                ? 'border border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
-                : 'border border-[color:var(--border)] bg-white/5 text-[color:var(--muted)] hover:bg-white/10 hover:text-[color:var(--text)]'
+                ? 'border border-emerald-500/40 bg-emerald-500/15 text-emerald-300' :'border border-[color:var(--border)] bg-white/5 text-[color:var(--muted)] hover:bg-white/10 hover:text-[color:var(--text)]'
             }`}
           >
             {t.icon} {t.label}
