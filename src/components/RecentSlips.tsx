@@ -1,5 +1,7 @@
 'use client';
 
+import SyncBadge, { type SyncStatus } from './SyncBadge';
+
 export interface RecentSlip {
   id: string;
   transactionId: string;
@@ -23,6 +25,8 @@ interface RecentSlipsProps {
   selectedSlipId?: string;
   onSelectSlip?: (id: string) => void;
   isLive?: boolean;
+  lastSync?: Date | null;
+  syncStatus?: SyncStatus;
 }
 
 function ConfidenceBadge({ confidence }: { confidence: number }) {
@@ -53,13 +57,16 @@ function StatusBadge({ status }: { status: RecentSlip['verificationStatus'] }) {
   }
 }
 
-export default function RecentSlips({ slips, selectedSlipId, onSelectSlip, isLive }: RecentSlipsProps) {
+export default function RecentSlips({ slips, selectedSlipId, onSelectSlip, isLive, lastSync, syncStatus }: RecentSlipsProps) {
   const nf = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2 });
 
   if (slips.length === 0) {
     return (
       <div className="glass accent-top reveal p-5" style={{ animationDelay: '240ms' }}>
-        <p className="text-sm text-[color:var(--muted)]">ยังไม่มีสลิปล่าสุด</p>
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-[color:var(--muted)]">ยังไม่มีสลิปล่าสุด</p>
+          <SyncBadge lastSync={lastSync} status={syncStatus} />
+        </div>
       </div>
     );
   }
@@ -71,11 +78,14 @@ export default function RecentSlips({ slips, selectedSlipId, onSelectSlip, isLiv
         <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
           <span>🧾</span> Recent Slips
         </h2>
-        {isLive && (
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[color:var(--good)]">
-            <span className="live-dot" /> Live
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {isLive && (
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[color:var(--good)]">
+              <span className="live-dot" /> Live
+            </span>
+          )}
+          <SyncBadge lastSync={lastSync} status={syncStatus} />
+        </div>
       </div>
 
       {/* Slip Grid */}

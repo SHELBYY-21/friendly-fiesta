@@ -2,6 +2,7 @@
 
 // การ์ด KPI — glass + gradient accent + ตัวเลขนับไต่ (ธีม CE Vault)
 import CountUp from './CountUp';
+import SyncBadge, { type SyncStatus } from './SyncBadge';
 
 export interface StatsOverviewProps {
   totalNetProfitThb: number;
@@ -12,6 +13,8 @@ export interface StatsOverviewProps {
   currentSellRate?: number | null;
   currentMarketRate?: number | null;
   marketIsLive?: boolean;
+  lastSync?: Date | null;
+  syncStatus?: SyncStatus;
 }
 
 interface TileProps {
@@ -49,60 +52,65 @@ export default function StatsOverview(p: StatsOverviewProps) {
   const feeHot = p.averageFeePercent > p.feeWarningThreshold;
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <Tile
-        label="กำไรสุทธิรวม"
-        glow="from-emerald-400 to-teal-500"
-        icon="📈"
-        delay={0}
-        hint={`จาก ${p.txCount} รายการ`}
-      >
-        <span className={p.totalNetProfitThb >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
-          <CountUp value={p.totalNetProfitThb} decimals={2} prefix={p.totalNetProfitThb >= 0 ? '+' : ''} suffix=" ฿" />
-        </span>
-      </Tile>
-
-      <Tile
-        label="Average Fee"
-        glow={feeHot ? 'from-rose-400 to-red-500' : 'from-emerald-400 to-green-500'}
-        icon={feeHot ? '⚠️' : '🧾'}
-        delay={80}
-        hint={
-          <>
-            ค่าธรรมเนียมรวม <CountUp value={p.totalFeeUsdt} decimals={2} suffix=" USDT" />
-          </>
-        }
-      >
-        <span className={feeHot ? 'text-rose-400' : 'text-emerald-400'}>
-          <CountUp value={p.averageFeePercent} decimals={2} suffix="%" />
-        </span>
-      </Tile>
-
-      <Tile
-        label={
-          <span className="inline-flex items-center gap-1.5">
-            {p.marketIsLive && <span className="live-dot inline-block" />}
-            เรตตลาด {p.marketIsLive ? '(Binance TH)' : ''}
+    <div className="space-y-2">
+      <div className="flex items-center justify-end">
+        <SyncBadge lastSync={p.lastSync} status={p.syncStatus} />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Tile
+          label="กำไรสุทธิรวม"
+          glow="from-emerald-400 to-teal-500"
+          icon="📈"
+          delay={0}
+          hint={`จาก ${p.txCount} รายการ`}
+        >
+          <span className={p.totalNetProfitThb >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+            <CountUp value={p.totalNetProfitThb} decimals={2} prefix={p.totalNetProfitThb >= 0 ? '+' : ''} suffix=" ฿" />
           </span>
-        }
-        glow="from-emerald-400 to-cyan-500"
-        icon="🌐"
-        delay={160}
-        shimmer={!!p.marketIsLive}
-        hint={
-          p.currentSellRate
-            ? `เรตขายของเรา ${p.currentSellRate.toLocaleString('th-TH')} ฿/USDT`
-            : 'ตั้งเรตขายด้วย /rate ในบอท'
-        }
-      >
-        <span className="gradient-text">
-          {p.currentMarketRate ? <CountUp value={p.currentMarketRate} decimals={2} suffix=" ฿" /> : '—'}
-        </span>
-      </Tile>
+        </Tile>
 
-      <Tile label="ธุรกรรมทั้งหมด" glow="from-cyan-400 to-blue-500" icon="⚡" delay={240} hint="100 รายการล่าสุด">
-        <CountUp value={p.txCount} />
-      </Tile>
+        <Tile
+          label="Average Fee"
+          glow={feeHot ? 'from-rose-400 to-red-500' : 'from-emerald-400 to-green-500'}
+          icon={feeHot ? '⚠️' : '🧾'}
+          delay={80}
+          hint={
+            <>
+              ค่าธรรมเนียมรวม <CountUp value={p.totalFeeUsdt} decimals={2} suffix=" USDT" />
+            </>
+          }
+        >
+          <span className={feeHot ? 'text-rose-400' : 'text-emerald-400'}>
+            <CountUp value={p.averageFeePercent} decimals={2} suffix="%" />
+          </span>
+        </Tile>
+
+        <Tile
+          label={
+            <span className="inline-flex items-center gap-1.5">
+              {p.marketIsLive && <span className="live-dot inline-block" />}
+              เรตตลาด {p.marketIsLive ? '(Binance TH)' : ''}
+            </span>
+          }
+          glow="from-emerald-400 to-cyan-500"
+          icon="🌐"
+          delay={160}
+          shimmer={!!p.marketIsLive}
+          hint={
+            p.currentSellRate
+              ? `เรตขายของเรา ${p.currentSellRate.toLocaleString('th-TH')} ฿/USDT`
+              : 'ตั้งเรตขายด้วย /rate ในบอท'
+          }
+        >
+          <span className="gradient-text">
+            {p.currentMarketRate ? <CountUp value={p.currentMarketRate} decimals={2} suffix=" ฿" /> : '—'}
+          </span>
+        </Tile>
+
+        <Tile label="ธุรกรรมทั้งหมด" glow="from-cyan-400 to-blue-500" icon="⚡" delay={240} hint="100 รายการล่าสุด">
+          <CountUp value={p.txCount} />
+        </Tile>
+      </div>
     </div>
   );
 }
