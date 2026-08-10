@@ -28,7 +28,8 @@ alter table public.bot_sessions
   add column if not exists admin_name text,
   add column if not exists slip_fingerprint text,
   add column if not exists live_message_id bigint,
-  add column if not exists live_tx_id uuid;
+  add column if not exists live_tx_id uuid,
+  add column if not exists vision_message_id bigint;
 
 create table if not exists public.pinned_bank_accounts (
   chat_id bigint not null,

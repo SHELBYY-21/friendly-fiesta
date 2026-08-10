@@ -30,6 +30,7 @@ export interface BotSession {
   admin_name?: string | null; // cache admin name
   live_message_id?: number | null;
   live_tx_id?: string | null;
+  vision_message_id?: number | null; // message_id ของ Vision Verification Card สำหรับ inline editing
 }
 
 export async function getSession(chatId: number, userId: number): Promise<BotSession | null> {
