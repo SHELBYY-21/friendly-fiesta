@@ -1296,6 +1296,147 @@ export function exportSummary(filename: string, rows: number, roomName?: string 
 }
 
 // ═══════════════ Error ═══════════════
+// ═══════════════ Vision Slip Verification ═══════════════
+export interface VisionSlipVerificationData {
+  thb: number | null;
+  bank: string | null;
+  last4: string | null;
+  receiverName: string | null;
+  confidence: number | null;
+  accountMatched: boolean;
+  accountClear: boolean;
+  matchedBank?: string;
+  matchedLast4?: string;
+  roomRate?: number;
+  suggestedUsdt?: number;
+  todayCountForAccount?: number;
+  todayTotalThbForAccount?: number;
+}
+
+export function visionSlipVerification(data: VisionSlipVerificationData): OutgoingMessage {
+  const groups: Field[][] = [];
+
+  // Extracted slip data
+  const slipGroup: Field[] = [];
+  if (data.thb != null) {
+    slipGroup.push({ icon: '💵', labelTh: 'ยอดเงิน', labelEn: 'Amount', value: amount(data.thb, 'THB') });
+  } else {
+    slipGroup.push({ icon: '⚠️', labelTh: 'ยอดเงิน', labelEn: 'Amount', value: '<b><code>ไม่สามารถอ่านได้</code></b>' });
+  }
+
+  if (data.bank != null && data.last4 != null) {
+    slipGroup.push(F.bank(data.bank));
+    slipGroup.push(F.last4(data.last4));
+  } else if (!data.accountClear) {
+    slipGroup.push({ icon: '⚠️', labelTh: 'ธนาคาร', labelEn: 'Bank', value: '<b><code>ไม่สามารถอ่านได้</code></b>' });
+  }
+
+  if (data.receiverName) {
+    slipGroup.push(F.receiver(data.receiverName));
+  }
+
+  if (data.confidence != null) {
+    slipGroup.push(F.confidence(data.confidence));
+  }
+
+  if (slipGroup.length > 0) {
+    groups.push(slipGroup);
+  }
+
+  // Account matching result
+  const matchGroup: Field[] = [];
+  if (!data.accountClear) {
+    matchGroup.push({
+      icon: '❓',
+      labelTh: 'สถานะ',
+      labelEn: 'Status',
+      value: '<b>ไม่สามารถระบุบัญชี</b>'
+    });
+  } else if (data.accountMatched) {
+    matchGroup.push({
+      icon: '🟢',
+      labelTh: 'ตรงกับปักหมุด',
+      labelEn: 'Account Matched',
+      value: `<b>${escapeHtml(data.matchedBank || '')} ••••${escapeHtml(data.matchedLast4 || '')}</b>`
+    });
+    if (data.todayCountForAccount != null) {
+      matchGroup.push({
+        icon: '📌',
+        labelTh: 'บัญชีนี้รับแล้ว',
+        labelEn: 'Today Count',
+        value: `<b>${data.todayCountForAccount}</b> รายการ · <b><code>${money(data.todayTotalThbForAccount || 0)} THB</code></b>`
+      });
+    }
+  } else {
+    matchGroup.push({
+      icon: '❌',
+      labelTh: 'สถานะ',
+      labelEn: 'Status',
+      value: '<b>ไม่ตรงกับปักหมุด</b>'
+    });
+  }
+
+  if (matchGroup.length > 0) {
+    groups.push(matchGroup);
+  }
+
+  // Suggested calculation
+  if (data.accountMatched && data.thb != null && data.roomRate != null && data.suggestedUsdt != null) {
+    const calcGroup: Field[] = [
+      F.amountIn(data.thb),
+      {
+        icon: '📊',
+        labelTh: 'เรทห้อง',
+        labelEn: 'Room Rate',
+        value: mono(`${money(data.roomRate)} THB / USDT`)
+      },
+      {
+        icon: '🎯',
+        labelTh: 'ต้องส่ง',
+        labelEn: 'Should Send',
+        value: amount(data.suggestedUsdt, 'USDT')
+      },
+    ];
+    groups.push(calcGroup);
+  }
+
+  const keyboard = data.accountMatched && data.thb != null && data.accountClear
+    ? { inline_keyboard: [[
+        { text: '✅ ยืนยัน', callback_data: 'slip:confirm' },
+        { text: '✏️ แก้ไข', callback_data: 'slip:edit' },
+        { text: '❌ ยกเลิก', callback_data: 'slip:cancel' }
+      ]] }
+    : undefined;
+
+  return card({
+    icon: '🛡',
+    titleTh: 'ตรวจสอบสลิป',
+    titleEn: 'Vision Verification',
+    groups: groups.length > 0 ? groups : [[{ labelTh: 'สถานะ', labelEn: 'Status', value: '<b><code>กำลังประมวลผล</code></b>' }]],
+    keyboard,
+  });
+}
+
+export function summaryBannerToday(data: {
+  bank: string;
+  last4: string;
+  receiverCount: number;
+  totalThb: number;
+  totalUsdt: number;
+}): OutgoingMessage {
+  return card({
+    icon: '📊',
+    titleTh: 'สรุปวันนี้',
+    titleEn: 'Today Summary',
+    groups: [[
+      { icon: '🏦', labelTh: 'บัญชีรับ', labelEn: 'Account', value: mono(`${escapeHtml(data.bank)} ••••${escapeHtml(data.last4)}`) },
+      { icon: '📌', labelTh: 'จำนวน', labelEn: 'Count', value: `<b>${data.receiverCount}</b> รายการ` },
+      { icon: '💵', labelTh: 'รวมเงิน', labelEn: 'Total THB', value: amount(data.totalThb, 'THB') },
+      { icon: '🚀', labelTh: 'รวม USDT', labelEn: 'Total USDT', value: amount(data.totalUsdt, 'USDT') },
+    ]],
+  });
+}
+
 export function error(detail: string): OutgoingMessage {
   return card({
     icon: '❌',

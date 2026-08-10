@@ -179,6 +179,28 @@ export async function getTodayLedger(
   };
 }
 
+/** ดึงยอดสะสมของบัญชีธนาคารในวันนี้ */
+export async function getTodayBankAccountTotals(
+  bankAccountId: string,
+): Promise<{ count: number; totalThb: number; totalUsdt: number }> {
+  const midnight = new Date();
+  midnight.setHours(0, 0, 0, 0);
+  const { data, error } = await supabaseAdmin
+    .from('transactions')
+    .select('type, thb_amount, usdt_amount')
+    .eq('bank_account_id', bankAccountId)
+    .eq('type', 'THB_DEPOSIT')
+    .gte('created_at', midnight.toISOString());
+  if (error) throw error;
+
+  const rows = (data ?? []) as any[];
+  return {
+    count: rows.length,
+    totalThb: rows.reduce((s, r) => s + Number(r.thb_amount || 0), 0),
+    totalUsdt: rows.reduce((s, r) => s + Number(r.usdt_amount || 0), 0),
+  };
+}
+
 /** ตั้งเรตใหม่ (บันทึกลงตาราง rates พร้อมผู้ตั้ง) */
 export async function insertRate(
   adminId: string,
