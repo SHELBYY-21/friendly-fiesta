@@ -38,6 +38,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { sendDocument } from '@/lib/telegram';
 import { notifyDailySummary, notifyReady } from '@/lib/notifier';
 import { analyzeSlip, analyzeUsdtScreenshot } from '@/lib/ocr';
+import { getBotGate } from '@/lib/systemSettings';
 import { parseAmounts } from '@/lib/amounts';
 import { getReceiver, findReceiversByLast4, upsertReceiverOnDeposit } from '@/lib/receivers';
 import { getSticker, validateStickers, type StickerState } from '@/config/stickers';
@@ -140,6 +141,20 @@ export async function POST(req: NextRequest) {
     if (!claimed) return NextResponse.json({ ok: true, duplicate: true });
     claimedUpdateId = updateId;
     log(`📨 incoming update #${updateId}`);
+
+    // Kill-switch จาก dashboard — ตอบข้อความแจ้งปิดปรับปรุงแล้วจบ
+    const gate = await getBotGate();
+    if (!gate.botEnabled) {
+      log(`⏸️ bot disabled — skipping update #${updateId}`);
+      if (failureChatId != null) {
+        try {
+          await sendMessage(failureChatId, UI.error(gate.maintenanceMessage));
+        } catch {
+          // Telegram may itself be unavailable.
+        }
+      }
+      return NextResponse.json({ ok: true, botDisabled: true });
+    }
 
     // Timeout protection: 25s (function budget ~30s, buffer 5s)
     await Promise.race([
