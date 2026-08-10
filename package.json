@@ -16,6 +16,7 @@
   "dependencies": {
     "@circle-fin/developer-controlled-wallets": "^10.8.0",
     "@circle-fin/smart-contract-platform": "^10.8.0",
+    "@dhiwise/component-tagger": "latest",
     "@jest/globals": "^30.4.1",
     "@supabase/server": "^1.4.1",
     "@supabase/supabase-js": "^2.45.4",
