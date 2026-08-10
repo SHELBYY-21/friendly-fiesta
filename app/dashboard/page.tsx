@@ -16,6 +16,7 @@ import PinnedAccounts, { type PinnedAccount } from '@/components/PinnedAccounts'
 import RecentSlips, { type RecentSlip } from '@/components/RecentSlips';
 import ApiMonitor, { type ApiEndpoint } from '@/components/ApiMonitor';
 import AdminConsole from '@/components/admin/AdminConsole';
+import ErrorBoundary from '@/components/ErrorBoundary';
 import type { Admin, Transaction } from '@/types/transactions';
 
 const API_ENDPOINTS: ApiEndpoint[] = [
@@ -235,37 +236,45 @@ export default function DashboardPage() {
 
       {/* Admin Console — no-code control panel */}
       <div className="mt-6">
-        <AdminConsole />
+        <ErrorBoundary label="Admin Console">
+          <AdminConsole />
+        </ErrorBoundary>
       </div>
 
       {/* Summary Today — conditional on account selection */}
       {summaryToday && selectedAccountId && (
         <div className="mt-6">
-          <SummaryToday {...summaryToday} />
+          <ErrorBoundary label="Summary Today">
+            <SummaryToday {...summaryToday} />
+          </ErrorBoundary>
         </div>
       )}
 
       {/* Pinned Accounts selector */}
       <div className="mt-6">
-        <PinnedAccounts
-          accounts={pinnedAccounts}
-          selectedAccountId={selectedAccountId}
-          onSelectAccount={setSelectedAccountId}
-          isLoading={loading}
-        />
+        <ErrorBoundary label="Pinned Accounts">
+          <PinnedAccounts
+            accounts={pinnedAccounts}
+            selectedAccountId={selectedAccountId}
+            onSelectAccount={setSelectedAccountId}
+            isLoading={loading}
+          />
+        </ErrorBoundary>
       </div>
 
       <div className="mt-6">
-        <StatsOverview
-          totalNetProfitThb={stats.totalNetProfitThb}
-          totalFeeUsdt={stats.totalFeeUsdt}
-          averageFeePercent={stats.averageFeePercent}
-          txCount={stats.txCount}
-          feeWarningThreshold={FEE_WARNING_THRESHOLD}
-          currentSellRate={rate?.sell_rate ?? null}
-          currentMarketRate={liveMarket ?? rate?.market_usdt_rate ?? null}
-          marketIsLive={liveMarket != null}
-        />
+        <ErrorBoundary label="Stats Overview">
+          <StatsOverview
+            totalNetProfitThb={stats.totalNetProfitThb}
+            totalFeeUsdt={stats.totalFeeUsdt}
+            averageFeePercent={stats.averageFeePercent}
+            txCount={stats.txCount}
+            feeWarningThreshold={FEE_WARNING_THRESHOLD}
+            currentSellRate={rate?.sell_rate ?? null}
+            currentMarketRate={liveMarket ?? rate?.market_usdt_rate ?? null}
+            marketIsLive={liveMarket != null}
+          />
+        </ErrorBoundary>
       </div>
 
       {/* กำไรแยกห้อง (Top Rooms) */}
@@ -310,7 +319,9 @@ export default function DashboardPage() {
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-1">
-          <AdminHoldings admins={admins} />
+          <ErrorBoundary label="Admin Holdings">
+            <AdminHoldings admins={admins} />
+          </ErrorBoundary>
         </div>
         <div className="lg:col-span-2">
           {loading ? (
@@ -318,27 +329,33 @@ export default function DashboardPage() {
               <span className="inline-block animate-pulse">กำลังโหลด…</span>
             </div>
           ) : (
-            <TransactionsTable
-              transactions={transactions}
-              feeWarningThreshold={FEE_WARNING_THRESHOLD}
-            />
+            <ErrorBoundary label="Transactions Table">
+              <TransactionsTable
+                transactions={transactions}
+                feeWarningThreshold={FEE_WARNING_THRESHOLD}
+              />
+            </ErrorBoundary>
           )}
         </div>
       </div>
 
       {/* Recent Slips */}
       <div className="mt-6">
-        <RecentSlips
-          slips={recentSlips}
-          selectedSlipId={selectedSlipId}
-          onSelectSlip={setSelectedSlipId}
-          isLive={liveMarket != null}
-        />
+        <ErrorBoundary label="Recent Slips">
+          <RecentSlips
+            slips={recentSlips}
+            selectedSlipId={selectedSlipId}
+            onSelectSlip={setSelectedSlipId}
+            isLive={liveMarket != null}
+          />
+        </ErrorBoundary>
       </div>
 
       {/* API Monitor & Control Panel */}
       <div className="mt-6">
-        <ApiMonitor endpoints={API_ENDPOINTS} autoRefreshMs={30_000} />
+        <ErrorBoundary label="API Monitor">
+          <ApiMonitor endpoints={API_ENDPOINTS} autoRefreshMs={30_000} />
+        </ErrorBoundary>
       </div>
     </main>
   );
