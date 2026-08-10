@@ -11,6 +11,9 @@ import { supabase } from '@/lib/supabaseClient';
 import StatsOverview from '@/components/StatsOverview';
 import AdminHoldings from '@/components/AdminHoldings';
 import TransactionsTable from '@/components/TransactionsTable';
+import SummaryToday, { type SummaryTodayProps } from '@/components/SummaryToday';
+import PinnedAccounts, { type PinnedAccount } from '@/components/PinnedAccounts';
+import RecentSlips, { type RecentSlip } from '@/components/RecentSlips';
 import type { Admin, Transaction } from '@/types/transactions';
 
 const FEE_WARNING_THRESHOLD = 3;
@@ -26,6 +29,13 @@ export default function DashboardPage() {
   const [rate, setRate] = useState<RateRow | null>(null);
   const [liveMarket, setLiveMarket] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // CE EMPIRE additions
+  const [selectedAccountId, setSelectedAccountId] = useState<string>();
+  const [selectedSlipId, setSelectedSlipId] = useState<string>();
+  const [summaryToday, setSummaryToday] = useState<SummaryTodayProps | null>(null);
+  const [pinnedAccounts, setPinnedAccounts] = useState<PinnedAccount[]>([]);
+  const [recentSlips, setRecentSlips] = useState<RecentSlip[]>([]);
 
   async function load() {
     const [tx, ad, rt] = await Promise.all([
@@ -58,14 +68,65 @@ export default function DashboardPage() {
     }
   }
 
+  async function loadPinnedAccounts() {
+    try {
+      // Get first chat_id from transactions
+      const tx = transactions.find((t) => (t as any).chat_id);
+      const chatId = tx ? (tx as any).chat_id : null;
+      if (!chatId) return;
+
+      const res = await fetch(`/api/dashboard/pinned-accounts?chatId=${chatId}`, { cache: 'no-store' });
+      const json = await res.json();
+      if (!json.error && json.data) {
+        setPinnedAccounts(json.data);
+      }
+    } catch {
+      /* Graceful degradation */
+    }
+  }
+
+  async function loadRecentSlips() {
+    try {
+      const res = await fetch('/api/dashboard/recent-slips?limit=10', { cache: 'no-store' });
+      const json = await res.json();
+      if (!json.error && json.data) {
+        setRecentSlips(json.data);
+      }
+    } catch {
+      /* Graceful degradation */
+    }
+  }
+
+  async function loadSummaryToday() {
+    if (!selectedAccountId) {
+      setSummaryToday(null);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/dashboard/summary-today?accountId=${selectedAccountId}`, { cache: 'no-store' });
+      const json = await res.json();
+      if (!json.error && json.data) {
+        setSummaryToday(json.data);
+      }
+    } catch {
+      /* Graceful degradation */
+    }
+  }
+
   useEffect(() => {
     load();
     loadMarketRate();
+    loadPinnedAccounts();
+    loadRecentSlips();
     const poll = setInterval(loadMarketRate, 30_000); // เรตตลาดสดทุก 30 วิ
 
     const channel = supabase
       .channel('ce-vault-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
+        load();
+        loadPinnedAccounts();
+        loadRecentSlips();
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'admins' }, () => load())
       .subscribe();
     return () => {
@@ -73,6 +134,11 @@ export default function DashboardPage() {
       supabase.removeChannel(channel);
     };
   }, []);
+
+  // Load summary when account selected
+  useEffect(() => {
+    loadSummaryToday();
+  }, [selectedAccountId]);
 
   const stats = useMemo(() => {
     const deposits = transactions.filter((t) => t.type === 'THB_DEPOSIT');
@@ -138,7 +204,7 @@ export default function DashboardPage() {
             <span className="gradient-text">CE Vault</span>
           </h1>
           <p className="mt-1 text-sm text-[color:var(--muted)]">
-            Secure USDT Ledger · อัปเดตแบบเรียลไทม์
+            Premium AI Fintech Command Center · อัปเดตแบบเรียลไทม์
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -153,6 +219,23 @@ export default function DashboardPage() {
           </span>
         </div>
       </header>
+
+      {/* Summary Today — conditional on account selection */}
+      {summaryToday && selectedAccountId && (
+        <div className="mt-6">
+          <SummaryToday {...summaryToday} />
+        </div>
+      )}
+
+      {/* Pinned Accounts selector */}
+      <div className="mt-6">
+        <PinnedAccounts
+          accounts={pinnedAccounts}
+          selectedAccountId={selectedAccountId}
+          onSelectAccount={setSelectedAccountId}
+          isLoading={loading}
+        />
+      </div>
 
       <div className="mt-6">
         <StatsOverview
@@ -169,7 +252,7 @@ export default function DashboardPage() {
 
       {/* กำไรแยกห้อง (Top Rooms) */}
       {rooms.length > 0 && (
-        <div className="glass reveal mt-6 p-5">
+        <div className="glass reveal mt-6 p-5" style={{ animationDelay: '160ms' }}>
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold tracking-wide text-[color:var(--text)]">
               🏠 กำไรแยกห้อง <span className="text-[color:var(--muted)]">({rooms.length})</span>
@@ -223,6 +306,16 @@ export default function DashboardPage() {
             />
           )}
         </div>
+      </div>
+
+      {/* Recent Slips */}
+      <div className="mt-6">
+        <RecentSlips
+          slips={recentSlips}
+          selectedSlipId={selectedSlipId}
+          onSelectSlip={setSelectedSlipId}
+          isLive={liveMarket != null}
+        />
       </div>
     </main>
   );
