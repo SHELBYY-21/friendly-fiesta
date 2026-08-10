@@ -61,7 +61,7 @@ interface BotSettings {
   updatedAt: string | null;
 }
 
-type Tab = 'activity' | 'messages' | 'settings' | 'ai';
+type Tab = 'activity' | 'messages' | 'settings' | 'ai' | 'metrics';
 
 const LEVEL_META = {
   info:    { dot: 'bg-cyan-400',    badge: 'text-cyan-300 bg-cyan-500/10 border-cyan-500/30' },
@@ -751,6 +751,292 @@ function SettingsPanel() {
   );
 }
 
+// ─── Metrics Panel ────────────────────────────────────────────
+
+interface BotMetrics {
+  errorRate: number;
+  avgResponseMs: number;
+  rateLimitPct: number;
+  uptimeSeconds: number;
+  totalRequests: number;
+  totalErrors: number;
+  updatedAt: string | null;
+}
+
+function formatUptime(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return `${h}h ${m}m`;
+}
+
+function MetricGauge({ value, max, color, label }: { value: number; max: number; color: string; label: string }) {
+  const pct = Math.min(100, Math.max(0, (value / max) * 100));
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-medium uppercase tracking-wide text-[color:var(--muted)]">{label}</span>
+        <span className={`text-xs font-mono font-semibold ${color}`}>{value.toFixed(1)}%</span>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/5">
+        <div
+          className={`h-full rounded-full transition-all duration-700 ${
+            pct > 80 ? 'bg-rose-400' : pct > 60 ? 'bg-amber-400' : 'bg-emerald-400'
+          }`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function MetricsPanel({ errorThresholds, rateLimits }: { errorThresholds: ErrorThresholds | null; rateLimits: RateLimits | null }) {
+  const [metrics, setMetrics] = useState<BotMetrics | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [realtimeConnected, setRealtimeConnected] = useState(false);
+  const [lastFlash, setLastFlash] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/bot-metrics', { cache: 'no-store' });
+      const json = await res.json();
+      if (json.data) {
+        const d = json.data;
+        setMetrics({
+          errorRate: Number(d.error_rate ?? 0),
+          avgResponseMs: Number(d.avg_response_ms ?? 0),
+          rateLimitPct: Number(d.rate_limit_pct ?? 0),
+          uptimeSeconds: Number(d.uptime_seconds ?? 0),
+          totalRequests: Number(d.total_requests ?? 0),
+          totalErrors: Number(d.total_errors ?? 0),
+          updatedAt: d.updated_at ?? null,
+        });
+      }
+    } catch { /* ignore */ }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Supabase Realtime subscription
+  useEffect(() => {
+    const channel = supabase
+      .channel('bot-metrics-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'bot_metrics' },
+        (payload) => {
+          const row = payload.new as any;
+          if (!row) return;
+          setMetrics({
+            errorRate: Number(row.error_rate ?? 0),
+            avgResponseMs: Number(row.avg_response_ms ?? 0),
+            rateLimitPct: Number(row.rate_limit_pct ?? 0),
+            uptimeSeconds: Number(row.uptime_seconds ?? 0),
+            totalRequests: Number(row.total_requests ?? 0),
+            totalErrors: Number(row.total_errors ?? 0),
+            updatedAt: row.updated_at ?? null,
+          });
+          setLastFlash(true);
+          setTimeout(() => setLastFlash(false), 1500);
+        }
+      )
+      .subscribe((status) => {
+        setRealtimeConnected(status === 'SUBSCRIBED');
+      });
+
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
+  const maxErrorsPerHour = errorThresholds?.maxErrorsPerHour ?? 20;
+  const maxReqPerMin = rateLimits?.maxRequestsPerMinute ?? 30;
+
+  // Derived threshold comparisons
+  const errorRateThreshold = errorThresholds ? (maxErrorsPerHour / Math.max(1, (metrics?.totalRequests ?? 1))) * 100 : 5;
+  const errorRateExceeded = (metrics?.errorRate ?? 0) > errorRateThreshold;
+  const responseTimeExceeded = (metrics?.avgResponseMs ?? 0) > (errorThresholds?.timeoutMs ?? 10000) * 0.7;
+  const rateLimitWarning = (metrics?.rateLimitPct ?? 0) > 80;
+
+  if (loading) return (
+    <div className="py-8 text-center text-sm text-[color:var(--muted)] animate-pulse">กำลังโหลด Metrics…</div>
+  );
+
+  return (
+    <div className="space-y-4">
+
+      {/* Realtime badge */}
+      <div className={`flex items-center justify-between rounded-xl border px-3 py-2 transition-colors duration-500 ${
+        lastFlash ? 'border-cyan-500/60 bg-cyan-500/10' : 'border-[color:var(--border)] bg-white/[0.02]'
+      }`}>
+        <div className="flex items-center gap-2">
+          <span className={`h-2 w-2 rounded-full transition-colors ${realtimeConnected ? 'bg-emerald-400 animate-pulse' : 'bg-gray-500'}`} />
+          <span className="text-xs text-[color:var(--muted)]">
+            {realtimeConnected ? 'Realtime sync เชื่อมต่อแล้ว' : 'กำลังเชื่อมต่อ…'}
+          </span>
+          {lastFlash && (
+            <span className="rounded-full bg-cyan-500/20 px-2 py-0.5 text-[10px] font-medium text-cyan-300 animate-pulse">
+              ⚡ อัปเดตสด
+            </span>
+          )}
+        </div>
+        {metrics?.updatedAt && (
+          <span className="text-[10px] tabular-nums text-[color:var(--muted)]">
+            {new Date(metrics.updatedAt).toLocaleTimeString('th-TH')}
+          </span>
+        )}
+      </div>
+
+      {/* KPI cards row */}
+      <div className="grid grid-cols-2 gap-3">
+
+        {/* Error Rate */}
+        <div className={`rounded-xl border p-3 ${errorRateExceeded ? 'border-rose-500/40 bg-rose-500/5' : 'border-[color:var(--border)] bg-white/[0.02]'}`}>
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-wide text-[color:var(--muted)]">Error Rate</p>
+              <p className={`mt-1 text-2xl font-bold tabular-nums ${errorRateExceeded ? 'text-rose-300' : 'text-emerald-300'}`}>
+                {(metrics?.errorRate ?? 0).toFixed(1)}%
+              </p>
+            </div>
+            <span className="text-xl">{errorRateExceeded ? '🔴' : '🟢'}</span>
+          </div>
+          <div className="mt-2 space-y-1">
+            <MetricGauge value={metrics?.errorRate ?? 0} max={20} color={errorRateExceeded ? 'text-rose-300' : 'text-emerald-300'} label="" />
+            <p className="text-[10px] text-[color:var(--muted)]">
+              Threshold: {errorRateThreshold.toFixed(1)}% · {metrics?.totalErrors ?? 0} errors / {metrics?.totalRequests ?? 0} req
+            </p>
+          </div>
+          {errorRateExceeded && (
+            <p className="mt-1.5 rounded-lg bg-rose-500/10 px-2 py-1 text-[10px] font-medium text-rose-300">
+              ⚠️ เกิน threshold ({maxErrorsPerHour} errors/hr)
+            </p>
+          )}
+        </div>
+
+        {/* Avg Response Time */}
+        <div className={`rounded-xl border p-3 ${responseTimeExceeded ? 'border-amber-500/40 bg-amber-500/5' : 'border-[color:var(--border)] bg-white/[0.02]'}`}>
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-wide text-[color:var(--muted)]">Avg Response</p>
+              <p className={`mt-1 text-2xl font-bold tabular-nums ${responseTimeExceeded ? 'text-amber-300' : 'text-cyan-300'}`}>
+                {(metrics?.avgResponseMs ?? 0).toFixed(0)}
+                <span className="text-sm font-normal ml-0.5">ms</span>
+              </p>
+            </div>
+            <span className="text-xl">{responseTimeExceeded ? '🟡' : '🔵'}</span>
+          </div>
+          <div className="mt-2">
+            <MetricGauge
+              value={metrics?.avgResponseMs ?? 0}
+              max={errorThresholds?.timeoutMs ?? 10000}
+              color={responseTimeExceeded ? 'text-amber-300' : 'text-cyan-300'}
+              label=""
+            />
+            <p className="mt-1 text-[10px] text-[color:var(--muted)]">
+              Timeout: {(errorThresholds?.timeoutMs ?? 10000)}ms
+            </p>
+          </div>
+          {responseTimeExceeded && (
+            <p className="mt-1.5 rounded-lg bg-amber-500/10 px-2 py-1 text-[10px] font-medium text-amber-300">
+              ⚠️ ใกล้ถึง timeout limit
+            </p>
+          )}
+        </div>
+
+        {/* Rate Limit Usage */}
+        <div className={`rounded-xl border p-3 ${rateLimitWarning ? 'border-orange-500/40 bg-orange-500/5' : 'border-[color:var(--border)] bg-white/[0.02]'}`}>
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-wide text-[color:var(--muted)]">Rate Limit</p>
+              <p className={`mt-1 text-2xl font-bold tabular-nums ${rateLimitWarning ? 'text-orange-300' : 'text-violet-300'}`}>
+                {(metrics?.rateLimitPct ?? 0).toFixed(1)}%
+              </p>
+            </div>
+            <span className="text-xl">{rateLimitWarning ? '🟠' : '🟣'}</span>
+          </div>
+          <div className="mt-2">
+            <MetricGauge
+              value={metrics?.rateLimitPct ?? 0}
+              max={100}
+              color={rateLimitWarning ? 'text-orange-300' : 'text-violet-300'}
+              label=""
+            />
+            <p className="mt-1 text-[10px] text-[color:var(--muted)]">
+              Limit: {maxReqPerMin} req/min
+            </p>
+          </div>
+          {rateLimitWarning && (
+            <p className="mt-1.5 rounded-lg bg-orange-500/10 px-2 py-1 text-[10px] font-medium text-orange-300">
+              ⚠️ Rate limit ใกล้เต็ม
+            </p>
+          )}
+        </div>
+
+        {/* Bot Uptime */}
+        <div className="rounded-xl border border-[color:var(--border)] bg-white/[0.02] p-3">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-wide text-[color:var(--muted)]">Bot Uptime</p>
+              <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-300">
+                {formatUptime(metrics?.uptimeSeconds ?? 0)}
+              </p>
+            </div>
+            <span className="text-xl">⏱️</span>
+          </div>
+          <div className="mt-2 space-y-1">
+            <div className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-[10px] text-emerald-300">บอทกำลังทำงาน</span>
+            </div>
+            <p className="text-[10px] text-[color:var(--muted)]">
+              Total: {(metrics?.totalRequests ?? 0).toLocaleString()} requests
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Threshold summary */}
+      <div className="rounded-xl border border-[color:var(--border)] bg-white/[0.02] p-3">
+        <p className="mb-2 text-xs font-semibold text-[color:var(--text)]">📊 Threshold Summary</p>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-[color:var(--muted)]">Error Rate vs Threshold</span>
+            <span className={errorRateExceeded ? 'font-semibold text-rose-300' : 'text-emerald-300'}>
+              {(metrics?.errorRate ?? 0).toFixed(1)}% / {errorRateThreshold.toFixed(1)}%
+              {errorRateExceeded ? ' ❌' : ' ✓'}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-[color:var(--muted)]">Response Time vs Timeout</span>
+            <span className={responseTimeExceeded ? 'font-semibold text-amber-300' : 'text-emerald-300'}>
+              {(metrics?.avgResponseMs ?? 0).toFixed(0)}ms / {errorThresholds?.timeoutMs ?? 10000}ms
+              {responseTimeExceeded ? ' ⚠️' : ' ✓'}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-[color:var(--muted)]">Rate Limit Usage</span>
+            <span className={rateLimitWarning ? 'font-semibold text-orange-300' : 'text-emerald-300'}>
+              {(metrics?.rateLimitPct ?? 0).toFixed(1)}% of {maxReqPerMin} req/min
+              {rateLimitWarning ? ' ⚠️' : ' ✓'}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-[color:var(--muted)]">Max Errors / Hour</span>
+            <span className="text-[color:var(--text)]">
+              {metrics?.totalErrors ?? 0} / {maxErrorsPerHour}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <p className="text-right text-[10px] text-[color:var(--muted)]">
+        อัปเดตสดผ่าน Supabase Realtime · แก้ไข threshold ได้ที่แท็บ Settings
+      </p>
+    </div>
+  );
+}
+
 function AiInsightsPanel() {
   const [insights, setInsights] = useState<{ title: string; body: string; type: 'tip' | 'alert' | 'info' }[]>([]);
   const [loading, setLoading] = useState(false);
@@ -898,6 +1184,10 @@ export default function BotMonitor() {
   const [tab, setTab] = useState<Tab>('activity');
   const [activities] = useState<BotActivity[]>(generateActivity);
   const [liveCount, setLiveCount] = useState(0);
+  const [settingsForMetrics, setSettingsForMetrics] = useState<{
+    errorThresholds: ErrorThresholds | null;
+    rateLimits: RateLimits | null;
+  }>({ errorThresholds: null, rateLimits: null });
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -906,10 +1196,35 @@ export default function BotMonitor() {
     return () => clearInterval(t);
   }, []);
 
+  // Load thresholds/rate-limits for MetricsPanel threshold comparison
+  useEffect(() => {
+    fetch('/api/admin/settings', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.data) {
+          setSettingsForMetrics({
+            errorThresholds: json.data.errorThresholds
+              ? { ...DEFAULT_ERROR_THRESHOLDS, ...json.data.errorThresholds }
+              : DEFAULT_ERROR_THRESHOLDS,
+            rateLimits: json.data.rateLimits
+              ? { ...DEFAULT_RATE_LIMITS, ...json.data.rateLimits }
+              : DEFAULT_RATE_LIMITS,
+          });
+        }
+      })
+      .catch(() => {
+        setSettingsForMetrics({
+          errorThresholds: DEFAULT_ERROR_THRESHOLDS,
+          rateLimits: DEFAULT_RATE_LIMITS,
+        });
+      });
+  }, []);
+
   const TABS: { id: Tab; label: string; icon: string }[] = [
     { id: 'activity', label: 'Activity',  icon: '📡' },
     { id: 'messages', label: 'Messages',  icon: '✉️' },
     { id: 'settings', label: 'Settings',  icon: '⚙️' },
+    { id: 'metrics',  label: 'Metrics',   icon: '📊' },
     { id: 'ai',       label: 'AI',        icon: '🧠' },
   ];
 
@@ -926,7 +1241,7 @@ export default function BotMonitor() {
             </span>
           </h2>
           <p className="mt-0.5 text-xs text-[color:var(--muted)]">
-            ตรวจสอบบอท · แก้ไขข้อความ · ปรับการตั้งค่า · AI Insights
+            ตรวจสอบบอท · แก้ไขข้อความ · ปรับการตั้งค่า · Metrics · AI Insights
             {liveCount > 0 && <span className="ml-2 text-emerald-400">+{liveCount} events</span>}
           </p>
         </div>
@@ -953,6 +1268,12 @@ export default function BotMonitor() {
       {tab === 'activity' && <ActivityFeed activities={activities} />}
       {tab === 'messages' && <MessageEditor />}
       {tab === 'settings' && <SettingsPanel />}
+      {tab === 'metrics'  && (
+        <MetricsPanel
+          errorThresholds={settingsForMetrics.errorThresholds}
+          rateLimits={settingsForMetrics.rateLimits}
+        />
+      )}
       {tab === 'ai'       && <AiInsightsPanel />}
     </div>
   );
