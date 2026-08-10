@@ -14,7 +14,19 @@ import TransactionsTable from '@/components/TransactionsTable';
 import SummaryToday, { type SummaryTodayProps } from '@/components/SummaryToday';
 import PinnedAccounts, { type PinnedAccount } from '@/components/PinnedAccounts';
 import RecentSlips, { type RecentSlip } from '@/components/RecentSlips';
+import ApiMonitor, { type ApiEndpoint } from '@/components/ApiMonitor';
 import type { Admin, Transaction } from '@/types/transactions';
+
+const API_ENDPOINTS: ApiEndpoint[] = [
+  { id: 'health', name: 'System Health', url: '/api/health', icon: '❤', category: 'core', description: 'Supabase + env check' },
+  { id: 'circle', name: 'Circle USDC', url: '/api/circle/health', icon: '⭕', category: 'external', description: 'Circle payment API' },
+  { id: 'market', name: 'Market Rate', url: '/api/market-rate', icon: '📈', category: 'external', description: 'Binance TH USDT rate' },
+  { id: 'summary', name: 'Summary Today', url: '/api/dashboard/summary-today?accountId=probe', icon: '📊', category: 'dashboard' },
+  { id: 'pinned', name: 'Pinned Accounts', url: '/api/dashboard/pinned-accounts?chatId=0', icon: '📌', category: 'dashboard' },
+  { id: 'slips', name: 'Recent Slips', url: '/api/dashboard/recent-slips?limit=1', icon: '🧾', category: 'dashboard' },
+  { id: 'export', name: 'Export CSV', url: '/api/export', icon: '⬇', category: 'dashboard' },
+  { id: 'telegram', name: 'Telegram Webhook', url: 'https://api.telegram.org', icon: '💬', category: 'external', description: 'Telegram Bot API' },
+];
 
 const FEE_WARNING_THRESHOLD = 3;
 
@@ -316,6 +328,11 @@ export default function DashboardPage() {
           onSelectSlip={setSelectedSlipId}
           isLive={liveMarket != null}
         />
+      </div>
+
+      {/* API Monitor & Control Panel */}
+      <div className="mt-6">
+        <ApiMonitor endpoints={API_ENDPOINTS} autoRefreshMs={30_000} />
       </div>
     </main>
   );
