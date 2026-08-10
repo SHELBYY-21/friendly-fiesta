@@ -21,9 +21,10 @@ if (!supabaseUrl && process.env.NODE_ENV === 'production') {
  * เหมาะสำหรับ admin operations และ server-side data fetching
  */
 export function createServerClient() {
-  return createClient({
-    supabaseUrl,
-    supabaseKey: supabaseSecretKey || supabasePublishableKey,
+  const key = supabaseSecretKey || supabasePublishableKey || 'build-time-placeholder';
+  const url = supabaseUrl || 'https://placeholder.supabase.co';
+  return createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
   });
 }
 
