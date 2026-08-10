@@ -5,6 +5,7 @@
 // Tabs: Activity | Messages | Settings | AI Insights
 // ============================================================
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
 
 // ─── Types ───────────────────────────────────────────────────
 interface BotActivity {
@@ -313,6 +314,12 @@ function SettingsPanel() {
   // Per-section feedback
   const [feedback, setFeedback] = useState<Record<string, { ok: boolean; text: string } | null>>({});
 
+  // Realtime sync state
+  const [realtimeConnected, setRealtimeConnected] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [remoteFlash, setRemoteFlash] = useState(false);
+  const isSavingRef = useRef(false);
+
   const showFeedback = (section: string, ok: boolean, text: string) => {
     setFeedback((f) => ({ ...f, [section]: { ok, text } }));
     setTimeout(() => setFeedback((f) => ({ ...f, [section]: null })), 3000);
@@ -336,10 +343,62 @@ function SettingsPanel() {
     setLoading(false);
   }, []);
 
+  // ── Supabase Realtime subscription ──────────────────────────
+  useEffect(() => {
+    const channel = supabase
+      .channel('settings-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'system_settings' },
+        (payload) => {
+          // Skip if this session is the one saving (avoid double-reload)
+          if (isSavingRef.current) return;
+
+          const row = payload.new as { key: string; value: any; updated_at: string } | undefined;
+          if (!row) return;
+
+          setLastSyncedAt(row.updated_at ?? new Date().toISOString());
+
+          // Flash indicator for remote update
+          setRemoteFlash(true);
+          setTimeout(() => setRemoteFlash(false), 2000);
+
+          // Apply the changed key directly without a full reload
+          const { key, value } = row;
+          setSettings((prev) => {
+            if (!prev) return prev;
+            const next = { ...prev, updatedAt: row.updated_at };
+            if (key === 'bot_enabled')          next.botEnabled = value !== false;
+            if (key === 'maintenance_message')  next.maintenanceMessage = value ?? '';
+            if (key === 'api_endpoints')        next.apiEndpoints = value;
+            if (key === 'response_templates')   next.responseTemplates = value;
+            if (key === 'error_thresholds')     next.errorThresholds = value;
+            if (key === 'rate_limits')          next.rateLimits = value;
+            return next;
+          });
+
+          // Sync draft fields for non-focused sections
+          if (key === 'maintenance_message') setMaintenanceMsg(value ?? '');
+          if (key === 'api_endpoints' && value)        setApiEndpoints({ ...DEFAULT_API_ENDPOINTS, ...value });
+          if (key === 'response_templates' && value)   setResponseTemplates({ ...DEFAULT_RESPONSE_TEMPLATES, ...value });
+          if (key === 'error_thresholds' && value)     setErrorThresholds({ ...DEFAULT_ERROR_THRESHOLDS, ...value });
+          if (key === 'rate_limits' && value)          setRateLimits({ ...DEFAULT_RATE_LIMITS, ...value });
+        }
+      )
+      .subscribe((status) => {
+        setRealtimeConnected(status === 'SUBSCRIBED');
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   useEffect(() => { load(); }, [load]);
 
   const patch = async (section: string, key: string, value: any) => {
     setSaving(section);
+    isSavingRef.current = true;
     try {
       const res = await fetch('/api/admin/settings', {
         method: 'PATCH',
@@ -354,6 +413,8 @@ function SettingsPanel() {
       showFeedback(section, false, e.message ?? 'เกิดข้อผิดพลาด');
     }
     setSaving(null);
+    // Small delay so the realtime event (which arrives ~50ms after upsert) is ignored
+    setTimeout(() => { isSavingRef.current = false; }, 500);
   };
 
   if (loading) return (
@@ -362,6 +423,29 @@ function SettingsPanel() {
 
   return (
     <div className="space-y-4">
+
+      {/* ── Realtime sync badge ── */}
+      <div className={`flex items-center justify-between rounded-xl border px-3 py-2 transition-colors duration-500 ${
+        remoteFlash
+          ? 'border-cyan-500/60 bg-cyan-500/10' :'border-[color:var(--border)] bg-white/[0.02]'
+      }`}>
+        <div className="flex items-center gap-2">
+          <span className={`h-2 w-2 rounded-full transition-colors ${realtimeConnected ? 'bg-emerald-400 animate-pulse' : 'bg-gray-500'}`} />
+          <span className="text-xs text-[color:var(--muted)]">
+            {realtimeConnected ? 'Realtime sync เชื่อมต่อแล้ว' : 'กำลังเชื่อมต่อ Realtime…'}
+          </span>
+          {remoteFlash && (
+            <span className="rounded-full bg-cyan-500/20 px-2 py-0.5 text-[10px] font-medium text-cyan-300 animate-pulse">
+              ⚡ อัปเดตจากเซสชันอื่น
+            </span>
+          )}
+        </div>
+        {lastSyncedAt && (
+          <span className="text-[10px] text-[color:var(--muted)] tabular-nums">
+            sync {new Date(lastSyncedAt).toLocaleTimeString('th-TH')}
+          </span>
+        )}
+      </div>
 
       {/* ── Bot toggle ── */}
       <div className="rounded-xl border border-[color:var(--border)] bg-white/[0.02] p-4">
