@@ -474,11 +474,8 @@ export default function ApiMonitor({
                   {state.latencyMs != null && (
                     <span
                       className={`tabular-nums text-xs ${
-                        state.status === 'ok'
-                          ? 'text-emerald-400'
-                          : state.status === 'degraded'
-                            ? 'text-amber-400'
-                            : 'text-rose-400'
+                        state.status === 'ok' ?'text-emerald-400'
+                          : state.status === 'degraded' ?'text-amber-400' :'text-rose-400'
                       }`}
                     >
                       {state.latencyMs}ms

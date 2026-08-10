@@ -1,15 +1,10 @@
 // Public server-side entry for Circle Smart Contract Platform scaffolding.
 // Import only from API routes, server actions, or Node scripts.
 
-export {
-  getCircleClients,
-  isCircleConfigured,
-  resetCircleClients,
-  type CircleClients,
-  type ScpClient,
-  type WalletsClient,
-} from './clients';
+export type { CircleClients, ScpClient, WalletsClient } from './clients';
+export { getCircleClients, isCircleConfigured, resetCircleClients } from './clients';
 
+export type { ContractTemplateKey, ScpBlockchain } from './config';
 export {
   CONTRACT_TEMPLATES,
   DEFAULT_FEE,
@@ -17,10 +12,9 @@ export {
   SCP_BLOCKCHAINS,
   isScpBlockchain,
   resolveScpBlockchain,
-  type ContractTemplateKey,
-  type ScpBlockchain,
 } from './config';
 
+export type { TxTerminalState } from './helpers';
 export {
   executeContract,
   importContract,
@@ -28,5 +22,4 @@ export {
   queryContract,
   waitForContractDeployment,
   waitForTransaction,
-  type TxTerminalState,
 } from './helpers';

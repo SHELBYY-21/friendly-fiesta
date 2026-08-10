@@ -40,8 +40,7 @@ export default function MarkCompletedButton({ id, currentStatus }: MarkCompleted
         disabled={saving || done}
         className={`inline-flex w-full items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
           done
-            ? 'cursor-not-allowed border border-emerald-400/25 bg-emerald-500/15 text-emerald-300'
-            : 'border border-[color:var(--border)] bg-white/5 text-white hover:border-emerald-400/50 hover:bg-emerald-500/15'
+            ? 'cursor-not-allowed border border-emerald-400/25 bg-emerald-500/15 text-emerald-300' :'border border-[color:var(--border)] bg-white/5 text-white hover:border-emerald-400/50 hover:bg-emerald-500/15'
         }`}
       >
         {done ? '✓ ส่ง USDT แล้ว' : saving ? 'กำลังบันทึก...' : '💸 ส่ง USDT แล้ว'}

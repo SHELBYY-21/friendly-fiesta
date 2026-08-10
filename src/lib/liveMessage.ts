@@ -1,7 +1,7 @@
 import { supabaseAdmin } from './supabaseAdmin';
 import { sendMessage, editMessage, sendSticker } from './telegram';
 import * as UI from './botUi';
-import { setSession, getSession } from './botSessions';
+import { setSession } from './botSessions';
 import { getSticker } from '@/config/stickers';
 
 type CreateOpts = {

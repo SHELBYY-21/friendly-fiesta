@@ -39,17 +39,11 @@ export default async function TransactionDetailPage({
 
   const status = t.status ?? 'waiting_admin';
   const statusLabel =
-    status === 'ocr_success'
-      ? 'OCR สำเร็จ'
-      : status === 'waiting_admin'
-        ? 'รอแอดมิน'
-        : 'ส่ง USDT สำเร็จ';
+    status === 'ocr_success' ?'OCR สำเร็จ'
+      : status === 'waiting_admin' ?'รอแอดมิน' :'ส่ง USDT สำเร็จ';
   const statusClass =
-    status === 'ocr_success'
-      ? 'bg-cyan-500/15 text-cyan-300 ring-1 ring-cyan-400/25'
-      : status === 'waiting_admin'
-        ? 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-400/25'
-        : 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/25';
+    status === 'ocr_success' ?'bg-cyan-500/15 text-cyan-300 ring-1 ring-cyan-400/25'
+      : status === 'waiting_admin' ?'bg-amber-500/15 text-amber-300 ring-1 ring-amber-400/25' :'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/25';
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
@@ -65,8 +59,7 @@ export default async function TransactionDetailPage({
         <span
           className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
             isDeposit
-              ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/25'
-              : 'bg-cyan-500/15 text-cyan-300 ring-1 ring-cyan-400/25'
+              ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/25' :'bg-cyan-500/15 text-cyan-300 ring-1 ring-cyan-400/25'
           }`}
         >
           {isDeposit ? '↓ ฝาก THB → USDT' : '↑ ส่งออก USDT'}

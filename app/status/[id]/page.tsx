@@ -119,8 +119,7 @@ export default function StatusPage() {
                       i < current
                         ? 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-400/40'
                         : i === current
-                          ? 'bg-cyan-500/20 text-cyan-300 ring-1 ring-cyan-400/50'
-                          : 'bg-white/5 text-[color:var(--muted)] ring-1 ring-white/10'
+                          ? 'bg-cyan-500/20 text-cyan-300 ring-1 ring-cyan-400/50' :'bg-white/5 text-[color:var(--muted)] ring-1 ring-white/10'
                     }`}
                   >
                     {i < current ? '✓' : i + 1}

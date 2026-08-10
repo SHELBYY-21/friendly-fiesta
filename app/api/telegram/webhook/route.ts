@@ -4,14 +4,7 @@
 // ============================================================
 import { NextRequest, NextResponse } from 'next/server';
 import * as UI from '@/lib/botUi';
-import {
-  sendMessage,
-  editMessage,
-  sendChatAction,
-  answerCallback,
-  uploadSlipFromTelegram,
-  sendSticker,
-} from '@/lib/telegram';
+import { sendMessage, editMessage, answerCallback, uploadSlipFromTelegram, sendSticker,  } from '@/lib/telegram';
 import { getSession, setSession, clearSession } from '@/lib/botSessions';
 import LiveMessageService from '@/lib/liveMessage';
 import {
@@ -40,7 +33,7 @@ import { notifyDailySummary, notifyReady } from '@/lib/notifier';
 import { analyzeSlip, analyzeUsdtScreenshot } from '@/lib/ocr';
 import { getBotGate } from '@/lib/systemSettings';
 import { parseAmounts } from '@/lib/amounts';
-import { getReceiver, findReceiversByLast4, upsertReceiverOnDeposit } from '@/lib/receivers';
+import { findReceiversByLast4, upsertReceiverOnDeposit } from '@/lib/receivers';
 import { getSticker, validateStickers, type StickerState } from '@/config/stickers';
 import {
   commandName,
@@ -413,9 +406,7 @@ async function handleUpdate(update: any): Promise<void> {
         ),
       );
     } catch (error: any) {
-      const detail = error?.message === 'PIN_LIMIT_REACHED'
-        ? 'Pin ได้สูงสุด 3 บัญชีต่อวัน — ใช้ /unpin 1 ก่อนเพิ่มบัญชีใหม่'
-        : 'เพิ่มบัญชีไม่สำเร็จ — ตรวจรูปแบบ /pin KBANK 1234567890 แล้วลองใหม่';
+      const detail = error?.message === 'PIN_LIMIT_REACHED' ?'Pin ได้สูงสุด 3 บัญชีต่อวัน — ใช้ /unpin 1 ก่อนเพิ่มบัญชีใหม่' :'เพิ่มบัญชีไม่สำเร็จ — ตรวจรูปแบบ /pin KBANK 1234567890 แล้วลองใหม่';
       await sendMessage(chatId, UI.error(detail));
     }
     return;
@@ -553,8 +544,7 @@ async function handleUpdate(update: any): Promise<void> {
       }));
     } catch (e: any) {
       const detail = e instanceof DuplicateSlipError
-        ? 'สลิปนี้ถูกบันทึกแล้ว — ใช้ /recent_slips เพื่อตรวจ Ledger Reference'
-        : e?.message ?? 'บันทึกสลิปไม่สำเร็จ — ตรวจรูปและลองใหม่';
+        ? 'สลิปนี้ถูกบันทึกแล้ว — ใช้ /recent_slips เพื่อตรวจ Ledger Reference' : e?.message ??'บันทึกสลิปไม่สำเร็จ — ตรวจรูปและลองใหม่';
       await sendMessage(chatId, UI.error(detail));
     }
     return;
@@ -564,11 +554,11 @@ async function handleUpdate(update: any): Promise<void> {
   if (msg.photo) {
     const photo = msg.photo[msg.photo.length - 1];
     const fileId = photo.file_id;
-    const fingerprint = slipFingerprint(photo.file_unique_id);
+    let fingerprint = slipFingerprint(photo.file_unique_id);
     sticker(chatId, 'PROCESSING');
     try {
-      const imgUrl = await uploadSlipFromTelegram(fileId);
-      const slip = await analyzeSlip(imgUrl);
+      let imgUrl = await uploadSlipFromTelegram(fileId);
+      let slip = await analyzeSlip(imgUrl);
       const ledgerRef = UI.newLedgerRef();
 
       // THB slip: show Vision Verification Card
@@ -763,8 +753,7 @@ async function handleUpdate(update: any): Promise<void> {
         sticker(chatId, 'SUCCESS');
       } catch (e: any) {
         const detail = e instanceof DuplicateSlipError
-          ? 'สลิปนี้ถูกบันทึกแล้ว — ใช้ /recent_slips เพื่อตรวจ Ledger Reference'
-          : e?.message ?? 'บันทึกไม่สำเร็จ — ตรวจข้อมูลแล้วลองใหม่';
+          ? 'สลิปนี้ถูกบันทึกแล้ว — ใช้ /recent_slips เพื่อตรวจ Ledger Reference' : e?.message ??'บันทึกไม่สำเร็จ — ตรวจข้อมูลแล้วลองใหม่';
         await sendMessage(chatId, UI.error(detail));
       }
       return;
@@ -787,8 +776,7 @@ async function handleUpdate(update: any): Promise<void> {
         sticker(chatId, 'SUCCESS');
       } catch (e: any) {
         const detail = e instanceof DuplicateSlipError
-          ? 'หลักฐานนี้ถูกบันทึกแล้ว — ใช้ /recent_slips เพื่อตรวจ Ledger Reference'
-          : e?.message ?? 'บันทึกไม่สำเร็จ — ตรวจยอดแล้วลองใหม่';
+          ? 'หลักฐานนี้ถูกบันทึกแล้ว — ใช้ /recent_slips เพื่อตรวจ Ledger Reference' : e?.message ??'บันทึกไม่สำเร็จ — ตรวจยอดแล้วลองใหม่';
         await sendMessage(chatId, UI.error(detail));
       }
       return;
@@ -1350,8 +1338,7 @@ async function handleCallback(cb: any): Promise<void> {
         sticker(chatId, 'SUCCESS');
       } catch (e: any) {
         const detail = e instanceof DuplicateSlipError
-          ? 'สลิปนี้ถูกบันทึกแล้ว'
-          : e?.message ?? 'บันทึกไม่สำเร็จ';
+          ? 'สลิปนี้ถูกบันทึกแล้ว' : e?.message ??'บันทึกไม่สำเร็จ';
         const msg = UI.error(detail);
         if (msgId) await editMessage(chatId, msgId, msg);
         else await sendMessage(chatId, msg);
@@ -1435,7 +1422,7 @@ async function handleCallback(cb: any): Promise<void> {
     const session = await getSession(chatId, userId);
     if (!session || !session.slip_url) return await answerCallback(id, 'ไม่พบสลิปที่ต้องการอ่านใหม่');
     try {
-      const slip = await analyzeSlip(session.slip_url);
+      let slip = await analyzeSlip(session.slip_url);
       // Update live message if exists
       const liveId = tx.live_message_id ?? session.live_message_id;
       if (liveId) {

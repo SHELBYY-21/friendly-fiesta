@@ -13,8 +13,7 @@ function TypeBadge({ type }: { type: Transaction['type'] }) {
     <span
       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
         isDeposit
-          ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/25'
-          : 'bg-cyan-500/15 text-cyan-300 ring-1 ring-cyan-400/25'
+          ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/25' :'bg-cyan-500/15 text-cyan-300 ring-1 ring-cyan-400/25'
       }`}
     >
       {isDeposit ? '↓ ฝาก' : '↑ ส่งออก'}
@@ -82,8 +81,7 @@ export default function TransactionsTable({
                     <span
                       className={`inline-block rounded-lg px-2 py-0.5 text-xs font-medium ${
                         isDanger
-                          ? 'bg-rose-500/15 text-rose-300 ring-1 ring-rose-400/25'
-                          : 'text-[color:var(--muted)]'
+                          ? 'bg-rose-500/15 text-rose-300 ring-1 ring-rose-400/25' :'text-[color:var(--muted)]'
                       }`}
                     >
                       {nf.format(Number(t.fee_usdt))} · {Number(t.fee_percent).toFixed(2)}%
