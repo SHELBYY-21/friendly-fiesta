@@ -25,11 +25,3 @@ export async function middleware(req: NextRequest) {
   return NextResponse.redirect(url);
 }
 
-export {};
-
-// All proxy/middleware logic has been migrated to proxy.ts per Next.js 16 convention.
-// THIS FILE MUST BE DELETED from disk to resolve the build conflict.
-// Run: rm middleware.ts  (Unix/macOS/Linux)
-//      Remove-Item middleware.ts  (Windows PowerShell)
-//      git rm middleware.ts && git commit -m "chore: remove middleware.ts"
-
