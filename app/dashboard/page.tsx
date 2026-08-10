@@ -15,6 +15,7 @@ import SummaryToday, { type SummaryTodayProps } from '@/components/SummaryToday'
 import PinnedAccounts, { type PinnedAccount } from '@/components/PinnedAccounts';
 import RecentSlips, { type RecentSlip } from '@/components/RecentSlips';
 import ApiMonitor, { type ApiEndpoint } from '@/components/ApiMonitor';
+import AdminConsole from '@/components/admin/AdminConsole';
 import type { Admin, Transaction } from '@/types/transactions';
 
 const API_ENDPOINTS: ApiEndpoint[] = [
@@ -231,6 +232,11 @@ export default function DashboardPage() {
           </span>
         </div>
       </header>
+
+      {/* Admin Console — no-code control panel */}
+      <div className="mt-6">
+        <AdminConsole />
+      </div>
 
       {/* Summary Today — conditional on account selection */}
       {summaryToday && selectedAccountId && (
