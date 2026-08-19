@@ -117,9 +117,9 @@ export function refCode(txId: string): string {
 
 // ═══════════════ Common field builders ═══════════════
 const F = {
-  amountIn: (thb: number): Field => ({ icon: '💵', labelTh: 'ยอดเงิน', labelEn: 'Amount', value: amount(thb, 'THB') }),
-  amountOut: (usdt: number): Field => ({ icon: '🚀', labelTh: 'ส่ง USDT', labelEn: 'Send USDT', value: amount(usdt, 'USDT') }),
-  shouldSend: (usdt: number): Field => ({ icon: '🎯', labelTh: 'ต้องส่ง', labelEn: 'Should Send', value: amount(usdt, 'USDT') }),
+  amountIn: (thb: number): Field => ({ icon: '💵', labelTh: 'ยอดเงิน', labelEn: 'THB', value: amount(thb, 'THB') }),
+  amountOut: (usdt: number): Field => ({ icon: '🚀', labelTh: 'เงินออก', labelEn: 'OUT', value: amount(usdt, 'USDT') }),
+  shouldSend: (usdt: number): Field => ({ icon: '🎯', labelTh: 'ยอดที่ต้องส่ง', labelEn: 'USDT', value: amount(usdt, 'USDT') }),
   sellRate: (r: number): Field => ({ icon: '📈', labelTh: 'เรทขาย', labelEn: 'Sell Rate', value: mono(`${money(r)} THB / USDT`) }),
   marketRate: (r: number): Field => ({ icon: '📉', labelTh: 'เรทซื้อ', labelEn: 'Buy Rate', value: mono(money(r)) }),
   netProfit: (thb: number): Field => ({ icon: '💹', labelTh: 'กำไรสุทธิ', labelEn: 'Net Profit', value: amount(thb, 'THB') }),
@@ -130,9 +130,10 @@ const F = {
   bank: (b: string): Field => ({ icon: '🏦', labelTh: 'ธนาคาร', labelEn: 'Bank', value: mono(b) }),
   last4: (l: string): Field => ({ icon: '🔢', labelTh: 'เลขท้าย', labelEn: 'Last 4', value: mono(l) }),
   time: (t: string): Field => ({ labelTh: 'เวลา', labelEn: 'Time', value: mono(t) }),
+  moneyIn: (thb: number): Field => ({ icon: '🟢', labelTh: 'เงินเข้า', labelEn: 'IN', value: amount(thb, 'THB') }),
+  moneyOut: (usdt: number): Field => ({ icon: '🔴', labelTh: 'เงินออก', labelEn: 'OUT', value: amount(usdt, 'USDT') }),
   confidence: (c: number): Field => ({
-    icon: '🎯',
-    labelTh: 'ความแม่นยำ',
+    labelTh: 'ความมั่นใจ',
     labelEn: 'Confidence',
     value: `${c >= 90 ? '🟢' : c >= 75 ? '🟡' : '🔴'} ${mono(`${c.toFixed(1)}%`)}`,
   }),
@@ -286,17 +287,17 @@ export function recentListTemplate(pairs: any[], adminMentions?: string): Outgoi
     return card({
       icon: '🧾',
       titleTh: 'รายการล่าสุด',
-      titleEn: 'Recent Transactions',
+      titleEn: 'Recent',
       note: 'ยังไม่มีรายการในวันนี้',
     });
   }
   const rows = pairs.map((p, i) => {
-    const state = p.gapMin == null ? '🟡 Pending' : `🟢 Settled · ${Number(p.gapMin) || 0}m`;
+    const state = p.gapMin == null ? 'รอดำเนินการ (Pending)' : `เสร็จแล้ว (Settled) · ${Number(p.gapMin) || 0}m`;
     return `${i + 1}. ${mono(p.time)} · ${amount(p.thb, 'THB')} → ${amount(p.usdt, 'USDT')}\n   ${state}`;
   }).join('\n');
   const parts: string[] = [];
   parts.push('🧾 <b>รายการล่าสุด</b>');
-  parts.push('<i>(Recent Transactions)</i>');
+  parts.push('<i>(Recent)</i>');
   parts.push(SEP);
   parts.push(rows);
   if (adminMentions) {
@@ -331,16 +332,16 @@ export function recentSlipsList(slips: RecentSlipView[]): OutgoingMessage {
   if (!slips || slips.length === 0) {
     return card({
       icon: '🧾',
-      titleTh: 'สลิปล่าสุด',
-      titleEn: 'Recent Slips',
+      titleTh: 'รายการล่าสุด',
+      titleEn: 'Recent',
       note: 'ยังไม่มีรายการ — ส่งสลิปหรือใช้ /save_slip เพื่อบันทึกรายการแรก',
     });
   }
 
-  const header = ['🧾 <b>สลิปล่าสุด</b>', '<i>(Recent Slips)</i>'];
+  const header = ['🧾 <b>รายการล่าสุด</b>', '<i>(Recent)</i>'];
   const renderRow = (s: RecentSlipView, i: number): string => {
     const isOut = String(s.type) === 'USDT_SEND';
-    const dirTh = isOut ? 'ส่งออก' : 'รับเข้า';
+    const dirTh = isOut ? 'เงินออก' : 'เงินเข้า';
     const dirEn = isOut ? 'OUT' : 'IN';
     const dirIcon = isOut ? '🔻' : '🟢';
     const admin = s.adminTelegramId
@@ -409,7 +410,7 @@ export function liveOcrUpdate(opts: {
 }): OutgoingMessage {
   const slip: Field[] = [
     F.reference(opts.ledgerRef),
-    opts.thb != null ? F.amountIn(opts.thb) : { icon: '💵', labelTh: 'ยอดเงิน', labelEn: 'Amount', value: mono('—') },
+    opts.thb != null ? F.amountIn(opts.thb) : { icon: '💵', labelTh: 'ยอดเงิน', labelEn: 'THB', value: mono('—') },
   ];
   if (opts.receiver) slip.push(F.receiver(opts.receiver));
   if (opts.bank) slip.push(F.bank(opts.bank));
@@ -440,8 +441,8 @@ export function liveCompleted(opts: {
   todayTotalThb?: number;
 }): OutgoingMessage {
   const amountFields: Field[] = [
-    { icon: '🟢', labelTh: 'เข้า', labelEn: 'IN', value: amount(opts.thb, 'THB') },
-    { icon: '🔴', labelTh: 'ออก', labelEn: 'OUT', value: amount(opts.usdt, 'USDT') },
+    F.moneyIn(opts.thb),
+    F.moneyOut(opts.usdt),
     F.netProfit(opts.profitThb),
     F.balance(opts.remaining),
   ];
@@ -451,20 +452,18 @@ export function liveCompleted(opts: {
   }
   return card({
     icon: '🎉',
-    titleTh: 'เสร็จสมบูรณ์',
-    titleEn: 'Completed',
+    titleTh: 'เสร็จแล้ว',
+    titleEn: 'Settled',
     groups: [amountFields, ref],
   });
 }
 
-export function liveRefreshPlaceholder(transactionId: string): OutgoingMessage {
+export function liveRefreshPlaceholder(_transactionId?: string): OutgoingMessage {
   return card({
     icon: '🔄',
     titleTh: 'กำลังซิงก์ข้อมูล',
     titleEn: 'Syncing',
-    groups: [[
-      { icon: '📂', labelTh: 'รายการ', labelEn: 'Transaction', value: mono(transactionId) },
-    ]],
+    note: 'กำลังอัปเดตรายการล่าสุด (Recent)',
   });
 }
 
@@ -492,7 +491,7 @@ export function incomingRecorded(d: {
   todayTotalThb?: number;
 }): OutgoingMessage {
   const amountFields: Field[] = [
-    { icon: '🟢', labelTh: 'เข้า', labelEn: 'IN', value: amount(d.thb, 'THB') },
+    F.moneyIn(d.thb),
     F.shouldSend(d.usdtOwed),
     F.sellRate(d.sellRate),
   ];
@@ -531,11 +530,11 @@ export function outgoingRecorded(d: {
   const done = d.remainingUsdt <= 0.009;
   return card({
     icon: done ? '🟢' : '🟡',
-    titleTh: done ? 'ชำระเสร็จ' : 'รอดำเนินการ',
+    titleTh: done ? 'เสร็จแล้ว' : 'รอดำเนินการ',
     titleEn: done ? 'Settled' : 'Pending',
     groups: [
       [
-        { icon: '🔴', labelTh: 'ออก', labelEn: 'OUT', value: amount(d.usdt, 'USDT') },
+        F.moneyOut(d.usdt),
         F.shouldSend(d.shouldSendUsdt),
         F.balance(Math.max(0, d.remainingUsdt)),
       ],
@@ -555,12 +554,42 @@ export function slipUnclear(_guess?: number | null): OutgoingMessage {
   });
 }
 
-export function accountMismatch(detail?: string): OutgoingMessage {
+function accountLine(bank?: string | null, last4?: string | null): string {
+  const code = bank ? escapeHtml(bank) : '—';
+  const tail = last4 ? `•••• ${escapeHtml(last4)}` : '•••• —';
+  return `<b><code>${code}  ${tail}</code></b>`;
+}
+
+export function accountMismatch(detail?: string, opts?: {
+  slipBank?: string | null;
+  slipLast4?: string | null;
+  slipName?: string | null;
+  pinned?: Array<{ bank: string; last4: string }>;
+}): OutgoingMessage {
+  const groups: Field[][] = [[
+    {
+      labelTh: 'บัญชีจากสลิป',
+      labelEn: 'From slip',
+      value: accountLine(opts?.slipBank, opts?.slipLast4),
+    },
+  ]];
+  if (opts?.slipName) {
+    groups[0].push(F.receiver(opts.slipName));
+  }
+  const pinned = opts?.pinned ?? [];
+  groups.push([{
+    labelTh: 'บัญชีที่ปักหมุดวันนี้',
+    labelEn: 'Pinned today',
+    value: pinned.length
+      ? pinned.map((p) => accountLine(p.bank, p.last4)).join('\n')
+      : '<b><code>ยังไม่มี</code></b>',
+  }]);
   return card({
     icon: '⚠️',
     titleTh: 'บัญชีไม่ตรง',
     titleEn: 'Account Mismatch',
-    note: detail ?? 'ตรวจธนาคาร เลขท้าย และบัญชีที่ปักหมุดก่อนลองใหม่',
+    groups,
+    note: detail ?? 'ห้ามบันทึกอัตโนมัติ — ปักหมุดบัญชีจากสลิปด้วย /pin แล้วใช้ /save_slip +500B KBANK 7890',
   });
 }
 
@@ -583,7 +612,7 @@ export function thbSlipValidated(data: {
   confidence?: number | null;
 }): OutgoingMessage {
   const fields: Field[] = [
-    { icon: '🟢', labelTh: 'เข้า', labelEn: 'IN', value: amount(data.thb, 'THB') },
+    F.moneyIn(data.thb),
     F.bank(data.bank),
     F.last4(data.last4),
   ];
@@ -603,7 +632,7 @@ export function usdtSlipPending(data: {
   lowConfidence?: boolean;
 }): OutgoingMessage {
   const fields: Field[] = [
-    { icon: '🔴', labelTh: 'ออก', labelEn: 'OUT', value: amount(data.usdt, 'USDT') },
+    F.moneyOut(data.usdt),
   ];
   if (data.confidence != null) fields.push(F.confidence(data.confidence));
   return card({
@@ -758,8 +787,8 @@ export interface DealConfirmData {
 
 export function dealConfirm(d: DealConfirmData): OutgoingMessage {
   const fields: Field[] = [
-    { icon: '🟢', labelTh: 'เข้า', labelEn: 'IN', value: amount(d.thb, 'THB') },
-    { icon: '🔴', labelTh: 'ออก', labelEn: 'OUT', value: amount(d.usdt, 'USDT') },
+    { icon: '🟢', labelTh: 'เงินเข้า', labelEn: 'IN', value: amount(d.thb, 'THB') },
+    { icon: '🔴', labelTh: 'เงินออก', labelEn: 'OUT', value: amount(d.usdt, 'USDT') },
     F.sellRate(d.sellRate),
     F.marketRate(d.buyRate),
     F.netProfit(d.profitThb),
@@ -806,8 +835,8 @@ export interface DealSuccessData {
 
 export function dealSuccess(d: DealSuccessData): OutgoingMessage {
   const fields: Field[] = [
-    { icon: '🟢', labelTh: 'เข้า', labelEn: 'IN', value: amount(d.thb, 'THB') },
-    { icon: '🔴', labelTh: 'ออก', labelEn: 'OUT', value: amount(d.usdt, 'USDT') },
+    { icon: '🟢', labelTh: 'เงินเข้า', labelEn: 'IN', value: amount(d.thb, 'THB') },
+    { icon: '🔴', labelTh: 'เงินออก', labelEn: 'OUT', value: amount(d.usdt, 'USDT') },
     F.sellRate(d.sellRate),
     F.netProfit(d.profitThb),
   ];
@@ -843,7 +872,7 @@ export function brandCard(d: BrandCardData): OutgoingMessage {
   const t = new Date().toLocaleTimeString('th-TH', { hour12: false, timeZone: 'Asia/Bangkok' });
   const shortTxid = d.txid ? `${d.txid.slice(0, 6)}…${d.txid.slice(-6)}` : null;
   const fields: Field[] = [
-    { icon: '🔴', labelTh: 'ออก', labelEn: 'OUT', value: amount(d.usdt, 'USDT') },
+    { icon: '🔴', labelTh: 'เงินออก', labelEn: 'OUT', value: amount(d.usdt, 'USDT') },
     { icon: '🔗', labelTh: 'เครือข่าย', labelEn: 'Network', value: mono(d.network ?? 'TRC-20') },
   ];
   if (shortTxid) fields.push({ icon: '🧾', labelTh: 'แฮชธุรกรรม', labelEn: 'TXID', value: mono(shortTxid) });
@@ -852,8 +881,8 @@ export function brandCard(d: BrandCardData): OutgoingMessage {
 
   const msg = card({
     icon: '🎉',
-    titleTh: 'เสร็จสมบูรณ์',
-    titleEn: 'Completed',
+    titleTh: 'เสร็จแล้ว',
+    titleEn: 'Settled',
     groups: [fields],
   });
   if (APP && d.transactionId) {
@@ -884,7 +913,7 @@ export function confirmDeposit(thb: number, usdt: number, rate: number): Outgoin
     titleTh: 'ยืนยันรับเงิน',
     titleEn: 'Confirm Incoming',
     groups: [[
-      { icon: '🟢', labelTh: 'เข้า', labelEn: 'IN', value: amount(thb, 'THB') },
+      { icon: '🟢', labelTh: 'เงินเข้า', labelEn: 'IN', value: amount(thb, 'THB') },
       F.shouldSend(usdt),
       F.sellRate(rate),
     ]],
@@ -973,8 +1002,8 @@ export function thbSuccess(d: ThbSuccessData): OutgoingMessage {
     titleEn: 'Recorded',
     groups: [
       [
-        { icon: '🟢', labelTh: 'เข้า', labelEn: 'IN', value: amount(d.thb, 'THB') },
-        { icon: '🔴', labelTh: 'ออก', labelEn: 'OUT', value: amount(d.usdt, 'USDT') },
+        { icon: '🟢', labelTh: 'เงินเข้า', labelEn: 'IN', value: amount(d.thb, 'THB') },
+        { icon: '🔴', labelTh: 'เงินออก', labelEn: 'OUT', value: amount(d.usdt, 'USDT') },
         F.sellRate(rate),
       ],
       [
@@ -1038,8 +1067,8 @@ export function editSuccess(d: EditSuccessData): OutgoingMessage {
   const isDep = d.type === 'THB_DEPOSIT';
   const amountFields: Field[] = isDep
     ? [
-        { icon: '🟢', labelTh: 'เข้า', labelEn: 'IN', value: amount(d.thb ?? 0, 'THB') },
-        { icon: '🔴', labelTh: 'ออก', labelEn: 'OUT', value: amount(d.usdt, 'USDT') },
+        { icon: '🟢', labelTh: 'เงินเข้า', labelEn: 'IN', value: amount(d.thb ?? 0, 'THB') },
+        { icon: '🔴', labelTh: 'เงินออก', labelEn: 'OUT', value: amount(d.usdt, 'USDT') },
         { icon: '💹', labelTh: 'กำไรสุทธิ', labelEn: 'Net Profit', value: `${amount(d.netProfitThb ?? 0, 'THB')} <i>(${pct(d.profitPercent ?? 0)})</i>` },
         { icon: '💸', labelTh: 'ค่าธรรมเนียม', labelEn: 'Fee', value: `${amount(d.feeUsdt ?? 0, 'USDT')} <i>(${pct(d.feePercent ?? 0)})</i>` },
       ]
@@ -1135,7 +1164,7 @@ export function ledgerCard(d: LedgerData): OutgoingMessage {
     { icon: '📈', labelTh: 'ปริมาณ', labelEn: 'Volume', value: amount(d.totalThb, 'THB') },
   ];
   if (d.fixedRate) summary.push(F.sellRate(d.fixedRate));
-  summary.push({ icon: '📦', labelTh: 'ยอดคงเหลือ', labelEn: 'Balance', value: `${amount(notSent, 'USDT')} <i>(${isSettled ? '🟢 Settled' : '🟡 Pending'})</i>` });
+  summary.push({ icon: '📦', labelTh: 'ยอดคงเหลือ', labelEn: 'Balance', value: `${amount(notSent, 'USDT')} <i>(${isSettled ? 'เสร็จแล้ว (Settled)' : 'รอดำเนินการ (Pending)'})</i>` });
 
   const meta: Field[] = [
     { icon: '🔄', labelTh: 'จำนวนรายการ', labelEn: 'Transactions', value: mono(String(d.incomingList.length + d.outgoingList.length)) },
@@ -1158,7 +1187,7 @@ export function ledgerCard(d: LedgerData): OutgoingMessage {
 
   if (d.recent && d.recent.length) {
     const recentFields: Field[] = d.recent.slice(0, 5).map((r) => {
-      const state = r.gapMin == null ? '🟡 Pending' : `🟢 Settled · ${r.gapMin}m`;
+      const state = r.gapMin == null ? 'รอดำเนินการ (Pending)' : `เสร็จแล้ว (Settled) · ${r.gapMin}m`;
       return {
         labelTh: r.time,
         value: `${amount(r.thb, 'THB')} → ${amount(r.usdt, 'USDT')} <i>· ${state}</i>`,
@@ -1382,108 +1411,122 @@ export interface VisionSlipVerificationData {
   suggestedUsdt?: number;
   todayCountForAccount?: number;
   todayTotalThbForAccount?: number;
+  pinned?: Array<{ bank: string; last4: string }>;
+  lowConfidence?: boolean;
+  amountSource?: 'manual' | 'ocr';
 }
 
 export function visionSlipVerification(data: VisionSlipVerificationData): OutgoingMessage {
   const groups: Field[][] = [];
+  const lowConf = data.lowConfidence === true;
+  const canConfirm = Boolean(
+    data.accountMatched &&
+    data.thb != null &&
+    data.accountClear &&
+    (!lowConf || data.amountSource === 'manual'),
+  );
 
-  // Extracted slip data
   const slipGroup: Field[] = [];
   if (data.thb != null) {
-    slipGroup.push({ icon: '💵', labelTh: 'ยอดเงิน', labelEn: 'Amount', value: amount(data.thb, 'THB') });
+    slipGroup.push(F.amountIn(data.thb));
   } else {
-    slipGroup.push({ icon: '⚠️', labelTh: 'ยอดเงิน', labelEn: 'Amount', value: '<b><code>ไม่สามารถอ่านได้</code></b>' });
+    slipGroup.push({ icon: '⚠️', labelTh: 'ยอดเงิน', labelEn: 'THB', value: '<b><code>ไม่สามารถอ่านได้</code></b>' });
   }
 
   if (data.bank != null && data.last4 != null) {
-    slipGroup.push(F.bank(data.bank));
-    slipGroup.push(F.last4(data.last4));
+    slipGroup.push({
+      labelTh: 'บัญชีจากสลิป',
+      labelEn: 'From slip',
+      value: accountLine(data.bank, data.last4),
+    });
   } else if (!data.accountClear) {
-    slipGroup.push({ icon: '⚠️', labelTh: 'ธนาคาร', labelEn: 'Bank', value: '<b><code>ไม่สามารถอ่านได้</code></b>' });
+    slipGroup.push({
+      labelTh: 'บัญชีจากสลิป',
+      labelEn: 'From slip',
+      value: '<b><code>ไม่สามารถอ่านได้</code></b>',
+    });
   }
 
-  if (data.receiverName) {
-    slipGroup.push(F.receiver(data.receiverName));
-  }
+  if (data.receiverName) slipGroup.push(F.receiver(data.receiverName));
+  if (data.confidence != null) slipGroup.push(F.confidence(data.confidence));
+  if (slipGroup.length) groups.push(slipGroup);
 
-  if (data.confidence != null) {
-    slipGroup.push(F.confidence(data.confidence));
-  }
-
-  if (slipGroup.length > 0) {
-    groups.push(slipGroup);
-  }
-
-  // Account matching result
   const matchGroup: Field[] = [];
   if (!data.accountClear) {
     matchGroup.push({
-      icon: '❓',
       labelTh: 'สถานะ',
       labelEn: 'Status',
-      value: '<b>ไม่สามารถระบุบัญชี</b>'
+      value: '<b>ยังระบุบัญชีจากสลิปไม่ได้</b>',
     });
   } else if (data.accountMatched) {
     matchGroup.push({
-      icon: '🟢',
-      labelTh: 'ตรงกับปักหมุด',
-      labelEn: 'Account Matched',
-      value: `<b>${escapeHtml(data.matchedBank || '')} ••••${escapeHtml(data.matchedLast4 || '')}</b>`
+      labelTh: 'ผลตรวจบัญชี',
+      labelEn: 'Match',
+      value: `<b>ตรงกับปักหมุด</b>\n${accountLine(data.matchedBank, data.matchedLast4)}`,
     });
     if (data.todayCountForAccount != null) {
       matchGroup.push({
-        icon: '📌',
         labelTh: 'บัญชีนี้รับแล้ว',
-        labelEn: 'Today Count',
-        value: `<b>${data.todayCountForAccount}</b> รายการ · <b><code>${money(data.todayTotalThbForAccount || 0)} THB</code></b>`
+        labelEn: 'Today',
+        value: `<b>${data.todayCountForAccount}</b> รายการ · ${amount(data.todayTotalThbForAccount || 0, 'THB')}`,
       });
     }
   } else {
     matchGroup.push({
-      icon: '❌',
-      labelTh: 'สถานะ',
-      labelEn: 'Status',
-      value: '<b>ไม่ตรงกับปักหมุด</b>'
+      labelTh: 'ผลตรวจบัญชี',
+      labelEn: 'Match',
+      value: '<b>ไม่ตรงกับปักหมุด — ห้ามบันทึกอัตโนมัติ</b>',
+    });
+    const pinned = data.pinned ?? [];
+    matchGroup.push({
+      labelTh: 'บัญชีที่ปักหมุดวันนี้',
+      labelEn: 'Pinned today',
+      value: pinned.length
+        ? pinned.map((p) => accountLine(p.bank, p.last4)).join('\n')
+        : '<b><code>ยังไม่มี</code></b>',
     });
   }
+  if (matchGroup.length) groups.push(matchGroup);
 
-  if (matchGroup.length > 0) {
-    groups.push(matchGroup);
-  }
-
-  // Suggested calculation
-  if (data.accountMatched && data.thb != null && data.roomRate != null && data.suggestedUsdt != null) {
-    const calcGroup: Field[] = [
+  if (canConfirm && data.thb != null && data.roomRate != null && data.suggestedUsdt != null) {
+    groups.push([
       F.amountIn(data.thb),
       {
-        icon: '📊',
         labelTh: 'เรทห้อง',
         labelEn: 'Room Rate',
-        value: mono(`${money(data.roomRate)} THB / USDT`)
+        value: mono(`${money(data.roomRate)} THB / USDT`),
       },
-      {
-        icon: '🎯',
-        labelTh: 'ต้องส่ง',
-        labelEn: 'Should Send',
-        value: amount(data.suggestedUsdt, 'USDT')
-      },
-    ];
-    groups.push(calcGroup);
+      F.shouldSend(data.suggestedUsdt),
+    ]);
   }
 
-  const keyboard = data.accountMatched && data.thb != null && data.accountClear
+  let note: string | undefined;
+  if (!data.accountClear) {
+    note = 'ส่งรูปใหม่ หรือใช้ /save_slip +500B KBANK 7890 หลังปักหมุดบัญชี';
+  } else if (!data.accountMatched) {
+    note = 'ปักหมุดบัญชีจากสลิปด้วย /pin แล้วใช้ /save_slip +500B KBANK 7890';
+  } else if (lowConf && data.amountSource !== 'manual') {
+    note = 'ความมั่นใจต่ำ — ใส่ยอดชัดเจนด้วย /save_slip +500B ห้ามเดายอด';
+  } else {
+    note = 'OCR สำเร็จ — กดยืนยันเพื่อบันทึก (Confirm)';
+  }
+
+  const keyboard = canConfirm
     ? { inline_keyboard: [[
-        { text: '✅ ยืนยัน', callback_data: 'slip:confirm' },
-        { text: '✏️ แก้ไข', callback_data: 'slip:edit' },
-        { text: '❌ ยกเลิก', callback_data: 'slip:cancel' }
+        { text: 'ยืนยัน (Confirm)', callback_data: 'slip:confirm' },
+        { text: 'แก้ไข (Edit)', callback_data: 'slip:edit' },
+        { text: 'ยกเลิก', callback_data: 'slip:cancel' },
       ]] }
-    : undefined;
+    : { inline_keyboard: [[
+        { text: 'ยกเลิก', callback_data: 'slip:cancel' },
+      ]] };
 
   return card({
-    icon: '🛡',
-    titleTh: 'ตรวจสอบสลิป',
-    titleEn: 'Vision Verification',
-    groups: groups.length > 0 ? groups : [[{ labelTh: 'สถานะ', labelEn: 'Status', value: '<b><code>กำลังประมวลผล</code></b>' }]],
+    icon: canConfirm ? '🛡' : '⚠️',
+    titleTh: canConfirm ? 'ตรวจสอบสลิปสำเร็จ' : 'ต้องตรวจบัญชีก่อนบันทึก',
+    titleEn: canConfirm ? 'OCR Verified' : 'Verification Required',
+    groups: groups.length > 0 ? groups : [[{ labelTh: 'สถานะ', labelEn: 'Status', value: '<b><code>—</code></b>' }]],
+    note,
     keyboard,
   });
 }
@@ -1508,15 +1551,24 @@ export function summaryBannerToday(data: {
   });
 }
 
-export function error(detail: string): OutgoingMessage {
+const INTERNAL_ERROR =
+  /DATABASE_MIGRATION|SESSION_|BOT_TOKEN|SUPABASE|PGRST|permission denied|column |relation |WEBHOOK_|duplicate key|23505|violates|INSERT_FAILED|INVALID_AMOUNT|ECONN|TypeError|undefined|null is not|fetch failed|JWT|api key|stack|at http/i;
+
+export function safeUserError(raw: unknown, fallback = 'ระบบยังดำเนินการไม่ได้ — รอสักครู่แล้วลองใหม่'): string {
+  const msg = raw instanceof Error ? raw.message : String(raw ?? '');
+  if (!msg.trim() || INTERNAL_ERROR.test(msg) || msg.length > 180) return fallback;
+  return msg.slice(0, 180);
+}
+
+export function error(detail?: unknown): OutgoingMessage {
   return card({
-    icon: '❌',
+    icon: '⚠️',
     titleTh: 'ดำเนินการไม่สำเร็จ',
     titleEn: 'Operation Failed',
     groups: [[
-      { labelTh: 'สาเหตุ', labelEn: 'Reason', value: mono(detail.slice(0, 500)) },
+      { labelTh: 'สาเหตุ', labelEn: 'Reason', value: mono(safeUserError(detail)) },
     ]],
-    note: 'ตรวจข้อมูลแล้วลองใหม่ · หากยังไม่สำเร็จให้แจ้งผู้ดูแลระบบ',
+    note: 'ตรวจข้อมูลแล้วลองใหม่',
   });
 }
 

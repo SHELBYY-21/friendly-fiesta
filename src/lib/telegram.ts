@@ -35,16 +35,44 @@ export interface OutgoingMessage {
   reply_markup?: unknown;
 }
 
+function isHtmlParseError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return /can't parse entities|can't parse|parse entities|Bad Request: .*parse/i.test(message);
+}
+
+export function stripTelegramHtml(text: string): string {
+  return String(text ?? '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<a\s+[^>]*>([\s\S]*?)<\/a>/gi, '$1')
+    .replace(/<\/?(?:b|i|u|s|code|pre|strong|em|blockquote|tg-spoiler)[^>]*>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
 /** ส่งข้อความ → คืน message_id */
 export async function sendMessage(chatId: number, m: OutgoingMessage): Promise<number> {
-  const r = await tg<{ message_id: number }>('sendMessage', {
-    chat_id: chatId,
-    text: m.text,
-    parse_mode: 'HTML',
-    disable_web_page_preview: true,
-    reply_markup: m.reply_markup,
-  });
-  return r.message_id;
+  try {
+    const r = await tg<{ message_id: number }>('sendMessage', {
+      chat_id: chatId,
+      text: m.text,
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+      reply_markup: m.reply_markup,
+    });
+    return r.message_id;
+  } catch (error) {
+    if (!isHtmlParseError(error)) throw error;
+    const r = await tg<{ message_id: number }>('sendMessage', {
+      chat_id: chatId,
+      text: stripTelegramHtml(m.text).slice(0, 4096),
+      disable_web_page_preview: true,
+      reply_markup: m.reply_markup,
+    });
+    return r.message_id;
+  }
 }
 
 /** ส่งไฟล์ (เช่น CSV) เป็น document ในแชต */

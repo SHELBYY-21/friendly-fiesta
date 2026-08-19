@@ -30,7 +30,7 @@ export async function listPinnedBanks(chatId: number, date = todayBangkok()): Pr
     .order('created_at', { ascending: true });
   if (error) throw error;
   return (data ?? [])
-    .map((row: any) => row.bank_accounts)
+    .map((row: any) => (Array.isArray(row.bank_accounts) ? row.bank_accounts[0] : row.bank_accounts))
     .filter(Boolean) as PinnedBank[];
 }
 

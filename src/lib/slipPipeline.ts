@@ -2,7 +2,7 @@ import { parseAmounts } from './amounts';
 import { accountLast4, matchPinnedBank, type PinnedBank } from './banks';
 import { isLowConfidence, normalizeBankCode } from './botSecurity';
 
-export interface ReplyPhoto {
+export interface SlipPhoto {
   file_id: string;
   file_unique_id: string;
 }
@@ -21,21 +21,64 @@ export type SlipRejectReason =
 export type ChatAmountAction =
   | { action: 'thb_in'; value: number }
   | { action: 'usdt_out'; value: number }
+  | { action: 'both'; thb: number; usdt: number }
   | { action: 'direction_error'; currency: 'THB' | 'USDT' }
   | { action: 'format_help' }
   | { action: 'ambiguous' }
   | { action: 'ignore' };
 
-export function extractReplyPhoto(message: {
+type PhotoSize = { file_id?: string; file_unique_id?: string; width?: number; height?: number };
+type ImageDocument = { file_id?: string; file_unique_id?: string; mime_type?: string; file_name?: string };
+type SlipMessage = {
+  photo?: PhotoSize[];
+  document?: ImageDocument;
   reply_to_message?: {
-    photo?: Array<{ file_id?: string; file_unique_id?: string }>;
+    photo?: PhotoSize[];
+    document?: ImageDocument;
   };
-} | null | undefined): ReplyPhoto | null {
-  const photo = message?.reply_to_message?.photo;
-  if (!Array.isArray(photo) || photo.length === 0) return null;
-  const best = photo[photo.length - 1];
+};
+
+function bestPhoto(photos?: PhotoSize[] | null): SlipPhoto | null {
+  if (!Array.isArray(photos) || photos.length === 0) return null;
+  const ranked = [...photos].sort((a, b) => {
+    const areaA = Number(a.width || 0) * Number(a.height || 0);
+    const areaB = Number(b.width || 0) * Number(b.height || 0);
+    if (areaA !== areaB) return areaA - areaB;
+    return 0;
+  });
+  const best = ranked[ranked.length - 1] ?? photos[photos.length - 1];
   if (!best?.file_id || !best?.file_unique_id) return null;
   return { file_id: best.file_id, file_unique_id: best.file_unique_id };
+}
+
+function imageDocument(doc?: ImageDocument | null): SlipPhoto | null {
+  if (!doc?.file_id || !doc?.file_unique_id) return null;
+  const mime = String(doc.mime_type || '').toLowerCase();
+  const name = String(doc.file_name || '').toLowerCase();
+  const looksImage = mime.startsWith('image/') || /\.(jpe?g|png|webp|gif)$/i.test(name);
+  if (!looksImage) return null;
+  return { file_id: doc.file_id, file_unique_id: doc.file_unique_id };
+}
+
+function mediaFrom(node?: { photo?: PhotoSize[]; document?: ImageDocument } | null): SlipPhoto | null {
+  return bestPhoto(node?.photo) ?? imageDocument(node?.document);
+}
+
+/** Reply รูปสลิป — รองรับ photo และไฟล์รูป (document) */
+export function extractReplyPhoto(message: SlipMessage | null | undefined): SlipPhoto | null {
+  return mediaFrom(message?.reply_to_message);
+}
+
+/**
+ * หารูปสลิปจากข้อความปัจจุบันหรือที่ reply
+ * ใช้ได้ทั้ง /save_slip แบบ reply, caption บนรูป, และไฟล์รูป
+ */
+export function extractSlipPhotoFromMessage(message: SlipMessage | null | undefined): SlipPhoto | null {
+  return mediaFrom(message) ?? mediaFrom(message?.reply_to_message);
+}
+
+export function isSlipMediaMessage(message: SlipMessage | null | undefined): boolean {
+  return extractSlipPhotoFromMessage(message) != null;
 }
 
 export function isDownloadFailure(error: unknown): boolean {
@@ -80,15 +123,14 @@ export function decidePinnedMatch(opts: {
   const manualBank = normalizeBankCode(opts.manualBank);
   const manualLast4 = accountLast4(opts.manualLast4);
 
-  if (ocrBank && ocrLast4 && manualBank && manualLast4) {
-    if (ocrBank !== manualBank || ocrLast4 !== manualLast4) {
-      return { ok: false, reason: 'account_mismatch' };
-    }
+  // คำสั่งชัดเจน /save_slip +500B KBANK 7890 ใช้บัญชีที่ปักหมุด — แก้ OCR ที่อ่านผิดได้
+  if (manualBank && manualLast4) {
+    const matched = matchPinnedBank(manualBank, manualLast4, opts.pinned);
+    if (!matched) return { ok: false, reason: 'account_mismatch' };
+    return { ok: true, bank: matched };
   }
 
-  const bankCode = ocrBank ?? manualBank;
-  const last4 = ocrLast4 ?? manualLast4;
-  const matched = matchPinnedBank(bankCode, last4, opts.pinned);
+  const matched = matchPinnedBank(ocrBank, ocrLast4, opts.pinned);
   if (!matched) return { ok: false, reason: 'account_mismatch' };
   return { ok: true, bank: matched };
 }
@@ -97,10 +139,21 @@ export function decidePinnedMatch(opts: {
 export function classifyChatAmount(text: string): ChatAmountAction {
   const amt = parseAmounts(text);
   if (amt.ambiguous) return { action: 'ambiguous' };
-  if (amt.thb && amt.thb.sign > 0) return { action: 'thb_in', value: amt.thb.value };
-  if (amt.usdt && amt.usdt.sign < 0) return { action: 'usdt_out', value: amt.usdt.value };
-  if (amt.thb && amt.thb.sign < 0) return { action: 'direction_error', currency: 'THB' };
-  if (amt.usdt && amt.usdt.sign > 0) return { action: 'direction_error', currency: 'USDT' };
+
+  const thb = amt.thb;
+  const usdt = amt.usdt;
+  if (thb && thb.sign < 0) return { action: 'direction_error', currency: 'THB' };
+  if (usdt && usdt.sign > 0) return { action: 'direction_error', currency: 'USDT' };
+  if (thb && usdt && thb.sign > 0 && usdt.sign < 0) {
+    return { action: 'both', thb: thb.value, usdt: usdt.value };
+  }
+  if (thb && thb.sign > 0) return { action: 'thb_in', value: thb.value };
+  if (usdt && usdt.sign < 0) return { action: 'usdt_out', value: usdt.value };
   if (amt.hasBareNumber) return { action: 'format_help' };
   return { action: 'ignore' };
+}
+
+export function telegramDisplayName(from: { first_name?: string; last_name?: string } | null | undefined, userId: number): string {
+  const name = [from?.first_name, from?.last_name].filter(Boolean).join(' ').trim();
+  return (name || `Admin ${userId}`).slice(0, 60);
 }

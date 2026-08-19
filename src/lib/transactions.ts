@@ -780,43 +780,62 @@ function fmtBangkokDate(iso: string): string {
   });
 }
 
+function mapRecentSlipRow(
+  row: any,
+  adminById: Map<string, { name?: string | null; telegram_user_id?: number | null }>,
+): RecentSlip {
+  const admin = adminById.get(String(row.admin_id ?? '')) ?? {};
+  const telegramId = Number(admin.telegram_user_id);
+  return {
+    ledgerRef: row.ledger_ref ?? null,
+    type: String(row.type ?? ''),
+    createdAt: row.created_at,
+    time: fmtBangkokTime(row.created_at),
+    date: fmtBangkokDate(row.created_at),
+    thb: Number(row.thb_amount) || 0,
+    usdt: Number(row.usdt_amount) || 0,
+    sellRate: row.sell_rate == null ? null : Number(row.sell_rate),
+    adminName: admin.name ?? null,
+    adminTelegramId: Number.isSafeInteger(telegramId) && telegramId > 0 ? telegramId : null,
+    receiverName: row.receiver_name ?? null,
+    receiverBank: row.receiver_bank ?? null,
+    receiverLast4: row.receiver_last4 ?? null,
+  };
+}
+
 export async function getRecentSlips(
   chatId: number,
   limit = 5,
   sinceIso?: string | null,
 ): Promise<RecentSlip[]> {
   const safeLimit = Number.isSafeInteger(limit) && limit >= 1 && limit <= 20 ? limit : 5;
+  const numericChatId = Number(chatId);
   let query = supabaseAdmin
     .from('transactions')
     .select(
-      'ledger_ref, type, created_at, thb_amount, usdt_amount, sell_rate, receiver_name, receiver_bank, receiver_last4, admins(name, telegram_user_id)',
+      'ledger_ref, type, created_at, thb_amount, usdt_amount, sell_rate, receiver_name, receiver_bank, receiver_last4, admin_id, chat_id',
     )
-    .eq('chat_id', chatId)
+    .eq('chat_id', numericChatId)
     .order('created_at', { ascending: false })
     .limit(safeLimit);
   if (sinceIso) query = query.gte('created_at', sinceIso);
   const { data, error } = await query;
-  if (error) throw error;
+  if (error) throw new Error('RECENT_SLIPS_QUERY_FAILED');
+  const rows = (data ?? []) as any[];
 
-  return ((data ?? []) as any[]).map((row) => {
-    const admin = Array.isArray(row.admins) ? row.admins[0] : row.admins;
-    const telegramId = Number(admin?.telegram_user_id);
-    return {
-      ledgerRef: row.ledger_ref ?? null,
-      type: String(row.type ?? ''),
-      createdAt: row.created_at,
-      time: fmtBangkokTime(row.created_at),
-      date: fmtBangkokDate(row.created_at),
-      thb: Number(row.thb_amount) || 0,
-      usdt: Number(row.usdt_amount) || 0,
-      sellRate: row.sell_rate == null ? null : Number(row.sell_rate),
-      adminName: admin?.name ?? null,
-      adminTelegramId: Number.isSafeInteger(telegramId) && telegramId > 0 ? telegramId : null,
-      receiverName: row.receiver_name ?? null,
-      receiverBank: row.receiver_bank ?? null,
-      receiverLast4: row.receiver_last4 ?? null,
-    };
-  });
+  const adminIds = [...new Set(rows.map((row) => String(row.admin_id || '')).filter(Boolean))];
+  const adminById = new Map<string, { name?: string | null; telegram_user_id?: number | null }>();
+  if (adminIds.length > 0) {
+    const { data: admins } = await supabaseAdmin
+      .from('admins')
+      .select('id, name, telegram_user_id')
+      .in('id', adminIds);
+    for (const admin of admins ?? []) {
+      adminById.set(String((admin as any).id), admin as any);
+    }
+  }
+
+  return rows.map((row) => mapRecentSlipRow(row, adminById));
 }
 
 /** สร้าง CSV ธุรกรรมของห้อง (สำหรับ /export → ส่งเป็นไฟล์ในแชต) */

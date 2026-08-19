@@ -23,12 +23,14 @@ Analyze this slip image carefully and reply with ONLY a JSON object (no prose, n
   "date": "DD/MM/YY",            // transfer date. Convert Buddhist year (B.E. e.g. 2569) to 2-digit Gregorian year (A.D. e.g. 26). Output format DD/MM/YY
   "receiverLast4": "XXXX",       // last 4 digits of RECEIVER (payee/destination) account number (do NOT pick sender's account)
   "bank": "KBANK|SCB|BBL|KTB|BAY|TTB|GSB|KKP|CIMB|LH|UOB|TISCO|TRUEMONEY|PROMPTPAY|other-uppercase",
-  "receiverName": "name or null",// RECEIVER (payee) full name in Thai or English as displayed
-  "senderName": "name or null",  // sender full name if visible
+  "receiverName": "name or null",// RECEIVER (payee) full name in Thai script as displayed — do not translate
+  "senderName": "name or null",  // sender full name in Thai script if visible — do not translate
   "confidence": number|null      // 0-100 only when evidence is readable; otherwise null
 }
 Rules:
 - Output raw JSON only.
+- The slip is Thai. Never translate names or bank labels into Indonesian, Malay, or any other language.
+- Copy Thai text exactly as printed. Do not romanize unless the slip itself is Latin script.
 - Convert 2567 -> 24, 2568 -> 25, 2569 -> 26 for 2-digit Gregorian year.
 - If a field is unreadable, use null. Never infer an amount from unrelated numbers.`;
 

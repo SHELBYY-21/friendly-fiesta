@@ -85,7 +85,7 @@ async function extractThbAmountFromOcrSpace(imageUrl: string): Promise<number | 
       OCREngine: '2',
       scale: 'true',
       isTable: 'true',
-      language: 'eng',
+      language: 'tha',
     });
     const res = await fetch('https://api.ocr.space/parse/imageurl', {
       method: 'POST',

@@ -2,18 +2,17 @@
 # Render Blueprint — CE VAULT (Next.js dashboard + Telegram webhook bot)
 # Deploy: https://dashboard.render.com/blueprint/new?repo=https://github.com/callmeboss721-ops/friendly-fiesta
 #
-# Setelah Apply:
-# 1. Tunggu service Live, lalu set APP_URL ke URL publik yang Render berikan
-#    jika berbeda dari https://ce-vault.onrender.com
-# 2. Aktifkan webhook Telegram sekali:
+# หลังกด Apply:
+# 1. รอจน service เป็น Live แล้วตั้ง APP_URL เป็น URL สาธารณะที่ Render ให้
+#    ถ้าไม่ใช่ https://ce-vault.onrender.com
+# 2. เปิด webhook Telegram ครั้งเดียว:
 #    curl -X POST "$APP_URL/api/telegram/set-webhook" -H "x-api-key: $API_SECRET"
-# 3. Cek kesiapan: curl "$APP_URL/api/health"  →  {"status":"ok",...}
+# 3. ตรวจความพร้อม: curl "$APP_URL/api/health"  →  {"status":"ok",...}
 #
-# Catatan:
-# - Plan free akan spin-down setelah 15 menit idle (cold start ~1 menit).
-#   Upgrade ke starter agar bot Telegram selalu online.
-# - Cron day-cut berbayar (~$1/bulan). Hapus blok cron di bawah jika hanya
-#   ingin web service gratis.
+# หมายเหตุ:
+# - แผน free จะ spin-down หลังว่าง 15 นาที (cold start ประมาณ 1 นาที)
+#   อัปเกรดเป็น starter ถ้าต้องการให้บอท Telegram ออนไลน์ตลอด
+# - Cron day-cut มีค่าใช้จ่าย (~$1/เดือน) ลบบล็อก cron ด้านล่างได้ถ้าใช้แค่เว็บฟรี
 # ============================================================
 services:
   - type: web
@@ -23,7 +22,7 @@ services:
     region: singapore
     buildCommand: npm ci && npm run build
     startCommand: npm start
-    # Landing selalu 200. /api/health adalah readiness check setelah semua secret terisi.
+    # หน้าแรกต้องตอบ 200 เสมอ — /api/health ใช้ตรวจความพร้อมหลังใส่ secret ครบ
     healthCheckPath: /
     envVars:
       - key: NODE_VERSION

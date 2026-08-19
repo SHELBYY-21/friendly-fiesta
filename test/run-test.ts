@@ -7,6 +7,7 @@ const {
   escapeTelegramHtml,
   isBootstrapAdmin,
   isLowConfidence,
+  messageCommandText,
   parseRecentLimit,
   parseSaveSlipArgs,
   slipFingerprint,
@@ -174,8 +175,8 @@ const incomingUi = UI.incomingRecorded({
   confidence: 90,
 });
 assert(
-  incomingUi.text.includes('เข้า (IN)') &&
-    incomingUi.text.includes('ต้องส่ง (Should Send)') &&
+  incomingUi.text.includes('เงินเข้า (IN)') &&
+    incomingUi.text.includes('ยอดที่ต้องส่ง (USDT)') &&
     incomingUi.text.includes('เรทขาย (Sell Rate)') &&
     incomingUi.text.includes('อ้างอิง (Reference)'),
   'recorded transaction UI follows the TH + EN terminology standard',
@@ -326,7 +327,7 @@ assert(parseRecentLimit('/recent_slips abc') === null, '/recent_slips rejects no
 // /recent_slips rendering: empty state, required fields, escaping, length, mentions
 // ============================================================
 const emptySlips = UI.recentSlipsList([]);
-assert(emptySlips.text.includes('สลิปล่าสุด') && emptySlips.text.includes('ยังไม่มีรายการ'), 'recent slips renders an empty state when there is no data');
+assert(emptySlips.text.includes('รายการล่าสุด') && emptySlips.text.includes('ยังไม่มีรายการ'), 'recent slips renders an empty state when there is no data');
 
 const sampleSlips = [
   {
@@ -394,7 +395,9 @@ const {
   decidePinnedMatch,
   decideSlipAmount,
   extractReplyPhoto,
+  extractSlipPhotoFromMessage,
   isDownloadFailure,
+  isSlipMediaMessage,
 } = require('../src/lib/slipPipeline');
 const { thbToUsdt, usdtToThb } = require('../src/lib/profit');
 const { MAX_PINNED_ACCOUNTS } = require('../src/lib/banks');
@@ -405,12 +408,31 @@ assert(
   extractReplyPhoto({
     reply_to_message: {
       photo: [
-        { file_id: 'small', file_unique_id: 'a' },
-        { file_id: 'large', file_unique_id: 'b' },
+        { file_id: 'small', file_unique_id: 'a', width: 10, height: 10 },
+        { file_id: 'large', file_unique_id: 'b', width: 100, height: 100 },
       ],
     },
   })?.file_id === 'large',
   'save_slip uses the largest replied photo',
+);
+assert(
+  extractReplyPhoto({
+    reply_to_message: {
+      document: { file_id: 'doc1', file_unique_id: 'du1', mime_type: 'image/jpeg' },
+    },
+  })?.file_id === 'doc1',
+  'save_slip accepts a replied image document',
+);
+assert(
+  extractSlipPhotoFromMessage({
+    photo: [{ file_id: 'cap', file_unique_id: 'cu', width: 80, height: 80 }],
+    caption: '/save_slip +500B',
+  })?.file_id === 'cap',
+  'save_slip accepts a photo with /save_slip caption',
+);
+assert(
+  isSlipMediaMessage({ document: { file_id: 'pdf', file_unique_id: 'p1', mime_type: 'application/pdf' } }) === false,
+  'non-image documents are not treated as slips',
 );
 
 assert(decideSlipAmount({ manualThb: null, ocrThb: null, ocrConfidence: 99, ocrAutoMin: 90 }).ok === false, 'OCR fail rejects instead of saving');
@@ -441,9 +463,15 @@ assert(
 );
 assert(
   decidePinnedMatch({
-    pinned: pinnedBanks, ocrBank: 'KBANK', ocrLast4: '7890', manualBank: 'SCB', manualLast4: '3210',
+    pinned: pinnedBanks, ocrBank: 'KBANK', ocrLast4: '7890', manualBank: 'BBL', manualLast4: '0000',
   }).reason === 'account_mismatch',
-  'manual bank that conflicts with Vision is rejected',
+  'manual bank that is not pinned is rejected',
+);
+assert(
+  decidePinnedMatch({
+    pinned: pinnedBanks, ocrBank: 'KBANK', ocrLast4: '0000', manualBank: 'SCB', manualLast4: '3210',
+  }).ok === true,
+  'explicit /save_slip bank+last4 that matches a pin is allowed even if OCR differs',
 );
 assert(
   decidePinnedMatch({
@@ -458,7 +486,10 @@ assert(classifyChatAmount('-500B').action === 'direction_error' && classifyChatA
 assert(classifyChatAmount('+13.6U').action === 'direction_error' && classifyChatAmount('+13.6U').currency === 'USDT', 'wrong-direction +13.6U is a direction error');
 assert(classifyChatAmount('+500B').action === 'thb_in' && classifyChatAmount('+500B').value === 500, 'THB deposit requires +500B');
 assert(classifyChatAmount('-13.6U').action === 'usdt_out' && classifyChatAmount('-13.6U').value === 13.6, 'USDT outgoing requires -13.6U');
-assert(classifyChatAmount('+500THB -13.6USDT').action === 'thb_in', 'long suffixes +500THB -13.6USDT remain parseable');
+assert(classifyChatAmount('+500THB -13.6USDT').action === 'both', 'long suffixes +500THB -13.6USDT remain parseable as both legs');
+assert(classifyChatAmount('+500B -13.6U').action === 'both', '+500B -13.6U records THB IN then USDT OUT');
+const bothAmt = classifyChatAmount('+500B -13.6U');
+assert(bothAmt.action === 'both' && bothAmt.thb === 500 && bothAmt.usdt === 13.6, 'paired amount keeps both THB and USDT values');
 assert(UI.amountFormatHelp().text.includes('+500B') && UI.amountFormatHelp().text.includes('-13.6U'), 'format help shows required +500B / -13.6U patterns');
 assert(UI.wrongDirection('THB').text.includes('Invalid Direction'), 'THB direction error uses the direction card');
 assert(UI.wrongDirection('USDT').text.includes('Invalid Direction'), 'USDT direction error uses the direction card');
@@ -477,7 +508,56 @@ assert(isLedgerRef('CE-20260819-AABBCCDD') === true && isLedgerRef('CE-2026-XX')
 assert(bangkokYmd(new Date('2026-08-19T17:30:00.000Z')) === '20260820', 'ledger date uses Asia/Bangkok (UTC 17:30 is next calendar day)');
 assert(bangkokYmd(new Date('2026-08-19T16:59:00.000Z')) === '20260819', 'ledger date stays on Bangkok calendar day before midnight');
 assert(rendered.text.includes('#CE-20260819-AABBCCDD'), 'recent slips display the hashed ledger reference');
+assert(rendered.text.includes('รายการล่าสุด') && rendered.text.includes('(Recent)'), 'recent slips uses CE Vault Recent label');
 assert(isDownloadFailure(new Error('TELEGRAM_FILE_DOWNLOAD_FAILED: HTTP 404')) === true, 'photo download failures are classified as download_failed');
 assert(isDownloadFailure(new Error('random')) === false, 'non-download errors are not classified as download_failed');
+
+assert(messageCommandText({ caption: '/save_slip +500B' }) === '/save_slip +500B', 'caption /save_slip is treated as a command');
+assert(commandName(messageCommandText({ caption: '/save_slip@Razen_7xbot +500B' })) === 'save_slip', 'caption commands honour bot mention suffix');
+assert(messageCommandText({ text: '/pin KBANK 1234' }) === '/pin KBANK 1234', 'plain text commands still win over empty caption');
+
+assert(UI.safeUserError(new Error('DATABASE_MIGRATION_REQUIRED: missing fn')).includes('ระบบยัง'), 'internal database errors are not shown to users');
+assert(!UI.error(new Error('PGRST116')).text.includes('PGRST'), 'PostgREST errors are sanitized in the error card');
+assert(UI.safeUserError('บัญชีไม่ตรงกับปักหมุดวันนี้') === 'บัญชีไม่ตรงกับปักหมุดวันนี้', 'known Thai operator messages pass through');
+
+const mismatchCard = UI.accountMismatch('ห้ามบันทึกอัตโนมัติ', {
+  slipBank: 'KBANK', slipLast4: '1234', slipName: 'ทดสอบ',
+  pinned: [{ bank: 'SCB', last4: '5678' }],
+});
+assert(mismatchCard.text.includes('บัญชีจากสลิป') && mismatchCard.text.includes('บัญชีที่ปักหมุดวันนี้'), 'mismatch card compares slip vs pinned accounts');
+assert(mismatchCard.text.includes('KBANK') && mismatchCard.text.includes('SCB'), 'mismatch card shows both account identities');
+assert(hasBalancedTelegramHtml(mismatchCard.text), 'mismatch card uses balanced Telegram HTML');
+
+const visionMismatch = UI.visionSlipVerification({
+  thb: 500, bank: 'KBANK', last4: '1234', receiverName: 'ทดสอบ', confidence: 96,
+  accountMatched: false, accountClear: true, roomRate: 35, suggestedUsdt: 14.29,
+  pinned: [{ bank: 'SCB', last4: '5678' }], lowConfidence: false, amountSource: 'ocr',
+});
+assert(!JSON.stringify(visionMismatch.reply_markup || {}).includes('slip:confirm'), 'mismatch vision card never offers confirm auto-save');
+assert(visionMismatch.text.includes('บัญชีที่ปักหมุดวันนี้') && visionMismatch.text.includes('บัญชีจากสลิป'), 'mismatch vision card lists slip and pinned accounts');
+
+const visionMatch = UI.visionSlipVerification({
+  thb: 500, bank: 'KBANK', last4: '7890', receiverName: 'ทดสอบ', confidence: 96,
+  accountMatched: true, accountClear: true, matchedBank: 'KBANK', matchedLast4: '7890',
+  roomRate: 35, suggestedUsdt: 14.29, lowConfidence: false, amountSource: 'ocr',
+});
+assert(JSON.stringify(visionMatch.reply_markup).includes('slip:confirm'), 'matched high-confidence OCR offers confirm');
+assert(visionMatch.text.includes('ยอดเงิน') && visionMatch.text.includes('(THB)'), 'vision card labels amount as ยอดเงิน (THB)');
+assert(visionMatch.text.includes('ยอดที่ต้องส่ง') && visionMatch.text.includes('(USDT)'), 'vision card labels payout as ยอดที่ต้องส่ง (USDT)');
+assert(visionMatch.text.includes('ความมั่นใจ') && visionMatch.text.includes('(Confidence)'), 'vision card labels confidence in Thai + English');
+
+const visionLow = UI.visionSlipVerification({
+  thb: 500, bank: 'KBANK', last4: '7890', receiverName: null, confidence: 40,
+  accountMatched: true, accountClear: true, matchedBank: 'KBANK', matchedLast4: '7890',
+  roomRate: 35, suggestedUsdt: 14.29, lowConfidence: true, amountSource: 'ocr',
+});
+assert(!JSON.stringify(visionLow.reply_markup || {}).includes('slip:confirm'), 'low-confidence OCR never shows confirm');
+
+const recorded = UI.incomingRecorded({
+  transactionId: '11111111-1111-1111-1111-111111111111',
+  ledgerRef: 'CE-20260819-AABBCCDD', thb: 500, usdtOwed: 14.29, sellRate: 35, adminName: 'Boss',
+});
+assert(recorded.text.includes('เงินเข้า') && recorded.text.includes('(IN)'), 'incoming card uses เงินเข้า (IN)');
+assert(JSON.stringify(recorded.reply_markup).includes('edit:') && JSON.stringify(recorded.reply_markup).includes('del:'), 'recorded card keeps edit/delete quick actions');
 
 console.log('🎉 ALL TESTS PASSED SUCCESSFULLY!');
