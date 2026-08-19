@@ -2,14 +2,18 @@
 # Render Blueprint — CE VAULT (Next.js dashboard + Telegram webhook bot)
 # Deploy: https://dashboard.render.com/blueprint/new?repo=https://github.com/callmeboss721-ops/friendly-fiesta
 #
+# Setelah Apply:
+# 1. Tunggu service Live, lalu set APP_URL ke URL publik yang Render berikan
+#    jika berbeda dari https://ce-vault.onrender.com
+# 2. Aktifkan webhook Telegram sekali:
+#    curl -X POST "$APP_URL/api/telegram/set-webhook" -H "x-api-key: $API_SECRET"
+# 3. Cek kesiapan: curl "$APP_URL/api/health"  →  {"status":"ok",...}
+#
 # Catatan:
-# - Web service memakai plan free (spin-down setelah 15 menit idle;
-#   pesan Telegram pertama setelah idle butuh ~1 menit cold start).
-#   Upgrade ke plan starter untuk bot yang selalu aktif.
-# - Cron job day-cut berbayar minimum $1/bulan (Render tidak punya cron gratis).
-# - Semua nilai `sync: false` wajib diisi di Dashboard saat Apply.
-# - Setelah live, aktifkan webhook Telegram satu kali:
-#   curl -X POST https://<service>.onrender.com/api/telegram/set-webhook -H "x-api-key: <API_SECRET>"
+# - Plan free akan spin-down setelah 15 menit idle (cold start ~1 menit).
+#   Upgrade ke starter agar bot Telegram selalu online.
+# - Cron day-cut berbayar (~$1/bulan). Hapus blok cron di bawah jika hanya
+#   ingin web service gratis.
 # ============================================================
 services:
   - type: web
@@ -19,11 +23,13 @@ services:
     region: singapore
     buildCommand: npm ci && npm run build
     startCommand: npm start
-    healthCheckPath: /api/health
+    # Landing selalu 200. /api/health adalah readiness check setelah semua secret terisi.
+    healthCheckPath: /
     envVars:
       - key: NODE_VERSION
         value: "22"
-      # URL publik service ini (ganti jika nama service berubah / pakai custom domain)
+      - key: NODE_ENV
+        value: production
       - key: APP_URL
         value: https://ce-vault.onrender.com
       - key: SUPABASE_BUCKET
@@ -40,38 +46,29 @@ services:
         value: "90"
       - key: GROK_MODEL
         value: grok-4.20-non-reasoning
-      # Rahasia yang dibuat otomatis oleh Render saat Apply
+      - key: NOTIFY_CHAT_ID
+        value: ""
       - key: API_SECRET
         generateValue: true
-      # Wajib beda dari API_SECRET dan hanya [A-Za-z0-9_-] (16-256 char).
-      # Isi manual dengan: openssl rand -hex 32
       - key: TELEGRAM_WEBHOOK_SECRET
-        sync: false
-      # Rahasia Supabase (Project Settings -> API)
+        generateValue: true
+      - key: DASHBOARD_SESSION_SECRET
+        generateValue: true
       - key: NEXT_PUBLIC_SUPABASE_URL
         sync: false
       - key: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
         sync: false
       - key: SUPABASE_SECRET_KEY
         sync: false
-      # Telegram
       - key: BOT_TOKEN
         sync: false
       - key: ADMIN_TELEGRAM_IDS
         sync: false
-      - key: NOTIFY_CHAT_ID
-        value: ""
-      # Gerbang PIN dashboard (PIN 6 digit diisi manual; session secret dibuat
-      # otomatis karena wajib >= 32 karakter)
       - key: DASHBOARD_PIN
         sync: false
-      - key: DASHBOARD_SESSION_SECRET
-        generateValue: true
-      # OCR / Vision
       - key: GROK_API_KEY
         sync: false
 
-  # Tutup hari otomatis 22:00 waktu Thailand (15:00 UTC) — pengganti Netlify scheduled function
   - type: cron
     name: ce-vault-day-cut
     runtime: node
