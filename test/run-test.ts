@@ -188,6 +188,10 @@ assert(
     JSON.stringify(incomingUi.reply_markup).includes('qa:rate'),
   'success card carries Quick Action inline keyboard',
 );
+const incomingKb = JSON.stringify(incomingUi.reply_markup);
+assert(incomingKb.includes('◈') && incomingKb.includes('Today'), 'web3 today quick action button');
+assert(incomingKb.includes('◉') && incomingKb.includes('Edit'), 'web3 edit button on success card');
+assert(incomingKb.includes('⛓') && incomingKb.includes('TX'), 'web3 tx detail link on success card');
 
 const ledgerUi = UI.ledgerCard({
   incomingList: [{ time: '10:00', thb: 500, usdt: 13.6 }],
@@ -542,6 +546,10 @@ const visionMatch = UI.visionSlipVerification({
   roomRate: 35, suggestedUsdt: 14.29, lowConfidence: false, amountSource: 'ocr',
 });
 assert(JSON.stringify(visionMatch.reply_markup).includes('slip:confirm'), 'matched high-confidence OCR offers confirm');
+const visionMatchKb = JSON.stringify(visionMatch.reply_markup);
+assert(visionMatchKb.includes('Sign TX') && visionMatchKb.includes('⚡'), 'web3 sign tx button on vision card');
+assert(visionMatchKb.includes('◉') && visionMatchKb.includes('Edit'), 'web3 edit button on vision card');
+assert(visionMatchKb.includes('◇') && visionMatchKb.includes('Abort'), 'web3 abort button on vision card');
 assert(visionMatch.text.includes('ยอดเงิน') && visionMatch.text.includes('(THB)'), 'vision card labels amount as ยอดเงิน (THB)');
 assert(visionMatch.text.includes('ยอดที่ต้องส่ง') && visionMatch.text.includes('(USDT)'), 'vision card labels payout as ยอดที่ต้องส่ง (USDT)');
 assert(visionMatch.text.includes('ความมั่นใจ') && visionMatch.text.includes('(Confidence)'), 'vision card labels confidence in Thai + English');
