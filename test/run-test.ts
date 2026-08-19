@@ -185,13 +185,17 @@ assert(!incomingUi.text.includes('<Admin>') && !incomingUi.text.includes('<BANK>
 assert(
   Array.isArray((incomingUi.reply_markup as any)?.inline_keyboard) &&
     JSON.stringify(incomingUi.reply_markup).includes('qa:today') &&
-    JSON.stringify(incomingUi.reply_markup).includes('qa:rate'),
+    JSON.stringify(incomingUi.reply_markup).includes('qa:setname') &&
+    JSON.stringify(incomingUi.reply_markup).includes('qa:setrate'),
   'success card carries Quick Action inline keyboard',
 );
 const incomingKb = JSON.stringify(incomingUi.reply_markup);
-assert(incomingKb.includes('◈') && incomingKb.includes('Today'), 'web3 today quick action button');
-assert(incomingKb.includes('◉') && incomingKb.includes('Edit'), 'web3 edit button on success card');
-assert(incomingKb.includes('⛓') && incomingKb.includes('TX'), 'web3 tx detail link on success card');
+assert(incomingKb.includes('01') && incomingKb.includes('TODAY'), 'drizzle ranking today button');
+assert(incomingKb.includes('03') && incomingKb.includes('SET NAME'), 'set name replaces export');
+assert(incomingKb.includes('04') && incomingKb.includes('SET RATE'), 'set rate replaces rate/export');
+assert(!incomingKb.includes('qa:export') && !incomingKb.includes('qa:rate'), 'export and view-rate quick actions are removed');
+assert(incomingKb.includes('·') && incomingKb.includes('แก้ไข'), 'drizzle edit button on success card');
+assert(incomingKb.includes('↗') && incomingKb.includes('TX'), 'drizzle tx detail link on success card');
 
 const ledgerUi = UI.ledgerCard({
   incomingList: [{ time: '10:00', thb: 500, usdt: 13.6 }],
@@ -547,9 +551,9 @@ const visionMatch = UI.visionSlipVerification({
 });
 assert(JSON.stringify(visionMatch.reply_markup).includes('slip:confirm'), 'matched high-confidence OCR offers confirm');
 const visionMatchKb = JSON.stringify(visionMatch.reply_markup);
-assert(visionMatchKb.includes('Sign TX') && visionMatchKb.includes('⚡'), 'web3 sign tx button on vision card');
-assert(visionMatchKb.includes('◉') && visionMatchKb.includes('Edit'), 'web3 edit button on vision card');
-assert(visionMatchKb.includes('◇') && visionMatchKb.includes('Abort'), 'web3 abort button on vision card');
+assert(visionMatchKb.includes('SIGN') && visionMatchKb.includes('▸'), 'drizzle sign button on vision card');
+assert(visionMatchKb.includes('·') && visionMatchKb.includes('แก้ไข'), 'drizzle edit button on vision card');
+assert(visionMatchKb.includes('×') && visionMatchKb.includes('ยกเลิก'), 'drizzle abort button on vision card');
 assert(visionMatch.text.includes('ยอดเงิน') && visionMatch.text.includes('(THB)'), 'vision card labels amount as ยอดเงิน (THB)');
 assert(visionMatch.text.includes('ยอดที่ต้องส่ง') && visionMatch.text.includes('(USDT)'), 'vision card labels payout as ยอดที่ต้องส่ง (USDT)');
 assert(visionMatch.text.includes('ความมั่นใจ') && visionMatch.text.includes('(Confidence)'), 'vision card labels confidence in Thai + English');
@@ -567,5 +571,14 @@ const recorded = UI.incomingRecorded({
 });
 assert(recorded.text.includes('เงินเข้า') && recorded.text.includes('(IN)'), 'incoming card uses เงินเข้า (IN)');
 assert(JSON.stringify(recorded.reply_markup).includes('edit:') && JSON.stringify(recorded.reply_markup).includes('del:'), 'recorded card keeps edit/delete quick actions');
+
+const setNamePrompt = UI.promptSetRoomName('ห้อง A');
+assert(setNamePrompt.text.includes('ตั้งชื่อห้อง') && setNamePrompt.text.includes('Set Room Name'), 'set name prompt uses CE Vault card');
+assert(setNamePrompt.text.includes('ห้อง A'), 'set name prompt shows current room name');
+const setRatePrompt = UI.promptSetRoomRate(36.65);
+assert(setRatePrompt.text.includes('ตั้งเรทห้อง') && setRatePrompt.text.includes('36.65'), 'set rate prompt shows current room rate');
+const menuKb = JSON.stringify(UI.menuCard().reply_markup);
+assert(menuKb.includes('qa:setname') && menuKb.includes('qa:setrate'), 'menu card uses set name / set rate actions');
+assert(!menuKb.includes('qa:export') && !menuKb.includes('qa:rate'), 'menu card no longer uses export / rate');
 
 console.log('🎉 ALL TESTS PASSED SUCCESSFULLY!');

@@ -1,8 +1,8 @@
 // ============================================================
 // CE VAULT — Fintech Enterprise Telegram UI (v2)
-// สไตล์: Apple × Stripe × Web3 Vault
+// สไตล์: Drizzle × Vault
 //   การ์ด: ไทยเป็นหลัก · English ในวงเล็บ
-//   ปุ่ม: geometric symbols (◈ ◉ ◇ ⬡ ⟁ ⚡) + Sign / Vault / TX
+//   ปุ่ม: ranking chips 01–04 · ▸ SIGN · × ABORT
 // ============================================================
 import { getAppUrl } from './runtimeEnv';
 import { bangkokYmd, displayLedgerRef, newLedgerRef } from './ledgerRef';
@@ -73,25 +73,25 @@ function card(o: CardOpts): OutgoingMessage {
   return { text: parts.join('\n'), reply_markup: o.keyboard };
 }
 
-// ═══════════════ Web3 Keyboards ═══════════════
-// Telegram รองรับแค่ข้อความบนปุ่ม — ใช้สัญลักษณ์ geometric + ไทย/English แบบ vault/dApp
+// ═══════════════ Drizzle ranking keyboards ═══════════════
+// Telegram ใส่สีปุ่มไม่ได้ — ใช้ index 01–04 + middle-dot แบบ Drizzle top list
 const W3 = {
-  sign: '⚡ ยืนยัน (Sign)',
-  signTx: '⚡ ยืนยัน (Sign TX)',
-  execute: '⚡ ยืนยัน (Execute)',
-  edit: '◉ แก้ไข (Edit)',
-  editUsdt: '◉ แก้ USDT (Edit)',
-  abort: '◇ ยกเลิก (Abort)',
-  delete: '✕ ลบ (Delete)',
-  today: '◈ ยอดวันนี้ (Today)',
-  recent: '◇ รายการล่าสุด (Recent)',
-  export: '⬡ Export (CSV)',
-  rate: '⟁ Rate (FX)',
-  vault: '⬡ Vault (Dashboard)',
-  tx: '⛓ รายละเอียด (TX)',
-  newDay: '⟁ วันใหม่ (New Day)',
-  reset: '◇ ล้างยอด (Reset)',
-  resetConfirm: '⚡ ยืนยัน Reset (Sign)',
+  sign: '▸  ยืนยัน',
+  signTx: '▸  SIGN',
+  execute: '▸  EXECUTE',
+  edit: '·  แก้ไข',
+  editUsdt: '·  USDT',
+  abort: '×  ยกเลิก',
+  delete: '×  ลบ',
+  today: '01  ·  TODAY',
+  recent: '02  ·  RECENT',
+  setName: '03  ·  SET NAME',
+  setRate: '04  ·  SET RATE',
+  vault: '↗  VAULT',
+  tx: '↗  TX',
+  newDay: '·  NEW DAY',
+  reset: '×  RESET',
+  resetConfirm: '▸  RESET',
 } as const;
 
 type InlineBtn = { text: string; callback_data: string } | { text: string; url: string };
@@ -110,7 +110,7 @@ function confirmAbortRow(confirmData: string, confirmText: string = W3.sign): In
 
 const QA_ROWS: InlineBtn[][] = [
   [cb(W3.today, 'qa:today'), cb(W3.recent, 'qa:receiver')],
-  [cb(W3.export, 'qa:export'), cb(W3.rate, 'qa:rate')],
+  [cb(W3.setName, 'qa:setname'), cb(W3.setRate, 'qa:setrate')],
 ];
 
 function qaKeyboard(extraRows: InlineBtn[][] = []): { inline_keyboard: InlineBtn[][] } {
@@ -1149,6 +1149,37 @@ export function chatRateSet(rate: number): OutgoingMessage {
       { icon: '📈', labelTh: 'เรทขาย', labelEn: 'Sell Rate', value: amount(rate, 'THB / USDT') },
     ]],
     note: 'ระบบคำนวณ USDT อัตโนมัติทุกครั้งที่ส่งสลิป',
+    keyboard: qaKeyboard(),
+  });
+}
+
+export function promptSetRoomName(current?: string | null): OutgoingMessage {
+  return card({
+    titleTh: 'ตั้งชื่อห้อง',
+    titleEn: 'Set Room Name',
+    groups: [[
+      { labelTh: 'ชื่อปัจจุบัน', labelEn: 'Current', value: mono(current || 'ยังไม่มี') },
+      { labelTh: 'วิธีตั้ง', labelEn: 'Format', value: mono('พิมพ์ชื่อ เช่น ห้อง A') },
+    ]],
+    note: 'พิมพ์ชื่อใหม่เลย · /cancel เพื่อยกเลิก',
+    keyboard: { inline_keyboard: [[cb(W3.abort, 'cancelop:1')]] },
+  });
+}
+
+export function promptSetRoomRate(current?: number | null): OutgoingMessage {
+  return card({
+    titleTh: 'ตั้งเรทห้อง',
+    titleEn: 'Set Room Rate',
+    groups: [[
+      {
+        labelTh: 'เรทปัจจุบัน',
+        labelEn: 'Current',
+        value: current && current > 0 ? amount(current, 'THB / USDT') : mono('ยังไม่ได้ตั้ง'),
+      },
+      { labelTh: 'วิธีตั้ง', labelEn: 'Format', value: mono('36.65') },
+    ]],
+    note: 'พิมพ์ตัวเลขเรทอย่างเดียว · ห้ามเดาสกุลเงิน · /cancel เพื่อยกเลิก',
+    keyboard: { inline_keyboard: [[cb(W3.abort, 'cancelop:1')]] },
   });
 }
 
@@ -1299,6 +1330,7 @@ export function roomNameSet(name: string): OutgoingMessage {
     groups: [[
       { icon: '🏠', labelTh: 'ห้อง', labelEn: 'Room', value: mono(name) },
     ]],
+    keyboard: qaKeyboard(),
   });
 }
 
@@ -1526,7 +1558,7 @@ export function visionSlipVerification(data: VisionSlipVerificationData): Outgoi
   } else if (lowConf && data.amountSource !== 'manual') {
     note = 'ความมั่นใจต่ำ — ใส่ยอดชัดเจนด้วย /save_slip +500B ห้ามเดายอด';
   } else {
-    note = 'OCR สำเร็จ — กด Sign TX เพื่อบันทึก (Confirm)';
+    note = 'OCR สำเร็จ — กด ▸ SIGN เพื่อบันทึก';
   }
 
   return card({
