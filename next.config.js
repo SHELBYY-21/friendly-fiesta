@@ -16,7 +16,7 @@ function validateRequiredEnv() {
   // Public vars MUST be present at build time (Next.js inlines them)
   const PUBLIC_REQUIRED = [
     'NEXT_PUBLIC_SUPABASE_URL',
-    'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+    ['NEXT_PUBLIC_SUPABASE_ANON_KEY', 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'],
   ];
 
   // Server-only vars — warn at build, validated at runtime in API routes
@@ -25,7 +25,14 @@ function validateRequiredEnv() {
     'ANTHROPIC_API_KEY',
   ];
 
-  const publicMissing = PUBLIC_REQUIRED.filter((k) => isPlaceholder(process.env[k]));
+  const publicMissing = [];
+  for (const entry of PUBLIC_REQUIRED) {
+    if (Array.isArray(entry)) {
+      if (!entry.some((k) => !isPlaceholder(process.env[k]))) publicMissing.push(entry[0]);
+    } else if (isPlaceholder(process.env[entry])) {
+      publicMissing.push(entry);
+    }
+  }
   const serverMissing = [];
   for (const entry of SERVER_REQUIRED) {
     if (Array.isArray(entry)) {
@@ -45,8 +52,16 @@ function validateRequiredEnv() {
       process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://placeholder.supabase.co';
     }
     if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || isPlaceholder(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)) {
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'placeholder-anon-key';
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY =
+        (!isPlaceholder(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) &&
+          process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) ||
+        'placeholder-anon-key';
     }
+  } else if (
+    isPlaceholder(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) &&
+    !isPlaceholder(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)
+  ) {
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   }
 
   if (serverMissing.length > 0) {

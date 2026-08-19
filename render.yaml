@@ -1,0 +1,88 @@
+# ============================================================
+# Render Blueprint — CE VAULT (Next.js dashboard + Telegram webhook bot)
+# Deploy: https://dashboard.render.com/blueprint/new?repo=https://github.com/callmeboss721-ops/friendly-fiesta
+#
+# Setelah Apply:
+# 1. Tunggu service Live, lalu set APP_URL ke URL publik yang Render berikan
+#    jika berbeda dari https://ce-vault.onrender.com
+# 2. Aktifkan webhook Telegram sekali:
+#    curl -X POST "$APP_URL/api/telegram/set-webhook" -H "x-api-key: $API_SECRET"
+# 3. Cek kesiapan: curl "$APP_URL/api/health"  →  {"status":"ok",...}
+#
+# Catatan:
+# - Plan free akan spin-down setelah 15 menit idle (cold start ~1 menit).
+#   Upgrade ke starter agar bot Telegram selalu online.
+# - Cron day-cut berbayar (~$1/bulan). Hapus blok cron di bawah jika hanya
+#   ingin web service gratis.
+# ============================================================
+services:
+  - type: web
+    name: ce-vault
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    # Landing selalu 200. /api/health adalah readiness check setelah semua secret terisi.
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: APP_URL
+        value: https://ce-vault.onrender.com
+      - key: SUPABASE_BUCKET
+        value: slips
+      - key: ALLOW_INSECURE_DEV_API
+        value: "0"
+      - key: DEFAULT_SELL_RATE
+        value: "35.5"
+      - key: DEFAULT_MARKET_RATE
+        value: "34.8"
+      - key: FEE_WARNING_THRESHOLD
+        value: "3"
+      - key: OCR_AUTO_MIN
+        value: "90"
+      - key: GROK_MODEL
+        value: grok-4.20-non-reasoning
+      - key: NOTIFY_CHAT_ID
+        value: ""
+      - key: API_SECRET
+        generateValue: true
+      - key: TELEGRAM_WEBHOOK_SECRET
+        generateValue: true
+      - key: DASHBOARD_SESSION_SECRET
+        generateValue: true
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: BOT_TOKEN
+        sync: false
+      - key: ADMIN_TELEGRAM_IDS
+        sync: false
+      - key: DASHBOARD_PIN
+        sync: false
+      - key: GROK_API_KEY
+        sync: false
+
+  - type: cron
+    name: ce-vault-day-cut
+    runtime: node
+    schedule: "0 15 * * *"
+    buildCommand: echo "no build needed"
+    startCommand: curl -fsS -H "Authorization: Bearer $API_SECRET" "$APP_URL/api/cron/day-cut"
+    envVars:
+      - key: API_SECRET
+        fromService:
+          name: ce-vault
+          type: web
+          envVarKey: API_SECRET
+      - key: APP_URL
+        fromService:
+          name: ce-vault
+          type: web
+          envVarKey: APP_URL
