@@ -126,5 +126,5 @@ export async function uploadSlipFromTelegram(fileId: string): Promise<string> {
   });
   if (error) throw error;
 
-  return supabaseAdmin.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+  return supabaseAdmin.storage.from(bucketName()).getPublicUrl(path).data.publicUrl;
 }
