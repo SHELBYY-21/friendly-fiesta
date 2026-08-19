@@ -45,7 +45,8 @@ export function parseSlipText(text: string): ParsedSlipText {
   };
 }
 
+import { thbToUsdt } from '../lib/profit';
+
 export function computeShouldSend(thb: number, rate: number): number {
-  if (!rate || rate <= 0 || !thb || thb <= 0) return 0;
-  return parseFloat((thb / rate).toFixed(2));
+  return thbToUsdt(thb, rate);
 }

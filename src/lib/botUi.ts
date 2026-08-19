@@ -9,11 +9,12 @@
 //     {value}
 //   ไทยเป็นหลัก · English ในวงเล็บเฉพาะคำสำคัญ
 // ============================================================
-import { randomBytes } from 'crypto';
+import { getAppUrl } from './runtimeEnv';
+import { bangkokYmd, displayLedgerRef, newLedgerRef } from './ledgerRef';
 import type { OutgoingMessage } from './telegram';
 import { escapeTelegramHtml, telegramUserMention } from './botSecurity';
 
-const APP_RAW = (process.env.APP_URL || '').replace(/\/$/, '');
+const APP_RAW = (getAppUrl() || '').replace(/\/$/, '');
 const APP = APP_RAW.startsWith('https://') && !APP_RAW.includes('localhost') ? APP_RAW : '';
 const FEE_WARN = Number(process.env.FEE_WARNING_THRESHOLD || 3);
 
@@ -107,18 +108,11 @@ export function quickActionKeyboard(transactionId?: string): unknown {
 }
 
 // ═══════════════ Ledger reference ═══════════════
-export function refCode(txId: string): string {
-  const d = new Date();
-  const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-  const tail = (txId || '').replace(/-/g, '').slice(0, 4).toUpperCase() || '----';
-  return `CE-${ymd}-${tail}`;
-}
+export { newLedgerRef, displayLedgerRef };
 
-export function newLedgerRef(): string {
-  const d = new Date();
-  const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-  const rand = randomBytes(4).toString('hex').toUpperCase();
-  return `CE-${ymd}-${rand}`;
+export function refCode(txId: string): string {
+  const tail = (txId || '').replace(/-/g, '').slice(0, 8).toUpperCase().padEnd(8, '0');
+  return `CE-${bangkokYmd()}-${tail}`;
 }
 
 // ═══════════════ Common field builders ═══════════════
@@ -130,7 +124,7 @@ const F = {
   marketRate: (r: number): Field => ({ icon: '📉', labelTh: 'เรทซื้อ', labelEn: 'Buy Rate', value: mono(money(r)) }),
   netProfit: (thb: number): Field => ({ icon: '💹', labelTh: 'กำไรสุทธิ', labelEn: 'Net Profit', value: amount(thb, 'THB') }),
   balance: (usdt: number): Field => ({ icon: '📦', labelTh: 'ยอดคงเหลือ', labelEn: 'Balance', value: amount(usdt, 'USDT') }),
-  reference: (ref: string): Field => ({ icon: '🧾', labelTh: 'อ้างอิง', labelEn: 'Reference', value: mono(ref) }),
+  reference: (ref: string): Field => ({ icon: '🧾', labelTh: 'อ้างอิง', labelEn: 'Reference', value: mono(displayLedgerRef(ref)) }),
   operator: (name: string): Field => ({ icon: '👤', labelTh: 'ผู้ดูแล', labelEn: 'Operator', value: mono(name) }),
   receiver: (name: string): Field => ({ icon: '👤', labelTh: 'ผู้รับ', labelEn: 'Receiver', value: mono(name) }),
   bank: (b: string): Field => ({ icon: '🏦', labelTh: 'ธนาคาร', labelEn: 'Bank', value: mono(b) }),
@@ -353,7 +347,7 @@ export function recentSlipsList(slips: RecentSlipView[]): OutgoingMessage {
       ? telegramUserMention(s.adminTelegramId, s.adminName || 'Admin')
       : mono(s.adminName || '—');
     const lines: string[] = [];
-    lines.push(`${i + 1}. ${dirIcon} ${mono(s.ledgerRef || '—')} · <i>${dirTh} (${dirEn})</i>`);
+    lines.push(`${i + 1}. ${dirIcon} ${mono(displayLedgerRef(s.ledgerRef))} · <i>${dirTh} (${dirEn})</i>`);
     const money2 = `💵 ${amount(s.thb ?? 0, 'THB')} → 🚀 ${amount(s.usdt ?? 0, 'USDT')}`;
     const rate = s.sellRate != null && s.sellRate > 0 ? ` · 📈 ${mono(money(s.sellRate))}` : '';
     lines.push(`   ${money2}${rate}`);
@@ -578,7 +572,7 @@ export function ocrUnclear(confidence?: number | null, instruction?: string): Ou
     titleTh: 'ไม่สามารถอ่านข้อมูลได้',
     titleEn: 'OCR Failed',
     groups: fields.length ? [fields] : [],
-    note: instruction ?? 'กรุณาส่งรูปใหม่ หรือกรอกยอดด้วยตนเอง เช่น +500',
+    note: instruction ?? 'กรุณาส่งรูปใหม่ หรือกรอกยอดด้วยตนเอง เช่น +500B',
   });
 }
 
