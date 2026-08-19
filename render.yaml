@@ -61,11 +61,12 @@ services:
         sync: false
       - key: NOTIFY_CHAT_ID
         value: ""
-      # Gerbang PIN dashboard
+      # Gerbang PIN dashboard (PIN 6 digit diisi manual; session secret dibuat
+      # otomatis karena wajib >= 32 karakter)
       - key: DASHBOARD_PIN
         sync: false
       - key: DASHBOARD_SESSION_SECRET
-        sync: false
+        generateValue: true
       # OCR / Vision
       - key: GROK_API_KEY
         sync: false
