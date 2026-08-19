@@ -106,6 +106,16 @@ export async function editMessage(chatId: number, messageId: number, m: Outgoing
       reply_markup: m.reply_markup,
     });
   } catch (e) {
+    if (isHtmlParseError(e)) {
+      await tg('editMessageText', {
+        chat_id: chatId,
+        message_id: messageId,
+        text: stripTelegramHtml(m.text).slice(0, 4096),
+        disable_web_page_preview: true,
+        reply_markup: m.reply_markup,
+      });
+      return;
+    }
     console.warn(`editMessage failed (chat=${chatId}, msg=${messageId}):`, e instanceof Error ? e.message : e);
   }
 }

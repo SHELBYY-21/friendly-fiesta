@@ -1,13 +1,8 @@
 // ============================================================
 // CE VAULT — Fintech Enterprise Telegram UI (v2)
-// สไตล์: Apple × Stripe × ChatGPT
-//   ทุกการ์ดใช้ Layout เดียวกัน:
-//     {icon} <b>ชื่อไทย</b>
-//     <i>(English Title)</i>
-//     ━━━━━━━━━━━━━━━━━━
-//     {icon} label ไทย (English)
-//     {value}
-//   ไทยเป็นหลัก · English ในวงเล็บเฉพาะคำสำคัญ
+// สไตล์: Drizzle × Vault
+//   การ์ด: ไทยเป็นหลัก · English ในวงเล็บ
+//   ปุ่ม: ranking chips 01–04 · ▸ SIGN · × ABORT
 // ============================================================
 import { getAppUrl } from './runtimeEnv';
 import { bangkokYmd, displayLedgerRef, newLedgerRef } from './ledgerRef';
@@ -78,28 +73,80 @@ function card(o: CardOpts): OutgoingMessage {
   return { text: parts.join('\n'), reply_markup: o.keyboard };
 }
 
-// ═══════════════ Keyboards ═══════════════
-const QA_ROWS: any[][] = [
-  [
-    { text: '📊 ยอดวันนี้', callback_data: 'qa:today' },
-    { text: '👤 ผู้รับ', callback_data: 'qa:receiver' },
-  ],
-  [
-    { text: '📄 Export', callback_data: 'qa:export' },
-    { text: '📈 Rate', callback_data: 'qa:rate' },
-  ],
+// ═══════════════ Drizzle ranking keyboards ═══════════════
+// Telegram ใส่สีปุ่มไม่ได้ — ใช้ index 01–04 + middle-dot แบบ Drizzle top list
+const W3 = {
+  sign: '▸  ยืนยัน',
+  signTx: '▸  SIGN',
+  execute: '▸  EXECUTE',
+  edit: '·  แก้ไข',
+  editUsdt: '·  USDT',
+  abort: '×  ยกเลิก',
+  delete: '×  ลบ',
+  today: '01  ·  TODAY',
+  recent: '02  ·  RECENT',
+  setName: '03  ·  SET NAME',
+  setRate: '04  ·  SET RATE',
+  vault: '↗  VAULT',
+  tx: '↗  TX',
+  newDay: '·  NEW DAY',
+  reset: '×  RESET',
+  resetConfirm: '▸  RESET',
+} as const;
+
+type InlineBtn = { text: string; callback_data: string } | { text: string; url: string };
+
+function cb(text: string, callback_data: string): { text: string; callback_data: string } {
+  return { text, callback_data };
+}
+
+function link(text: string, url: string): { text: string; url: string } {
+  return { text, url };
+}
+
+function confirmAbortRow(confirmData: string, confirmText: string = W3.sign): InlineBtn[] {
+  return [cb(confirmText, confirmData), cb(W3.abort, 'cancelop:1')];
+}
+
+const QA_ROWS: InlineBtn[][] = [
+  [cb(W3.today, 'qa:today'), cb(W3.recent, 'qa:receiver')],
+  [cb(W3.setName, 'qa:setname'), cb(W3.setRate, 'qa:setrate')],
 ];
 
-function successKeyboard(transactionId?: string): unknown {
-  const rows: any[][] = [];
+function qaKeyboard(extraRows: InlineBtn[][] = []): { inline_keyboard: InlineBtn[][] } {
+  return { inline_keyboard: [...extraRows, ...QA_ROWS.map((r) => r.slice())] };
+}
+
+function slipActionKeyboard(canConfirm: boolean): { inline_keyboard: InlineBtn[][] } {
+  if (canConfirm) {
+    return {
+      inline_keyboard: [[
+        cb(W3.signTx, 'slip:confirm'),
+        cb(W3.edit, 'slip:edit'),
+        cb(W3.abort, 'slip:cancel'),
+      ]],
+    };
+  }
+  return { inline_keyboard: [[cb(W3.abort, 'slip:cancel')]] };
+}
+
+function dealConfirmKeyboard(ledgerRef: string): { inline_keyboard: InlineBtn[][] } {
+  return {
+    inline_keyboard: [[
+      cb(W3.execute, `dealok:${ledgerRef}`),
+      cb(W3.editUsdt, 'dealedit:1'),
+      cb(W3.abort, 'cancelop:1'),
+    ]],
+  };
+}
+
+function successKeyboard(transactionId?: string): { inline_keyboard: InlineBtn[][] } {
+  const rows: InlineBtn[][] = [];
   if (transactionId) {
-    rows.push([
-      { text: '✏️ แก้ไข', callback_data: `edit:${transactionId}` },
-      { text: '🗑 ลบ', callback_data: `del:${transactionId}` },
-    ]);
+    rows.push([cb(W3.edit, `edit:${transactionId}`), cb(W3.delete, `del:${transactionId}`)]);
   }
   rows.push(...QA_ROWS.map((r) => r.slice()));
-  if (APP && transactionId) rows.push([{ text: '🔎 รายละเอียด', url: `${APP}/dashboard/transactions/${transactionId}` }]);
+  if (APP && transactionId) rows.push([link(W3.tx, `${APP}/dashboard/transactions/${transactionId}`)]);
   return { inline_keyboard: rows };
 }
 
@@ -148,7 +195,7 @@ export function welcomeRegistered(name: string): OutgoingMessage {
     tag: true,
     groups: [[F.operator(name)]],
     note: 'ระบบพร้อมใช้งาน — ส่งสลิปเพื่อเริ่มธุรกรรม',
-    keyboard: { inline_keyboard: QA_ROWS.map((r) => r.slice()) },
+    keyboard: qaKeyboard(),
   });
 }
 
@@ -170,7 +217,7 @@ export function registered(name: string): OutgoingMessage {
     tag: true,
     groups: [[F.operator(name)]],
     note: 'ตั้งบัญชีรับด้วย /pin แล้วส่งสลิปได้เลย',
-    keyboard: { inline_keyboard: QA_ROWS.map((r) => r.slice()) },
+    keyboard: qaKeyboard(),
   });
 }
 
@@ -809,13 +856,7 @@ export function dealConfirm(d: DealConfirmData): OutgoingMessage {
     titleEn: 'Confirm Deal',
     groups,
     note: 'ตรวจข้อมูลแล้วกดยืนยัน',
-    keyboard: {
-      inline_keyboard: [[
-        { text: '✅ ยืนยัน', callback_data: `dealok:${d.ledgerRef}` },
-        { text: '✏️ แก้ USDT', callback_data: 'dealedit:1' },
-        { text: '✖️ ยกเลิก', callback_data: 'cancelop:1' },
-      ]],
-    },
+    keyboard: dealConfirmKeyboard(d.ledgerRef),
   });
 }
 
@@ -886,7 +927,7 @@ export function brandCard(d: BrandCardData): OutgoingMessage {
     groups: [fields],
   });
   if (APP && d.transactionId) {
-    msg.text += `\n<a href="${APP}/status/${encodeURIComponent(d.transactionId)}">🔎 ติดตามรายการ (Track Transaction)</a>`;
+    msg.text += `\n<a href="${APP}/status/${encodeURIComponent(d.transactionId)}">⛓ Track TX (On-chain)</a>`;
   }
   return msg;
 }
@@ -917,12 +958,7 @@ export function confirmDeposit(thb: number, usdt: number, rate: number): Outgoin
       F.shouldSend(usdt),
       F.sellRate(rate),
     ]],
-    keyboard: {
-      inline_keyboard: [[
-        { text: '✅ ยืนยัน', callback_data: `confirm:${usdt.toFixed(2)}` },
-        { text: '✖️ ยกเลิก', callback_data: 'cancelop:1' },
-      ]],
-    },
+    keyboard: { inline_keyboard: [confirmAbortRow(`confirm:${usdt.toFixed(2)}`)] },
   });
 }
 
@@ -935,12 +971,7 @@ export function confirmSend(usdt: number, holding: number): OutgoingMessage {
       { icon: '🚀', labelTh: 'ส่ง USDT', labelEn: 'Send USDT', value: amount(usdt, 'USDT') },
       F.balance(holding - usdt),
     ]],
-    keyboard: {
-      inline_keyboard: [[
-        { text: '✅ ยืนยัน', callback_data: `confirmsend:${usdt.toFixed(2)}` },
-        { text: '✖️ ยกเลิก', callback_data: 'cancelop:1' },
-      ]],
-    },
+    keyboard: { inline_keyboard: [confirmAbortRow(`confirmsend:${usdt.toFixed(2)}`)] },
   });
 }
 
@@ -1118,6 +1149,37 @@ export function chatRateSet(rate: number): OutgoingMessage {
       { icon: '📈', labelTh: 'เรทขาย', labelEn: 'Sell Rate', value: amount(rate, 'THB / USDT') },
     ]],
     note: 'ระบบคำนวณ USDT อัตโนมัติทุกครั้งที่ส่งสลิป',
+    keyboard: qaKeyboard(),
+  });
+}
+
+export function promptSetRoomName(current?: string | null): OutgoingMessage {
+  return card({
+    titleTh: 'ตั้งชื่อห้อง',
+    titleEn: 'Set Room Name',
+    groups: [[
+      { labelTh: 'ชื่อปัจจุบัน', labelEn: 'Current', value: mono(current || 'ยังไม่มี') },
+      { labelTh: 'วิธีตั้ง', labelEn: 'Format', value: mono('พิมพ์ชื่อ เช่น ห้อง A') },
+    ]],
+    note: 'พิมพ์ชื่อใหม่เลย · /cancel เพื่อยกเลิก',
+    keyboard: { inline_keyboard: [[cb(W3.abort, 'cancelop:1')]] },
+  });
+}
+
+export function promptSetRoomRate(current?: number | null): OutgoingMessage {
+  return card({
+    titleTh: 'ตั้งเรทห้อง',
+    titleEn: 'Set Room Rate',
+    groups: [[
+      {
+        labelTh: 'เรทปัจจุบัน',
+        labelEn: 'Current',
+        value: current && current > 0 ? amount(current, 'THB / USDT') : mono('ยังไม่ได้ตั้ง'),
+      },
+      { labelTh: 'วิธีตั้ง', labelEn: 'Format', value: mono('36.65') },
+    ]],
+    note: 'พิมพ์ตัวเลขเรทอย่างเดียว · ห้ามเดาสกุลเงิน · /cancel เพื่อยกเลิก',
+    keyboard: { inline_keyboard: [[cb(W3.abort, 'cancelop:1')]] },
   });
 }
 
@@ -1203,12 +1265,9 @@ export function ledgerCard(d: LedgerData): OutgoingMessage {
     groups,
     keyboard: {
       inline_keyboard: [
-        [
-          { text: '🔄 วันใหม่', callback_data: 'newday:1' },
-          { text: '🗑 ล้างยอด', callback_data: 'resetask:1' },
-        ],
+        [cb(W3.newDay, 'newday:1'), cb(W3.reset, 'resetask:1')],
         ...QA_ROWS.map((r) => r.slice()),
-        ...(APP ? [[{ text: '📊 แดชบอร์ด', url: `${APP}/dashboard` }]] : []),
+        ...(APP ? [[link(W3.vault, `${APP}/dashboard`)]] : []),
       ],
     },
   });
@@ -1233,12 +1292,7 @@ export function menuCard(): OutgoingMessage {
       { labelTh: '/cancel', value: mono('ยกเลิกโหมด') },
     ]],
     note: FORMAT_LINE,
-    keyboard: {
-      inline_keyboard: [
-        ...QA_ROWS.map((r) => r.slice()),
-        ...(APP ? [[{ text: '📊 แดชบอร์ด', url: `${APP}/dashboard` }]] : []),
-      ],
-    },
+    keyboard: qaKeyboard(APP ? [[link(W3.vault, `${APP}/dashboard`)]] : []),
   });
 }
 
@@ -1252,12 +1306,7 @@ export function resetAsk(roomName?: string | null): OutgoingMessage {
     titleEn: 'Start New Cycle',
     groups: fields.length ? [fields] : [],
     note: 'รายการเดิมยังอยู่ครบ · ยอดรอบใหม่เริ่มจาก 0',
-    keyboard: {
-      inline_keyboard: [[
-        { text: '✅ ยืนยัน', callback_data: 'resetgo:1' },
-        { text: '✖️ ยกเลิก', callback_data: 'cancelop:1' },
-      ]],
-    },
+    keyboard: { inline_keyboard: [confirmAbortRow('resetgo:1', W3.resetConfirm)] },
   });
 }
 
@@ -1281,6 +1330,7 @@ export function roomNameSet(name: string): OutgoingMessage {
     groups: [[
       { icon: '🏠', labelTh: 'ห้อง', labelEn: 'Room', value: mono(name) },
     ]],
+    keyboard: qaKeyboard(),
   });
 }
 
@@ -1508,18 +1558,8 @@ export function visionSlipVerification(data: VisionSlipVerificationData): Outgoi
   } else if (lowConf && data.amountSource !== 'manual') {
     note = 'ความมั่นใจต่ำ — ใส่ยอดชัดเจนด้วย /save_slip +500B ห้ามเดายอด';
   } else {
-    note = 'OCR สำเร็จ — กดยืนยันเพื่อบันทึก (Confirm)';
+    note = 'OCR สำเร็จ — กด ▸ SIGN เพื่อบันทึก';
   }
-
-  const keyboard = canConfirm
-    ? { inline_keyboard: [[
-        { text: 'ยืนยัน (Confirm)', callback_data: 'slip:confirm' },
-        { text: 'แก้ไข (Edit)', callback_data: 'slip:edit' },
-        { text: 'ยกเลิก', callback_data: 'slip:cancel' },
-      ]] }
-    : { inline_keyboard: [[
-        { text: 'ยกเลิก', callback_data: 'slip:cancel' },
-      ]] };
 
   return card({
     icon: canConfirm ? '🛡' : '⚠️',
@@ -1527,7 +1567,7 @@ export function visionSlipVerification(data: VisionSlipVerificationData): Outgoi
     titleEn: canConfirm ? 'OCR Verified' : 'Verification Required',
     groups: groups.length > 0 ? groups : [[{ labelTh: 'สถานะ', labelEn: 'Status', value: '<b><code>—</code></b>' }]],
     note,
-    keyboard,
+    keyboard: slipActionKeyboard(canConfirm),
   });
 }
 

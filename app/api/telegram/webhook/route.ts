@@ -3,6 +3,7 @@
 // รวม logic ทั้งหมด: onboarding (ถามชื่อ) + อัปโหลดสลิป + บันทึกธุรกรรม + ธีม CE Vault
 // ============================================================
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 import * as UI from '@/lib/botUi';
 import { sendMessage, editMessage, answerCallback, uploadSlipFromTelegram, sendSticker,  } from '@/lib/telegram';
 import { getSession, setSession, clearSession } from '@/lib/botSessions';
@@ -90,6 +91,14 @@ try { validateStickers(); } catch (e: any) { console.warn(`[sticker config] ${e.
 const WEBHOOK_SECRET = getTelegramWebhookSecret();
 const WEBHOOK_CONFIG_ISSUES = validateWebhookEnvironment();
 
+function webhookSecretMatches(provided: string | null): boolean {
+  if (!WEBHOOK_SECRET || !provided) return false;
+  const expected = Buffer.from(WEBHOOK_SECRET);
+  const actual = Buffer.from(provided);
+  if (expected.length !== actual.length) return false;
+  return crypto.timingSafeEqual(expected, actual);
+}
+
 const log = (msg: string, data?: any) => {
   const ts = new Date().toISOString();
   console.log(`[${ts}] ${msg}`, data || '');
@@ -123,7 +132,7 @@ export async function POST(req: NextRequest) {
     );
   }
   // ตรวจ secret จาก Telegram (ตั้งตอน setWebhook)
-  if (req.headers.get('x-telegram-bot-api-secret-token') !== WEBHOOK_SECRET) {
+  if (!webhookSecretMatches(req.headers.get('x-telegram-bot-api-secret-token'))) {
     log('❌ Invalid webhook secret');
     return NextResponse.json({ ok: false }, { status: 401 });
   }
@@ -188,11 +197,13 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
-async function resolveAdmin(from: { first_name?: string; last_name?: string } | undefined, userId: number) {
-  const existing = await getAdminByTelegramId(userId);
+async function resolveAdmin(from: { first_name?: string; last_name?: string } | undefined, userId: number | string) {
+  const id = Number(userId);
+  if (!Number.isSafeInteger(id) || id <= 0) return null;
+  const existing = await getAdminByTelegramId(id);
   if (existing) return existing;
-  if (!isBootstrapAdmin(userId)) return null;
-  return upsertAdmin(userId, telegramDisplayName(from, userId));
+  if (!isBootstrapAdmin(id)) return null;
+  return upsertAdmin(id, telegramDisplayName(from, id));
 }
 
 function pinnedView(pinned: Awaited<ReturnType<typeof listPinnedBanks>>) {
@@ -295,6 +306,7 @@ async function handleUpdate(update: any): Promise<void> {
     const nums = parseNums(text.replace('/setrate', '').replace('/เรต', ''));
     if (nums.length >= 1 && nums[0] > 0) {
       await setChatRate(chatId, nums[0]);
+      await clearSession(chatId, userId);
       await sendMessage(chatId, UI.chatRateSet(nums[0]));
     } else {
       const cur = await getChatRate(chatId);
@@ -336,6 +348,7 @@ async function handleUpdate(update: any): Promise<void> {
       return;
     }
     await setRoomName(chatId, name);
+    await clearSession(chatId, userId);
     await sendMessage(chatId, UI.roomNameSet(name));
     return;
   }
@@ -459,7 +472,7 @@ async function handleUpdate(update: any): Promise<void> {
   if (cmd === 'recent_slips') {
     const limit = parseRecentLimit(text!);
     if (limit == null) {
-      await sendMessage(chatId, UI.error('จำนวนรายการต้องอยู่ระหว่าง 1–20 เช่น /recent_slips 10'));
+      await sendMessage(chatId, UI.error('จำนวนรายการต้องอยู่ระหว่าง 1–50 เช่น /recent_slips 10'));
       return;
     }
     try {
@@ -759,6 +772,41 @@ async function handleUpdate(update: any): Promise<void> {
   if (session?.state === 'AWAITING_NAME') {
     await clearSession(chatId, userId);
     await sendMessage(chatId, UI.error('การลงทะเบียนอัตโนมัติถูกปิด — ให้ SuperAdmin เพิ่ม Telegram ID ก่อน'));
+    return;
+  }
+
+  if (session?.state === 'AWAITING_ROOM_NAME') {
+    const name = text.trim().replace(/^\/(setroom|ห้อง)\s*/i, '').slice(0, 40);
+    if (!name || name.startsWith('/')) {
+      await sendMessage(chatId, UI.promptSetRoomName(null));
+      return;
+    }
+    try {
+      await setRoomName(chatId, name);
+      if (session.slip_url) await setSession(chatId, userId, { state: 'WAITING_USDT' });
+      else await clearSession(chatId, userId);
+      await sendMessage(chatId, UI.roomNameSet(name));
+    } catch {
+      await sendMessage(chatId, UI.error('ตั้งชื่อห้องไม่สำเร็จ — ลองใหม่อีกครั้ง'));
+    }
+    return;
+  }
+
+  if (session?.state === 'AWAITING_ROOM_RATE') {
+    const raw = text.trim().replace(/^\/(setrate|เรต|rate)\s*/i, '').replace(/,/g, '');
+    const rate = Number(raw);
+    if (!Number.isFinite(rate) || rate <= 0 || rate > 1000) {
+      await sendMessage(chatId, UI.promptSetRoomRate(null));
+      return;
+    }
+    try {
+      await setChatRate(chatId, round2(rate));
+      if (session.slip_url) await setSession(chatId, userId, { state: 'WAITING_USDT' });
+      else await clearSession(chatId, userId);
+      await sendMessage(chatId, UI.chatRateSet(round2(rate)));
+    } catch {
+      await sendMessage(chatId, UI.error('ตั้งเรทห้องไม่สำเร็จ — ลองใหม่อีกครั้ง'));
+    }
     return;
   }
 
@@ -1283,7 +1331,7 @@ async function dispatchCallback(
   if (action === 'qa') {
     const msgId: number | undefined = cb.message?.message_id;
     if (arg === 'today') {
-      await answerCallback(id, '📊 ยอดวันนี้');
+      await answerCallback(id, 'TODAY');
       const room = await getRoom(chatId);
       const [led, staff, recent] = await Promise.all([
         getTodayLedger(room.dayCutAt, chatId),
@@ -1308,16 +1356,8 @@ async function dispatchCallback(
       else await sendMessage(chatId, view);
       return;
     }
-    if (arg === 'rate') {
-      await answerCallback(id, '📈 Rate');
-      const r = await getLatestRates();
-      const view = UI.rateShow(r.sellRate, r.marketUsdtRate, r.marketSource);
-      if (msgId) await editMessage(chatId, msgId, view);
-      else await sendMessage(chatId, view);
-      return;
-    }
     if (arg === 'receiver') {
-      await answerCallback(id, '👤 ผู้รับ');
+      await answerCallback(id, 'RECENT');
       try {
         const slips = await getRecentSlips(chatId, 5);
         const view = UI.recentSlipsList(slips);
@@ -1328,17 +1368,18 @@ async function dispatchCallback(
       }
       return;
     }
-    if (arg === 'export') {
-      await answerCallback(id, '📄 กำลังสร้างไฟล์...');
+    if (arg === 'setname') {
+      await answerCallback(id, 'SET NAME');
       const room = await getRoom(chatId);
-      const { csv, rows } = await exportRoomCsv(chatId, room.dayCutAt);
-      if (rows === 0) {
-        await sendMessage(chatId, UI.emptyState('ส่งออกรายการ', 'Export Transactions', 'ยังไม่มีธุรกรรมให้ส่งออก'));
-        return;
-      }
-      const stamp = new Date().toISOString().slice(0, 10);
-      const filename = `ce-vault-${room.name || chatId}-${stamp}.csv`;
-      await sendDocument(chatId, filename, csv, `📄 <b>${rows} รายการ</b> · ${room.name || 'ห้องนี้'} (วันนี้)`);
+      await setSession(chatId, userId, { state: 'AWAITING_ROOM_NAME' });
+      await sendMessage(chatId, UI.promptSetRoomName(room.name));
+      return;
+    }
+    if (arg === 'setrate') {
+      await answerCallback(id, 'SET RATE');
+      const room = await getRoom(chatId);
+      await setSession(chatId, userId, { state: 'AWAITING_ROOM_RATE' });
+      await sendMessage(chatId, UI.promptSetRoomRate(room.rate));
       return;
     }
     return await answerCallback(id);
@@ -1540,11 +1581,14 @@ async function dispatchCallback(
   // ----- edit : allow owner or Admin to modify a committed transaction -----
   if (action === 'edit') {
     if (!isOwner && !await hasRole(['SuperAdmin','Admin'])) return await answerCallback(id, 'สิทธิ์ไม่พอ');
-    await answerCallback(id, '✏️ แก้ USDT');
+    await answerCallback(id, 'EDIT');
     await setSession(chatId, userId, {
       state: 'EDITING', caption: txId,
     });
-    await sendMessage(chatId, UI.editPrompt());
+    const prompt = UI.editPrompt();
+    const msgId: number | undefined = cb.message?.message_id;
+    if (msgId) await editMessage(chatId, msgId, prompt);
+    else await sendMessage(chatId, prompt);
     sticker(chatId, 'WAITING');
     return;
   }
@@ -1552,10 +1596,13 @@ async function dispatchCallback(
   // ----- delete / del : allow owner or Admin (or SuperAdmin) -----
   if (action === 'delete' || action === 'del') {
     if (!isOwner && !await hasRole(['SuperAdmin','Admin'])) return await answerCallback(id, 'สิทธิ์ไม่พอ');
-    await answerCallback(id, '🗑 กำลังลบ...');
+    await answerCallback(id, 'DELETE');
     try {
       const r = await deleteTransaction(txId);
-      await sendMessage(chatId, UI.deleteSuccess(r.name, r.holdingUsdt));
+      const done = UI.deleteSuccess(r.name, r.holdingUsdt);
+      const msgId: number | undefined = cb.message?.message_id;
+      if (msgId) await editMessage(chatId, msgId, done);
+      else await sendMessage(chatId, done);
     } catch {
       await sendMessage(chatId, UI.error('ลบรายการไม่สำเร็จ — ลองอีกครั้ง'));
     }
