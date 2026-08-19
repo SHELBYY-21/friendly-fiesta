@@ -7,7 +7,7 @@
   DEFAULT_SELL_RATE = "35.5"
   DEFAULT_MARKET_RATE = "34.8"
   OCR_AUTO_MIN = "90"
-  APP_URL = "https://glittering-bienenstitch-f601e2.netlify.app"
+  APP_URL = "https://live--ce-vault-20260819.netlify.app"
 
 [dev]
   command = "npm run dev"
