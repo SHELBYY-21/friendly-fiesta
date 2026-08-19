@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import * as UI from '@/lib/botUi';
-import { sendMessage, editMessage, answerCallback, uploadSlipFromTelegram, sendSticker,  } from '@/lib/telegram';
+import { sendMessage, editMessage, answerCallback, uploadSlipFromTelegram, sendSticker, isUnreachableChatError } from '@/lib/telegram';
 import { getSession, setSession, clearSession } from '@/lib/botSessions';
 import LiveMessageService from '@/lib/liveMessage';
 import {
@@ -178,6 +178,10 @@ export async function POST(req: NextRequest) {
     log(`✅ update #${updateId} processed`);
   } catch (e: any) {
     log(`⚠️ webhook error: ${e?.message || e}`, e?.stack?.slice(0, 200));
+    if (isUnreachableChatError(e)) {
+      // Keep the claim so Telegram does not retry a chat that cannot receive messages.
+      return NextResponse.json({ ok: true, skipped: 'unreachable_chat' });
+    }
     if (failureChatId != null) {
       try {
         await sendMessage(failureChatId, UI.error('ระบบยังดำเนินการไม่ได้ — รอสักครู่แล้วลองคำสั่งเดิมอีกครั้ง'));
