@@ -51,6 +51,13 @@ export function getApiSecret(env: EnvMap = process.env): string | null {
   return derivedSecret(env, 'api-secret');
 }
 
+export function getBotToken(env: EnvMap = process.env): string | null {
+  const token = envValue(env, 'BOT_TOKEN');
+  if (!token || isPlaceholderValue(token)) return null;
+  if (!/^\d{5,}:[A-Za-z0-9_-]{20,}$/.test(token)) return null;
+  return token;
+}
+
 export function getTelegramWebhookSecret(env: EnvMap = process.env): string | null {
   const explicit = envValue(env, 'TELEGRAM_WEBHOOK_SECRET');
   if (explicit && !isPlaceholderValue(explicit)) return explicit;
