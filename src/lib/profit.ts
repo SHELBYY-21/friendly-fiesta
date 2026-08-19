@@ -24,6 +24,22 @@ export function round2(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+/** USDT = THB / Rate — 0 เมื่อ rate หาย/ไม่ถูกต้อง; ไม่เดายอด */
+export function thbToUsdt(thb: number, rate: number): number {
+  const amount = safeNumber(thb);
+  const sellRate = safeNumber(rate);
+  if (amount <= 0 || sellRate <= 0) return 0;
+  return round2(amount / sellRate);
+}
+
+/** THB = USDT × Rate — 0 เมื่อ rate หาย/ไม่ถูกต้อง */
+export function usdtToThb(usdt: number, rate: number): number {
+  const amount = safeNumber(usdt);
+  const sellRate = safeNumber(rate);
+  if (amount <= 0 || sellRate <= 0) return 0;
+  return round2(amount * sellRate);
+}
+
 export function calculateProfit(
   thbAmount: number,
   usdtAmount: number,
@@ -33,15 +49,15 @@ export function calculateProfit(
   const usdt = safeNumber(usdtAmount);
   const rate = safeNumber(sellRate);
   const costPerUnit = usdt > 0 ? thb / usdt : 0;
-  const sellValueThb = usdt * rate;
-  const netProfitThb = sellValueThb - thb;
+  const sellValueThb = usdtToThb(usdt, rate);
+  const netProfitThb = round2(sellValueThb - thb);
   const profitPercent = thb > 0 ? (netProfitThb / thb) * 100 : 0;
 
   return {
-    costPerUnit: safeNumber(costPerUnit),
-    sellValueThb: safeNumber(sellValueThb),
+    costPerUnit: round2(costPerUnit),
+    sellValueThb,
     netProfitThb: safeNumber(netProfitThb),
-    profitPercent: safeNumber(profitPercent),
+    profitPercent: round2(profitPercent),
   };
 }
 
@@ -59,13 +75,13 @@ export function calculateDepositProfit(
   const thb = safeNumber(thbAmount);
   const usdt = safeNumber(usdtAmount);
   const rate = safeNumber(marketRate);
-  const costThb = usdt * rate; // ต้นทุนซื้อ USDT ที่จะส่ง
-  const netProfitThb = thb - costThb;
+  const costThb = usdtToThb(usdt, rate);
+  const netProfitThb = round2(thb - costThb);
   const profitPercent = thb > 0 ? (netProfitThb / thb) * 100 : 0;
   return {
-    costPerUnit: rate,
-    sellValueThb: thb,
+    costPerUnit: round2(rate),
+    sellValueThb: round2(thb),
     netProfitThb: safeNumber(netProfitThb),
-    profitPercent: safeNumber(profitPercent),
+    profitPercent: round2(profitPercent),
   };
 }

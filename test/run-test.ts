@@ -383,4 +383,101 @@ assert(requiresAdminAccess('สวัสดี') === false, 'plain chat does not
 assert(parseSaveSlipArgs('/save_slip +500B KBANK 7890')?.bank === 'KBANK', '/save_slip parses explicit bank via alias normalisation');
 assert(parseSaveSlipArgs('/save_slip +500') === null, '/save_slip rejects amount without currency');
 
+const {
+  bangkokYmd,
+  displayLedgerRef,
+  isLedgerRef,
+  LEDGER_REF_PATTERN,
+} = require('../src/lib/ledgerRef');
+const {
+  classifyChatAmount,
+  decidePinnedMatch,
+  decideSlipAmount,
+  extractReplyPhoto,
+  isDownloadFailure,
+} = require('../src/lib/slipPipeline');
+const { thbToUsdt, usdtToThb } = require('../src/lib/profit');
+const { MAX_PINNED_ACCOUNTS } = require('../src/lib/banks');
+
+assert(extractReplyPhoto({}) === null, 'save_slip rejects messages that are not a photo reply');
+assert(extractReplyPhoto({ reply_to_message: { text: 'nope' } }) === null, 'save_slip rejects reply without a photo');
+assert(
+  extractReplyPhoto({
+    reply_to_message: {
+      photo: [
+        { file_id: 'small', file_unique_id: 'a' },
+        { file_id: 'large', file_unique_id: 'b' },
+      ],
+    },
+  })?.file_id === 'large',
+  'save_slip uses the largest replied photo',
+);
+
+assert(decideSlipAmount({ manualThb: null, ocrThb: null, ocrConfidence: 99, ocrAutoMin: 90 }).ok === false, 'OCR fail rejects instead of saving');
+assert(decideSlipAmount({ manualThb: null, ocrThb: 500, ocrConfidence: 40, ocrAutoMin: 90 }).ok === false, 'low-confidence OCR never silently saves 500');
+assert(decideSlipAmount({ manualThb: null, ocrThb: 500, ocrConfidence: null, ocrAutoMin: 90 }).ok === false, 'unknown OCR confidence never falls back to a guessed amount');
+const trusted = decideSlipAmount({ manualThb: null, ocrThb: 1250.5, ocrConfidence: 95, ocrAutoMin: 90 });
+assert(trusted.ok === true && trusted.ok && trusted.thb === 1250.5 && trusted.source === 'ocr', 'trusted OCR amount is used as-is');
+const manualAmt = decideSlipAmount({ manualThb: 800, ocrThb: 500, ocrConfidence: 40, ocrAutoMin: 90 });
+assert(manualAmt.ok === true && manualAmt.ok && manualAmt.thb === 800 && manualAmt.source === 'manual', 'explicit +800B overrides OCR without guessing 500');
+assert(decideSlipAmount({ manualThb: 0, ocrThb: 500, ocrConfidence: 99, ocrAutoMin: 90 }).reason === 'amount_invalid', 'invalid manual amount is rejected');
+
+assert(MAX_PINNED_ACCOUNTS === 3, 'pinned accounts are capped at 3 per day');
+const pinHit = decidePinnedMatch({
+  pinned: pinnedBanks, ocrBank: 'Kasikorn', ocrLast4: '7890', manualBank: null, manualLast4: null,
+});
+assert(pinHit.ok === true && pinHit.ok && pinHit.bank.id === 'b1', 'Vision match against today pinned accounts passes via alias');
+assert(
+  decidePinnedMatch({
+    pinned: pinnedBanks, ocrBank: 'KBANK', ocrLast4: '0000', manualBank: null, manualLast4: null,
+  }).reason === 'account_mismatch',
+  'Vision vs pinned last4 mismatch stops auto-save',
+);
+assert(
+  decidePinnedMatch({
+    pinned: pinnedBanks, ocrBank: null, ocrLast4: '7890', manualBank: null, manualLast4: null,
+  }).reason === 'account_mismatch',
+  'last4-only Vision result is a false positive and is rejected',
+);
+assert(
+  decidePinnedMatch({
+    pinned: pinnedBanks, ocrBank: 'KBANK', ocrLast4: '7890', manualBank: 'SCB', manualLast4: '3210',
+  }).reason === 'account_mismatch',
+  'manual bank that conflicts with Vision is rejected',
+);
+assert(
+  decidePinnedMatch({
+    pinned: [], ocrBank: 'KBANK', ocrLast4: '7890', manualBank: 'KBANK', manualLast4: '7890',
+  }).reason === 'no_pinned_account',
+  'no pinned account for the day blocks save',
+);
+
+assert(classifyChatAmount('500').action === 'format_help', 'bare 500 answers format help instead of guessing THB');
+assert(classifyChatAmount('+500').action === 'format_help', 'signed amount without currency answers format help');
+assert(classifyChatAmount('-500B').action === 'direction_error' && classifyChatAmount('-500B').currency === 'THB', 'wrong-direction -500B is a direction error');
+assert(classifyChatAmount('+13.6U').action === 'direction_error' && classifyChatAmount('+13.6U').currency === 'USDT', 'wrong-direction +13.6U is a direction error');
+assert(classifyChatAmount('+500B').action === 'thb_in' && classifyChatAmount('+500B').value === 500, 'THB deposit requires +500B');
+assert(classifyChatAmount('-13.6U').action === 'usdt_out' && classifyChatAmount('-13.6U').value === 13.6, 'USDT outgoing requires -13.6U');
+assert(classifyChatAmount('+500THB -13.6USDT').action === 'thb_in', 'long suffixes +500THB -13.6USDT remain parseable');
+assert(UI.amountFormatHelp().text.includes('+500B') && UI.amountFormatHelp().text.includes('-13.6U'), 'format help shows required +500B / -13.6U patterns');
+assert(UI.wrongDirection('THB').text.includes('Invalid Direction'), 'THB direction error uses the direction card');
+assert(UI.wrongDirection('USDT').text.includes('Invalid Direction'), 'USDT direction error uses the direction card');
+
+assert(thbToUsdt(5000, 42) === 119.05, 'USDT = THB / Rate rounds deterministically (5000/42 -> 119.05)');
+assert(usdtToThb(13.6, 35.5) === 482.8, 'THB = USDT × Rate rounds deterministically (13.6*35.5 -> 482.8)');
+assert(thbToUsdt(1000, 0) === 0 && thbToUsdt(1000, NaN) === 0 && thbToUsdt(-500, 35) === 0, 'missing/invalid rate or negative THB never writes a guessed USDT amount');
+assert(usdtToThb(10, Infinity) === 0 && usdtToThb(0, 35) === 0, 'zero USDT or Infinity rate stays 0');
+assert(calculateFee(5000, 34.8, 140).expectedUsdt === 143.68, 'fee expected USDT stored in ledger is already rounded');
+assert(calculateDepositProfit(5000, 140, 34.8).netProfitThb === 128, 'deposit profit stored in ledger is already rounded');
+
+assert(LEDGER_REF_PATTERN.test(UI.newLedgerRef()), 'stored ledger ref matches CE-YYYYMMDD-XXXXXXXX');
+assert(displayLedgerRef('CE-20260819-AABBCCDD') === '#CE-20260819-AABBCCDD', 'UI ledger ref uses #CE-YYYYMMDD-XXXX');
+assert(displayLedgerRef('#CE-20260819-AABBCCDD') === '#CE-20260819-AABBCCDD', 'display ledger ref does not double the hash');
+assert(isLedgerRef('CE-20260819-AABBCCDD') === true && isLedgerRef('CE-2026-XX') === false, 'ledger ref validator rejects malformed ids');
+assert(bangkokYmd(new Date('2026-08-19T17:30:00.000Z')) === '20260820', 'ledger date uses Asia/Bangkok (UTC 17:30 is next calendar day)');
+assert(bangkokYmd(new Date('2026-08-19T16:59:00.000Z')) === '20260819', 'ledger date stays on Bangkok calendar day before midnight');
+assert(rendered.text.includes('#CE-20260819-AABBCCDD'), 'recent slips display the hashed ledger reference');
+assert(isDownloadFailure(new Error('TELEGRAM_FILE_DOWNLOAD_FAILED: HTTP 404')) === true, 'photo download failures are classified as download_failed');
+assert(isDownloadFailure(new Error('random')) === false, 'non-download errors are not classified as download_failed');
+
 console.log('🎉 ALL TESTS PASSED SUCCESSFULLY!');

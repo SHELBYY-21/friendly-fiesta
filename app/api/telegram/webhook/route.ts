@@ -26,6 +26,7 @@ import {
   getRecentSlips,
   getTodayBankAccountTotals,
   DuplicateSlipError,
+  findTransactionByFingerprint,
 } from '@/lib/transactions';
 import { getChatRate, setChatRate, getRoom, startNewDay, setRoomName } from '@/lib/botSessions';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
@@ -34,6 +35,14 @@ import { notifyDailySummary, notifyReady } from '@/lib/notifier';
 import { analyzeSlip, analyzeUsdtScreenshot } from '@/lib/ocr';
 import { getBotGate } from '@/lib/systemSettings';
 import { parseAmounts } from '@/lib/amounts';
+import {
+  classifyChatAmount,
+  decidePinnedMatch,
+  decideSlipAmount,
+  extractReplyPhoto,
+  isDownloadFailure,
+} from '@/lib/slipPipeline';
+import { round2, thbToUsdt } from '@/lib/profit';
 import { findReceiversByLast4, upsertReceiverOnDeposit } from '@/lib/receivers';
 import { getSticker, validateStickers, type StickerState } from '@/config/stickers';
 import {
@@ -445,76 +454,110 @@ async function handleUpdate(update: any): Promise<void> {
     return;
   }
 
-  // ----- /save_slip : บันทึกรูปสลิป (ส่งคำสั่งโดย reply ถึงรูป) -----
+  // ----- /save_slip : ต้อง Reply รูป → OCR → pin → preview → commit -----
   if (cmd === 'save_slip') {
     const manual = parseSaveSlipArgs(text!);
     if (!manual) {
       await sendMessage(chatId, UI.error('รูปแบบไม่ถูกต้อง — ใช้ /save_slip, /save_slip +500B หรือ /save_slip +500B KBANK 7890'));
       return;
     }
+    const replyPhoto = extractReplyPhoto(msg);
+    if (!replyPhoto) {
+      await sendMessage(chatId, UI.error('ต้อง Reply รูปสลิปก่อน แล้วใช้ /save_slip — ห้ามบันทึกถ้าไม่มีรูป'));
+      return;
+    }
     sticker(chatId, 'PROCESSING');
+    const fingerprint = slipFingerprint(replyPhoto.file_unique_id);
     try {
-      const replyPhoto = msg.reply_to_message?.photo?.at(-1);
-      let imgUrl = session?.slip_url ?? null;
-      let fingerprint = session?.slip_fingerprint ?? null;
-      let slip: Awaited<ReturnType<typeof analyzeSlip>> = {
-        thbAmount: session?.ocr_thb ?? null,
-        bank: session?.slip_bank ?? null,
-        receiverLast4: session?.slip_last4 ?? null,
-        receiverName: session?.slip_receiver_name ?? null,
-        senderName: null,
-        date: session?.slip_date ?? null,
-        time: session?.slip_time ?? null,
-        confidence: session?.ocr_conf ?? null,
-      };
-      if (replyPhoto) {
-        fingerprint = slipFingerprint(replyPhoto.file_unique_id);
-        imgUrl = await uploadSlipFromTelegram(replyPhoto.file_id);
-        slip = await analyzeSlip(imgUrl);
-      }
-      if (!imgUrl || !fingerprint) {
-        await sendMessage(chatId, UI.error('ไม่พบสลิป — Reply รูปด้วย /save_slip หรือส่งรูปใหม่'));
+      const existing = await findTransactionByFingerprint(fingerprint);
+      if (existing) {
+        await sendMessage(chatId, UI.error('สลิปนี้ถูกบันทึกแล้ว — ใช้ /recent_slips เพื่อตรวจ Ledger Reference'));
         return;
       }
 
-      const amount = manual.thb ?? slip.thbAmount;
-      await setSession(chatId, userId, {
-        state: 'WAITING_USDT', pending_type: 'THB_DEPOSIT', slip_url: imgUrl,
-        slip_fingerprint: fingerprint, ocr_thb: slip.thbAmount,
-        slip_last4: slip.receiverLast4, slip_bank: slip.bank,
-        slip_receiver_name: slip.receiverName, ocr_conf: slip.confidence,
-        admin_id: admin!.id, admin_name: admin!.name,
+      let imgUrl: string;
+      try {
+        imgUrl = await uploadSlipFromTelegram(replyPhoto.file_id);
+      } catch (error) {
+        if (isDownloadFailure(error)) {
+          await sendMessage(chatId, UI.error('ดาวน์โหลดรูปไม่สำเร็จ — ส่งรูปใหม่แล้ว Reply ด้วย /save_slip'));
+          return;
+        }
+        throw error;
+      }
+
+      let slip: Awaited<ReturnType<typeof analyzeSlip>>;
+      try {
+        slip = await analyzeSlip(imgUrl);
+      } catch {
+        await sendMessage(chatId, UI.ocrUnclear(null, 'อ่านสลิปไม่สำเร็จ — ส่งรูปใหม่หรือใช้ /save_slip +500B KBANK 7890'));
+        return;
+      }
+
+      const amountDecision = decideSlipAmount({
+        manualThb: manual.thb,
+        ocrThb: slip.thbAmount,
+        ocrConfidence: slip.confidence,
+        ocrAutoMin: OCR_AUTO_MIN,
       });
-      if (!amount || amount <= 0 || (isLowConfidence(slip.confidence, OCR_AUTO_MIN) && !manual.thb)) {
-        await sendMessage(
-          chatId,
-          UI.ocrUnclear(
-            slip.confidence,
-            'ตรวจยอดจริงแล้วใช้ /save_slip +500B โดยเปลี่ยน 500 เป็นยอดจริง',
-          ),
-        );
+      if (!amountDecision.ok) {
+        if (amountDecision.reason === 'amount_invalid') {
+          await sendMessage(chatId, UI.amountFormatHelp());
+        } else {
+          await sendMessage(
+            chatId,
+            UI.ocrUnclear(
+              slip.confidence,
+              'ตรวจยอดจริงแล้ว Reply รูปด้วย /save_slip +500B — ห้ามเดายอด',
+            ),
+          );
+        }
         return;
       }
 
       const pinned = await listPinnedBanks(chatId);
-      if (pinned.length === 0) {
-        await sendMessage(chatId, UI.error('ยังไม่มีบัญชีรับที่ Pin — ใช้ /pin KBANK 1234567890 แล้วลอง /save_slip อีกครั้ง'));
-        return;
-      }
-      if (
-        (manual.bank && slip.bank && manual.bank !== slip.bank.toUpperCase()) ||
-        (manual.last4 && slip.receiverLast4 && manual.last4 !== slip.receiverLast4)
-      ) {
-        await sendMessage(chatId, UI.accountMismatch('ข้อมูลบัญชี Manual ขัดกับ Vision OCR'));
-        return;
-      }
-      const bank = matchPinnedBank(slip.bank ?? manual.bank, slip.receiverLast4 ?? manual.last4, pinned);
-      if (!bank) {
-        await sendMessage(chatId, UI.accountMismatch('หาก OCR อ่านไม่ได้ ใช้ /save_slip +500B KBANK 7890'));
+      const pinDecision = decidePinnedMatch({
+        pinned,
+        ocrBank: slip.bank,
+        ocrLast4: slip.receiverLast4,
+        manualBank: manual.bank,
+        manualLast4: manual.last4,
+      });
+      if (!pinDecision.ok) {
+        if (pinDecision.reason === 'no_pinned_account') {
+          await sendMessage(chatId, UI.error('ยังไม่มีบัญชีรับที่ Pin — ใช้ /pin KBANK 1234567890 แล้วลอง /save_slip อีกครั้ง'));
+        } else {
+          await sendMessage(chatId, UI.accountMismatch('บัญชีจากสลิปไม่ตรงกับบัญชีที่ปักหมุดวันนี้ — หยุด auto-save'));
+        }
         return;
       }
 
-      const res = await commitIncoming(chatId, userId, amount, {
+      const bank = pinDecision.bank;
+      const r = await getLatestRates();
+      const roomRate = (await getChatRate(chatId)) ?? r.sellRate;
+      const suggestedUsdt = thbToUsdt(amountDecision.thb, roomRate);
+      const dayTotals = await getTodayBankAccountTotals(bank.id);
+
+      await sendMessage(
+        chatId,
+        UI.visionSlipVerification({
+          thb: amountDecision.thb,
+          bank: slip.bank,
+          last4: slip.receiverLast4,
+          receiverName: slip.receiverName,
+          confidence: slip.confidence,
+          accountMatched: true,
+          accountClear: true,
+          matchedBank: bank.bank_name,
+          matchedLast4: accountLast4(bank.account_number) ?? '????',
+          roomRate,
+          suggestedUsdt,
+          todayCountForAccount: dayTotals.count,
+          todayTotalThbForAccount: dayTotals.totalThb,
+        }),
+      );
+
+      const res = await commitIncoming(chatId, userId, amountDecision.thb, {
         slipUrl: imgUrl, slipFingerprint: fingerprint, bankAccountId: bank.id,
         bank: bank.bank_name, last4: accountLast4(bank.account_number),
         receiverName: slip.receiverName ?? null, confidence: slip.confidence ?? null,
@@ -528,8 +571,16 @@ async function handleUpdate(update: any): Promise<void> {
         todayIncoming: res.todayIncoming, todayTotalThb: res.todayTotalThb,
       }));
     } catch (e: any) {
+      if (e instanceof DuplicateSlipError) {
+        const existing = await findTransactionByFingerprint(fingerprint).catch(() => null);
+        if (existing) {
+          await sendMessage(chatId, UI.error('สลิปนี้ถูกบันทึกแล้ว — ใช้ /recent_slips เพื่อตรวจ Ledger Reference'));
+          return;
+        }
+      }
       const detail = e instanceof DuplicateSlipError
-        ? 'สลิปนี้ถูกบันทึกแล้ว — ใช้ /recent_slips เพื่อตรวจ Ledger Reference' : e?.message ??'บันทึกสลิปไม่สำเร็จ — ตรวจรูปและลองใหม่';
+        ? 'สลิปนี้ถูกบันทึกแล้ว — ใช้ /recent_slips เพื่อตรวจ Ledger Reference'
+        : 'บันทึกสลิปไม่สำเร็จ — ฐานข้อมูลยังไม่รับรายการ ตรวจรูปแล้วลองใหม่';
       await sendMessage(chatId, UI.error(detail));
     }
     return;
@@ -562,7 +613,7 @@ async function handleUpdate(update: any): Promise<void> {
           todayTotal = dayTotals.totalThb;
         }
 
-        const suggestedUsdt = roomRate > 0 ? slip.thbAmount / roomRate : 0;
+        const suggestedUsdt = thbToUsdt(slip.thbAmount, roomRate);
 
         // Save session state before showing verification
         await setSession(chatId, userId, {
@@ -703,26 +754,33 @@ async function handleUpdate(update: any): Promise<void> {
     return;
   }
 
-  // (ข) พิมพ์ยอด: +500 = บาทเข้า · -13.6 = USDT ออก · อย่างอื่นเงียบ (ไม่ถามกลับ)
+  // (ข) พิมพ์ยอด: +500B = บาทเข้า · -13.6U = USDT ออก · เลขลอยตอบ format help
   {
-    const amt = parseAmounts(text);
-    if (amt.ambiguous) {
+    const amt = classifyChatAmount(text);
+    if (amt.action === 'ambiguous') {
       await sendMessage(chatId, UI.error('พบยอดซ้ำหลายค่า — ส่งครั้งละหนึ่งยอด เช่น +500B หรือ -13.6U'));
       return;
     }
-    if (amt.thb && amt.thb.sign > 0) {
+    if (amt.action === 'thb_in') {
       if (!session?.slip_url || !session.slip_fingerprint || session.pending_type !== 'THB_DEPOSIT') {
         await sendMessage(chatId, UI.error('ต้องส่งรูปสลิปก่อน — จากนั้นยืนยันด้วย /save_slip +500B'));
         return;
       }
       try {
         const pinned = await listPinnedBanks(chatId);
-        const bank = matchPinnedBank(session.slip_bank, session.slip_last4, pinned);
-        if (!bank) {
+        const pinDecision = decidePinnedMatch({
+          pinned,
+          ocrBank: session.slip_bank,
+          ocrLast4: session.slip_last4,
+          manualBank: null,
+          manualLast4: null,
+        });
+        if (!pinDecision.ok) {
           await sendMessage(chatId, UI.accountMismatch('แก้บัญชีด้วย /pin แล้วใช้ /save_slip +500B'));
           return;
         }
-        const res = await commitIncoming(chatId, userId, amt.thb.value, {
+        const bank = pinDecision.bank;
+        const res = await commitIncoming(chatId, userId, amt.value, {
           slipUrl: session.slip_url, slipFingerprint: session.slip_fingerprint,
           bankAccountId: bank.id, bank: bank.bank_name,
           last4: accountLast4(bank.account_number), receiverName: session.slip_receiver_name,
@@ -743,10 +801,10 @@ async function handleUpdate(update: any): Promise<void> {
       }
       return;
     }
-    if (amt.usdt && amt.usdt.sign < 0) {
+    if (amt.action === 'usdt_out') {
       try {
         const screenshotSession = session?.pending_type === 'USDT_SEND' ? session : null;
-        const res = await commitOutgoing(chatId, userId, amt.usdt.value, {
+        const res = await commitOutgoing(chatId, userId, amt.value, {
           slipUrl: screenshotSession?.slip_url,
           slipFingerprint: screenshotSession?.slip_fingerprint,
           network: screenshotSession?.usdt_network,
@@ -766,20 +824,14 @@ async function handleUpdate(update: any): Promise<void> {
       }
       return;
     }
-    // ทิศทางผิด: THB ต้องเป็นเงินเข้า (+), USDT ต้องเป็นเหรียญออก (-) — ห้ามบันทึกเงียบ
-    if (amt.thb && amt.thb.sign < 0) {
-      await sendMessage(chatId, UI.wrongDirection('THB'));
+    if (amt.action === 'direction_error') {
+      await sendMessage(chatId, UI.wrongDirection(amt.currency));
       return;
     }
-    if (amt.usdt && amt.usdt.sign > 0) {
-      await sendMessage(chatId, UI.wrongDirection('USDT'));
+    if (amt.action === 'format_help') {
+      await sendMessage(chatId, UI.amountFormatHelp());
       return;
     }
-    if (amt.hasBareNumber) {
-      await sendMessage(chatId, UI.error('ห้ามเดาสกุลเงิน — ใช้ +500B สำหรับ THB IN หรือ -13.6U สำหรับ USDT OUT'));
-      return;
-    }
-    if (amt.thb || amt.usdt) return;
   }
 
   // ผู้ใช้ที่ไม่ได้รับสิทธิ์จะไม่ถูก auto-register จากข้อความทั่วไป
@@ -821,6 +873,7 @@ async function commitIncoming(
     bankAccountId: meta.bankAccountId ?? null,
     receiver: { name: meta.receiverName ?? null, bank: meta.bank ?? null, last4: meta.last4 ?? null },
   });
+  const committedRef = r.ledgerRef || ledgerRef;
 
   // Receiver History (fire-and-forget)
   if (meta.last4) {
@@ -830,7 +883,7 @@ async function commitIncoming(
       receiverName: meta.receiverName ?? null,
       thb,
       usdt: r.usdtOwed,
-      ledgerRef,
+      ledgerRef: committedRef,
     })
       .then((rid) => {
         if (rid)
@@ -847,14 +900,14 @@ async function commitIncoming(
     transactionId: r.transactionId,
     chatId,
     userId,
-    ledgerRef,
+    ledgerRef: committedRef,
     adminName: r.adminName,
   });
 
   // Return data for caller to decide how to render or further edit the live message
   return {
     transactionId: r.transactionId,
-    ledgerRef,
+    ledgerRef: committedRef,
     thb,
     usdtOwed: r.usdtOwed,
     sellRate,
@@ -890,8 +943,8 @@ async function commitOutgoing(
 
   // คงเหลือที่ต้องส่ง = (ยอดรับรวม / เรต) − ส่งไปแล้ว
   const led = await getTodayLedger(room.dayCutAt, chatId);
-  const shouldSend = room.rate ? led.totalThb / room.rate : led.totalIncomingUsdt;
-  const remaining = shouldSend - led.totalOutgoingUsdt;
+  const shouldSend = thbToUsdt(led.totalThb, room.rate ?? 0) || led.totalIncomingUsdt;
+  const remaining = round2(shouldSend - led.totalOutgoingUsdt);
 
   // Try to update live message (if any) with completed outgoing info via LiveMessageService
   try {
@@ -1288,13 +1341,20 @@ async function handleCallback(cb: any): Promise<void> {
         }
 
         const pinned = await listPinnedBanks(chatId);
-        const bank = matchPinnedBank(session.slip_bank, session.slip_last4, pinned);
-        if (!bank) {
-          const msg = UI.accountMismatch('บัญชีไม่ตรงกับปักหมุด');
+        const pinDecision = decidePinnedMatch({
+          pinned,
+          ocrBank: session.slip_bank,
+          ocrLast4: session.slip_last4,
+          manualBank: null,
+          manualLast4: null,
+        });
+        if (!pinDecision.ok) {
+          const msg = UI.accountMismatch('บัญชีไม่ตรงกับปักหมุด — หยุด auto-save');
           if (msgId) await editMessage(chatId, msgId, msg);
           else await sendMessage(chatId, msg);
           return;
         }
+        const bank = pinDecision.bank;
 
         const r = await getLatestRates();
         const roomRate = (await getChatRate(chatId)) ?? r.sellRate;

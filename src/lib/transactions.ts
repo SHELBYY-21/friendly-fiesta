@@ -2,12 +2,12 @@
 // Service กลางสำหรับบันทึกธุรกรรม — ใช้ร่วมกันทั้ง API route และ Telegram webhook
 // ============================================================
 import { supabaseAdmin } from './supabaseAdmin';
-import { calculateDepositProfit, ProfitResult } from './profit';
+import { calculateDepositProfit, ProfitResult, round2, thbToUsdt, usdtToThb } from './profit';
 import { calculateFee, FeeResult } from './fees';
 import { fetchBinanceThUsdtRate } from './binance';
 import { notifyIncome, notifyOutflow, notifyEdit, notifyDelete } from './notifier';
 import type { Admin } from '@/types/transactions';
-import { randomBytes } from 'crypto';
+import { newLedgerRef } from './ledgerRef';
 
 // ─── RATE CACHE (30s) เพื่อลด Binance API calls ───
 let cachedRates: { sellRate: number; marketUsdtRate: number; marketSource: MarketSource } | null = null;
@@ -15,10 +15,7 @@ let ratesCacheTime = 0;
 const RATES_CACHE_TTL = 30000; // 30 วินาที
 
 function newLedgerReference(): string {
-  const date = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit',
-  }).format(new Date()).replace(/-/g, '');
-  return `CE-${date}-${randomBytes(4).toString('hex').toUpperCase()}`;
+  return newLedgerRef();
 }
 
 export class AdminNotFoundError extends Error {
@@ -37,6 +34,50 @@ export class DuplicateSlipError extends Error {
 
 function isUniqueViolation(error: { code?: string; message?: string } | null | undefined): boolean {
   return error?.code === '23505' || /duplicate key|unique constraint/i.test(error?.message ?? '');
+}
+
+function constraintName(error: { message?: string; details?: string } | null | undefined): string {
+  return `${error?.message ?? ''} ${error?.details ?? ''}`;
+}
+
+function isSlipFingerprintCollision(error: { code?: string; message?: string; details?: string } | null | undefined): boolean {
+  return isUniqueViolation(error) && /slip_fingerprint/i.test(constraintName(error));
+}
+
+function isLedgerRefCollision(error: { code?: string; message?: string; details?: string } | null | undefined): boolean {
+  return isUniqueViolation(error) && /ledger_ref/i.test(constraintName(error));
+}
+
+export async function findTransactionByFingerprint(fingerprint: string): Promise<{
+  id: string;
+  ledger_ref: string | null;
+  thb_amount: number | null;
+  usdt_amount: number | null;
+  sell_rate: number | null;
+  receiver_bank: string | null;
+  receiver_last4: string | null;
+  ocr_confidence: number | null;
+  admin_name: string | null;
+} | null> {
+  if (!fingerprint) return null;
+  const { data, error } = await supabaseAdmin
+    .from('transactions')
+    .select('id, ledger_ref, thb_amount, usdt_amount, sell_rate, receiver_bank, receiver_last4, ocr_confidence, admins(name)')
+    .eq('slip_fingerprint', fingerprint)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return {
+    id: String(data.id),
+    ledger_ref: data.ledger_ref ?? null,
+    thb_amount: data.thb_amount == null ? null : Number(data.thb_amount),
+    usdt_amount: data.usdt_amount == null ? null : Number(data.usdt_amount),
+    sell_rate: data.sell_rate == null ? null : Number(data.sell_rate),
+    receiver_bank: data.receiver_bank ?? null,
+    receiver_last4: data.receiver_last4 ?? null,
+    ocr_confidence: data.ocr_confidence == null ? null : Number(data.ocr_confidence),
+    admin_name: (data.admins as { name?: string } | null)?.name ?? null,
+  };
 }
 
 export async function getAdminByTelegramId(telegramId: number): Promise<Admin | null> {
@@ -462,8 +503,12 @@ export async function recordDeal(input: RecordDealInput): Promise<DealResult> {
   const admin = await getAdminByTelegramId(input.adminTelegramId);
   if (!admin) throw new AdminNotFoundError();
 
-  const buyRate = input.usdt > 0 ? input.thb / input.usdt : 0;
-  const profitThb = input.usdt * input.sellRate - input.thb; // = (sell − buy) × usdt
+  const thb = round2(input.thb);
+  const usdt = round2(input.usdt);
+  const sellRate = round2(input.sellRate);
+  if (!(thb > 0) || !(usdt > 0) || !(sellRate > 0)) throw new Error('INVALID_AMOUNT_OR_RATE');
+  const buyRate = round2(thb / usdt);
+  const profitThb = round2(usdtToThb(usdt, sellRate) - thb);
 
   // คอลัมน์เสริม (patch-v5/v7) — ถ้ายังไม่ได้รัน migration จะ strip ออกแล้ว retry
   const extra: Record<string, any> = {
@@ -483,13 +528,13 @@ export async function recordDeal(input: RecordDealInput): Promise<DealResult> {
     admin_id: admin.id,
     bank_account_id: input.bankAccountId ?? null,
     type: 'THB_DEPOSIT',
-    thb_amount: input.thb,
-    usdt_amount: input.usdt,
-    sell_rate: input.sellRate,
+    thb_amount: thb,
+    usdt_amount: usdt,
+    sell_rate: sellRate,
     cost_per_unit: buyRate,
-    sell_value_thb: input.usdt * input.sellRate,
+    sell_value_thb: usdtToThb(usdt, sellRate),
     net_profit_thb: profitThb,
-    profit_percent: input.thb > 0 ? (profitThb / input.thb) * 100 : 0,
+    profit_percent: thb > 0 ? round2((profitThb / thb) * 100) : 0,
     slip_image_url: input.slipImageUrl ?? '',
     note: input.ledgerRef,
   };
@@ -533,40 +578,70 @@ export async function recordIncoming(input: {
   slipFingerprint?: string | null;
   bankAccountId?: string | null;
   receiver?: { name?: string | null; bank?: string | null; last4?: string | null } | null;
-}): Promise<{ transactionId: string; adminName: string; usdtOwed: number; profitThb: number }> {
+}): Promise<{ transactionId: string; adminName: string; usdtOwed: number; profitThb: number; ledgerRef: string }> {
   const admin = await getAdminByTelegramId(input.adminTelegramId);
   if (!admin) throw new AdminNotFoundError();
 
-  const usdtOwed = input.sellRate > 0 ? input.thb / input.sellRate : 0;
-  // กำไร = THB ที่รับ − ต้นทุนซื้อ USDT ที่ต้องส่ง (ที่เรตตลาด)
-  const profitThb = input.thb - usdtOwed * input.marketRate;
+  const thb = round2(input.thb);
+  const sellRate = round2(input.sellRate);
+  const marketRate = round2(input.marketRate);
+  if (!(thb > 0) || !(sellRate > 0) || !(marketRate > 0)) {
+    throw new Error('INVALID_AMOUNT_OR_RATE');
+  }
 
-  const res = await supabaseAdmin.rpc('ce_vault_record_incoming', {
+  const usdtOwed = thbToUsdt(thb, sellRate);
+  if (!(usdtOwed > 0)) throw new Error('INVALID_AMOUNT_OR_RATE');
+  const profitThb = round2(thb - usdtToThb(usdtOwed, marketRate));
+
+  let ledgerRef = input.ledgerRef?.trim() || newLedgerReference();
+  let res = await supabaseAdmin.rpc('ce_vault_record_incoming', {
     p_admin_id: admin.id,
     p_bank_account_id: input.bankAccountId ?? null,
     p_chat_id: input.chatId,
-    p_thb: input.thb,
+    p_thb: thb,
     p_usdt: usdtOwed,
-    p_sell_rate: input.sellRate,
-    p_market_rate: input.marketRate,
+    p_sell_rate: sellRate,
+    p_market_rate: marketRate,
     p_room_name: input.roomName ?? null,
     p_ocr_confidence: input.ocrConfidence ?? null,
-    p_ledger_ref: input.ledgerRef,
+    p_ledger_ref: ledgerRef,
     p_slip_image_url: input.slipImageUrl ?? '',
     p_slip_fingerprint: input.slipFingerprint ?? null,
     p_receiver_name: input.receiver?.name ?? null,
     p_receiver_bank: input.receiver?.bank ?? null,
     p_receiver_last4: input.receiver?.last4 ?? null,
   });
+  if (isLedgerRefCollision(res.error)) {
+    ledgerRef = newLedgerReference();
+    res = await supabaseAdmin.rpc('ce_vault_record_incoming', {
+      p_admin_id: admin.id,
+      p_bank_account_id: input.bankAccountId ?? null,
+      p_chat_id: input.chatId,
+      p_thb: thb,
+      p_usdt: usdtOwed,
+      p_sell_rate: sellRate,
+      p_market_rate: marketRate,
+      p_room_name: input.roomName ?? null,
+      p_ocr_confidence: input.ocrConfidence ?? null,
+      p_ledger_ref: ledgerRef,
+      p_slip_image_url: input.slipImageUrl ?? '',
+      p_slip_fingerprint: input.slipFingerprint ?? null,
+      p_receiver_name: input.receiver?.name ?? null,
+      p_receiver_bank: input.receiver?.bank ?? null,
+      p_receiver_last4: input.receiver?.last4 ?? null,
+    });
+  }
   if (res.error) {
-    if (isUniqueViolation(res.error) && input.slipFingerprint) throw new DuplicateSlipError();
+    if (isSlipFingerprintCollision(res.error) || (isUniqueViolation(res.error) && input.slipFingerprint)) {
+      throw new DuplicateSlipError();
+    }
     throw new Error(`DATABASE_MIGRATION_REQUIRED: ${res.error.message}`);
   }
   const transactionId = String(res.data ?? '');
   if (!transactionId) throw new Error('INSERT_FAILED');
 
-  notifyIncome({ adminName: admin.name, usdt: usdtOwed, thb: input.thb }).catch(() => undefined);
-  return { transactionId, adminName: admin.name, usdtOwed, profitThb };
+  notifyIncome({ adminName: admin.name, usdt: usdtOwed, thb }).catch(() => undefined);
+  return { transactionId, adminName: admin.name, usdtOwed, profitThb, ledgerRef };
 }
 
 export async function recordOutgoing(input: {
@@ -582,10 +657,13 @@ export async function recordOutgoing(input: {
   const admin = await getAdminByTelegramId(input.adminTelegramId);
   if (!admin) throw new AdminNotFoundError();
 
+  const usdt = round2(input.usdt);
+  if (!(usdt > 0)) throw new Error('INVALID_AMOUNT_OR_RATE');
+
   const res = await supabaseAdmin.rpc('ce_vault_record_outgoing', {
     p_admin_id: admin.id,
     p_chat_id: input.chatId,
-    p_usdt: input.usdt,
+    p_usdt: usdt,
     p_ledger_ref: input.ledgerRef,
     p_slip_image_url: input.slipImageUrl ?? '',
     p_slip_fingerprint: input.slipFingerprint ?? null,
