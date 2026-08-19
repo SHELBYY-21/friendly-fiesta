@@ -10,6 +10,11 @@ export function commandName(text: string | null | undefined): string | null {
   return match ? match[1].toLowerCase() : null;
 }
 
+/** คำสั่งอาจอยู่ใน text หรือ caption ของรูป */
+export function messageCommandText(msg: { text?: string | null; caption?: string | null } | null | undefined): string {
+  return String(msg?.text || msg?.caption || '').trim();
+}
+
 export function requiresAdminAccess(text: string | null | undefined): boolean {
   const name = commandName(text);
   if (name != null && ADMIN_COMMANDS.has(name)) return true;
