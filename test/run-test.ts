@@ -83,14 +83,16 @@ assert(commandName('/recent_slips@cevault_bot 10') === 'recent_slips', 'parses c
 assert(requiresAdminAccess('/recent_slips 10') === true, 'recent ledger requires admin access');
 assert(requiresAdminAccess('/ยอด') === true, 'Thai ledger alias requires admin access');
 assert(parseRecentLimit('/recent_slips') === 5, 'recent slips default limit is 5');
-assert(parseRecentLimit('/recent_slips 20') === 20, 'recent slips accepts upper bound');
-assert(parseRecentLimit('/recent_slips 21') === null, 'recent slips rejects limit above 20');
+assert(parseRecentLimit('/recent_slips 20') === 20, 'recent slips accepts 20');
+assert(parseRecentLimit('/recent_slips 50') === 50, 'recent slips accepts upper bound 50');
+assert(parseRecentLimit('/recent_slips 51') === null, 'recent slips rejects limit above 50');
 assert(parseSaveSlipArgs('/save_slip')?.thb === null, 'save slip accepts OCR amount confirmation');
 assert(parseSaveSlipArgs('/save_slip +500B')?.thb === 500, 'save slip accepts explicit THB IN override');
 const manualSlip = parseSaveSlipArgs('/save_slip +500B KBANK 7890');
 assert(manualSlip?.bank === 'KBANK' && manualSlip?.last4 === '7890', 'save slip accepts explicit bank fallback');
 assert(parseSaveSlipArgs('/save_slip 500') === null, 'save slip rejects amount without sign and currency');
 assert(isBootstrapAdmin(123, '123,456') === true, 'bootstrap admin allowlist accepts configured id');
+assert(isBootstrapAdmin('123' as any, '123,456') === true, 'bootstrap admin allowlist coerces string telegram ids');
 assert(isBootstrapAdmin(999, '123,456') === false, 'bootstrap admin allowlist rejects unknown id');
 assert(escapeTelegramHtml('<Admin & Co>') === '&lt;Admin &amp; Co&gt;', 'escapes Telegram HTML input');
 assert(slipFingerprint('stable-id') === slipFingerprint('stable-id'), 'slip fingerprint is deterministic');
@@ -324,9 +326,10 @@ assert(refs.size === 2000, `2000 ledger references are unique (got ${refs.size})
 // ============================================================
 assert(parseRecentLimit('/recent_slips') === 5, '/recent_slips defaults to 5');
 assert(parseRecentLimit('/recent_slips 10') === 10, '/recent_slips 10 -> 10');
-assert(parseRecentLimit('/recent_slips 20') === 20, '/recent_slips 20 -> 20 (upper bound)');
+assert(parseRecentLimit('/recent_slips 20') === 20, '/recent_slips 20 -> 20');
+assert(parseRecentLimit('/recent_slips 50') === 50, '/recent_slips 50 -> 50 (upper bound)');
 assert(parseRecentLimit('/recent_slips@cevault_bot 15') === 15, '/recent_slips honours bot mention suffix');
-assert(parseRecentLimit('/recent_slips 21') === null, '/recent_slips rejects 21 (above bound)');
+assert(parseRecentLimit('/recent_slips 51') === null, '/recent_slips rejects 51 (above bound)');
 assert(parseRecentLimit('/recent_slips 0') === null, '/recent_slips rejects 0');
 assert(parseRecentLimit('/recent_slips -5') === null, '/recent_slips rejects negative');
 assert(parseRecentLimit('/recent_slips abc') === null, '/recent_slips rejects non-numeric argument');

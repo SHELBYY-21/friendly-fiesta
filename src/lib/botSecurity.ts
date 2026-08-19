@@ -26,7 +26,7 @@ export function parseRecentLimit(text: string, fallback = 5): number | null {
   if (!rest) return fallback;
   if (!/^\d+$/.test(rest)) return null;
   const value = Number(rest);
-  return Number.isSafeInteger(value) && value >= 1 && value <= 20 ? value : null;
+  return Number.isSafeInteger(value) && value >= 1 && value <= 50 ? value : null;
 }
 
 export interface SaveSlipArgs {
@@ -58,8 +58,9 @@ export function configuredAdminIds(envValue = process.env.ADMIN_TELEGRAM_IDS): S
   );
 }
 
-export function isBootstrapAdmin(userId: number, envValue = process.env.ADMIN_TELEGRAM_IDS): boolean {
-  return configuredAdminIds(envValue).has(userId);
+export function isBootstrapAdmin(userId: number | string, envValue = process.env.ADMIN_TELEGRAM_IDS): boolean {
+  const id = Number(userId);
+  return Number.isSafeInteger(id) && id > 0 && configuredAdminIds(envValue).has(id);
 }
 
 export function escapeTelegramHtml(value: unknown): string {

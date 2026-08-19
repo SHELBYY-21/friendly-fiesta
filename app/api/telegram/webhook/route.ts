@@ -3,6 +3,7 @@
 // รวม logic ทั้งหมด: onboarding (ถามชื่อ) + อัปโหลดสลิป + บันทึกธุรกรรม + ธีม CE Vault
 // ============================================================
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 import * as UI from '@/lib/botUi';
 import { sendMessage, editMessage, answerCallback, uploadSlipFromTelegram, sendSticker,  } from '@/lib/telegram';
 import { getSession, setSession, clearSession } from '@/lib/botSessions';
@@ -90,6 +91,14 @@ try { validateStickers(); } catch (e: any) { console.warn(`[sticker config] ${e.
 const WEBHOOK_SECRET = getTelegramWebhookSecret();
 const WEBHOOK_CONFIG_ISSUES = validateWebhookEnvironment();
 
+function webhookSecretMatches(provided: string | null): boolean {
+  if (!WEBHOOK_SECRET || !provided) return false;
+  const expected = Buffer.from(WEBHOOK_SECRET);
+  const actual = Buffer.from(provided);
+  if (expected.length !== actual.length) return false;
+  return crypto.timingSafeEqual(expected, actual);
+}
+
 const log = (msg: string, data?: any) => {
   const ts = new Date().toISOString();
   console.log(`[${ts}] ${msg}`, data || '');
@@ -123,7 +132,7 @@ export async function POST(req: NextRequest) {
     );
   }
   // ตรวจ secret จาก Telegram (ตั้งตอน setWebhook)
-  if (req.headers.get('x-telegram-bot-api-secret-token') !== WEBHOOK_SECRET) {
+  if (!webhookSecretMatches(req.headers.get('x-telegram-bot-api-secret-token'))) {
     log('❌ Invalid webhook secret');
     return NextResponse.json({ ok: false }, { status: 401 });
   }
@@ -188,11 +197,13 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
-async function resolveAdmin(from: { first_name?: string; last_name?: string } | undefined, userId: number) {
-  const existing = await getAdminByTelegramId(userId);
+async function resolveAdmin(from: { first_name?: string; last_name?: string } | undefined, userId: number | string) {
+  const id = Number(userId);
+  if (!Number.isSafeInteger(id) || id <= 0) return null;
+  const existing = await getAdminByTelegramId(id);
   if (existing) return existing;
-  if (!isBootstrapAdmin(userId)) return null;
-  return upsertAdmin(userId, telegramDisplayName(from, userId));
+  if (!isBootstrapAdmin(id)) return null;
+  return upsertAdmin(id, telegramDisplayName(from, id));
 }
 
 function pinnedView(pinned: Awaited<ReturnType<typeof listPinnedBanks>>) {
@@ -461,7 +472,7 @@ async function handleUpdate(update: any): Promise<void> {
   if (cmd === 'recent_slips') {
     const limit = parseRecentLimit(text!);
     if (limit == null) {
-      await sendMessage(chatId, UI.error('จำนวนรายการต้องอยู่ระหว่าง 1–20 เช่น /recent_slips 10'));
+      await sendMessage(chatId, UI.error('จำนวนรายการต้องอยู่ระหว่าง 1–50 เช่น /recent_slips 10'));
       return;
     }
     try {
@@ -1570,11 +1581,14 @@ async function dispatchCallback(
   // ----- edit : allow owner or Admin to modify a committed transaction -----
   if (action === 'edit') {
     if (!isOwner && !await hasRole(['SuperAdmin','Admin'])) return await answerCallback(id, 'สิทธิ์ไม่พอ');
-    await answerCallback(id, '✏️ แก้ USDT');
+    await answerCallback(id, 'EDIT');
     await setSession(chatId, userId, {
       state: 'EDITING', caption: txId,
     });
-    await sendMessage(chatId, UI.editPrompt());
+    const prompt = UI.editPrompt();
+    const msgId: number | undefined = cb.message?.message_id;
+    if (msgId) await editMessage(chatId, msgId, prompt);
+    else await sendMessage(chatId, prompt);
     sticker(chatId, 'WAITING');
     return;
   }
@@ -1582,10 +1596,13 @@ async function dispatchCallback(
   // ----- delete / del : allow owner or Admin (or SuperAdmin) -----
   if (action === 'delete' || action === 'del') {
     if (!isOwner && !await hasRole(['SuperAdmin','Admin'])) return await answerCallback(id, 'สิทธิ์ไม่พอ');
-    await answerCallback(id, '🗑 กำลังลบ...');
+    await answerCallback(id, 'DELETE');
     try {
       const r = await deleteTransaction(txId);
-      await sendMessage(chatId, UI.deleteSuccess(r.name, r.holdingUsdt));
+      const done = UI.deleteSuccess(r.name, r.holdingUsdt);
+      const msgId: number | undefined = cb.message?.message_id;
+      if (msgId) await editMessage(chatId, msgId, done);
+      else await sendMessage(chatId, done);
     } catch {
       await sendMessage(chatId, UI.error('ลบรายการไม่สำเร็จ — ลองอีกครั้ง'));
     }

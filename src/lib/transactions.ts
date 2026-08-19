@@ -48,6 +48,22 @@ function isLedgerRefCollision(error: { code?: string; message?: string; details?
   return isUniqueViolation(error) && /ledger_ref/i.test(constraintName(error));
 }
 
+async function loadAdminsByIds(
+  ids: Array<string | null | undefined>,
+): Promise<Map<string, { name?: string | null; telegram_user_id?: number | null; holding_usdt?: number | null }>> {
+  const adminById = new Map<string, { name?: string | null; telegram_user_id?: number | null; holding_usdt?: number | null }>();
+  const adminIds = [...new Set(ids.map((id) => String(id || '')).filter(Boolean))];
+  if (adminIds.length === 0) return adminById;
+  const { data: admins } = await supabaseAdmin
+    .from('admins')
+    .select('id, name, telegram_user_id, holding_usdt')
+    .in('id', adminIds);
+  for (const admin of admins ?? []) {
+    adminById.set(String((admin as any).id), admin as any);
+  }
+  return adminById;
+}
+
 export async function findTransactionByFingerprint(fingerprint: string): Promise<{
   id: string;
   ledger_ref: string | null;
@@ -62,11 +78,13 @@ export async function findTransactionByFingerprint(fingerprint: string): Promise
   if (!fingerprint) return null;
   const { data, error } = await supabaseAdmin
     .from('transactions')
-    .select('id, ledger_ref, thb_amount, usdt_amount, sell_rate, receiver_bank, receiver_last4, ocr_confidence, admins(name)')
+    .select('id, ledger_ref, thb_amount, usdt_amount, sell_rate, receiver_bank, receiver_last4, ocr_confidence, admin_id')
     .eq('slip_fingerprint', fingerprint)
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
+  const adminById = await loadAdminsByIds([data.admin_id]);
+  const admin = adminById.get(String(data.admin_id ?? '')) ?? {};
   return {
     id: String(data.id),
     ledger_ref: data.ledger_ref ?? null,
@@ -76,15 +94,17 @@ export async function findTransactionByFingerprint(fingerprint: string): Promise
     receiver_bank: data.receiver_bank ?? null,
     receiver_last4: data.receiver_last4 ?? null,
     ocr_confidence: data.ocr_confidence == null ? null : Number(data.ocr_confidence),
-    admin_name: (data.admins as { name?: string } | null)?.name ?? null,
+    admin_name: admin.name ?? null,
   };
 }
 
-export async function getAdminByTelegramId(telegramId: number): Promise<Admin | null> {
+export async function getAdminByTelegramId(telegramId: number | string): Promise<Admin | null> {
+  const id = Number(telegramId);
+  if (!Number.isSafeInteger(id) || id <= 0) return null;
   const { data, error } = await supabaseAdmin
     .from('admins')
     .select('*')
-    .eq('telegram_user_id', telegramId)
+    .eq('telegram_user_id', id)
     .maybeSingle();
   if (error) throw error;
   return (data as Admin) ?? null;
@@ -175,7 +195,7 @@ export async function getTodayLedger(
   const cut = sinceIso && new Date(sinceIso) > midnight ? sinceIso : midnight.toISOString();
   let q = supabaseAdmin
     .from('transactions')
-    .select('created_at, type, thb_amount, usdt_amount, net_profit_thb, admins(name)')
+    .select('created_at, type, thb_amount, usdt_amount, net_profit_thb, admin_id')
     .gte('created_at', cut)
     .order('created_at', { ascending: true });
   if (chatId != null) q = q.eq('chat_id', chatId); // แยกห้อง
@@ -183,6 +203,7 @@ export async function getTodayLedger(
   if (error) throw error;
 
   const rows = (data ?? []) as any[];
+  const adminById = await loadAdminsByIds(rows.map((r) => r.admin_id));
   const fmtTime = (iso: string) =>
     new Date(iso).toLocaleTimeString('th-TH', {
       hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Bangkok',
@@ -216,7 +237,7 @@ export async function getTodayLedger(
     totalIncomingUsdt,
     totalOutgoingUsdt,
     netProfitThb,
-    lastAdminName: last?.admins?.name ?? null,
+    lastAdminName: last ? (adminById.get(String(last.admin_id ?? ''))?.name ?? null) : null,
   };
 }
 
@@ -357,10 +378,12 @@ export async function editTransaction(
 ): Promise<{ tx: any; admin: { name: string; holdingUsdt: number } }> {
   const { data: old } = await supabaseAdmin
     .from('transactions')
-    .select('*, admins(name, holding_usdt)')
+    .select('*')
     .eq('id', txId)
     .single();
   if (!old) throw new Error('ไม่พบธุรกรรม');
+  const editor = (await loadAdminsByIds([old.admin_id])).get(String(old.admin_id ?? ''));
+  const editorName = editor?.name ?? '-';
 
   if (old.ledger_ref) {
     const newThb = old.type === 'THB_DEPOSIT' ? (patch.newThb ?? Number(old.thb_amount)) : 0;
@@ -375,10 +398,10 @@ export async function editTransaction(
     });
     if (error) throw new Error(`DATABASE_MIGRATION_REQUIRED: ${error.message}`);
     let tx = { ...old, ...(data as object) };
-    notifyEdit({ adminName: old.admins?.name ?? '-', note: String(old.ledger_ref) }).catch(() => undefined);
+    notifyEdit({ adminName: editorName, note: String(old.ledger_ref) }).catch(() => undefined);
     return {
       tx,
-      admin: { name: old.admins?.name ?? '-', holdingUsdt: Number(old.admins?.holding_usdt ?? 0) },
+      admin: { name: editorName, holdingUsdt: Number(editor?.holding_usdt ?? 0) },
     };
   }
 
@@ -414,11 +437,11 @@ export async function editTransaction(
     const newHolding = await addAdminHolding(old.admin_id, holdingDelta);
     if (old.bank_account_id) await addBankBalance(old.bank_account_id, thbDelta);
 
-    notifyEdit({ adminName: old.admins?.name ?? '-', note: 'ฝาก THB → USDT' }).catch(() => undefined);
+    notifyEdit({ adminName: editorName, note: 'ฝาก THB → USDT' }).catch(() => undefined);
 
     return {
       tx: { ...old, thb_amount: newThb, usdt_amount: newUsdt, ...profit, ...fee },
-      admin: { name: old.admins?.name ?? '-', holdingUsdt: newHolding },
+      admin: { name: editorName, holdingUsdt: newHolding },
     };
   } else {
     // USDT_SEND: หัก holding ตอน insert → -old, ตอนแก้ต้องบวก old กลับก่อนแล้วหัก new
@@ -430,11 +453,11 @@ export async function editTransaction(
     const delta = -(newUsdt - Number(old.usdt_amount)); // เดิม -oldUsdt, ใหม่ -newUsdt → net = old - new
     const newHolding = await addAdminHolding(old.admin_id, delta);
 
-    notifyEdit({ adminName: old.admins?.name ?? '-', note: 'ส่ง USDT' }).catch(() => undefined);
+    notifyEdit({ adminName: editorName, note: 'ส่ง USDT' }).catch(() => undefined);
 
     return {
       tx: { ...old, usdt_amount: newUsdt },
-      admin: { name: old.admins?.name ?? '-', holdingUsdt: newHolding },
+      admin: { name: editorName, holdingUsdt: newHolding },
     };
   }
 }
@@ -443,16 +466,18 @@ export async function editTransaction(
 export async function deleteTransaction(txId: string): Promise<{ name: string; holdingUsdt: number }> {
   const { data: old } = await supabaseAdmin
     .from('transactions')
-    .select('*, admins(name, holding_usdt)')
+    .select('*')
     .eq('id', txId)
     .single();
   if (!old) throw new Error('ไม่พบธุรกรรม');
+  const editor = (await loadAdminsByIds([old.admin_id])).get(String(old.admin_id ?? ''));
+  const editorName = editor?.name ?? '-';
 
   if (old.ledger_ref) {
     const { error } = await supabaseAdmin.rpc('ce_vault_delete_ledger_transaction', { p_tx_id: txId });
     if (error) throw new Error(`DATABASE_MIGRATION_REQUIRED: ${error.message}`);
-    notifyDelete({ adminName: old.admins?.name ?? '-' }).catch(() => undefined);
-    return { name: old.admins?.name ?? '-', holdingUsdt: Number(old.admins?.holding_usdt ?? 0) };
+    notifyDelete({ adminName: editorName }).catch(() => undefined);
+    return { name: editorName, holdingUsdt: Number(editor?.holding_usdt ?? 0) };
   }
 
   // คืนค่า: THB_DEPOSIT บวกไป holding แล้ว → ต้องหักออก;  USDT_SEND หักไป → ต้องบวกคืน
@@ -463,9 +488,9 @@ export async function deleteTransaction(txId: string): Promise<{ name: string; h
   }
   await supabaseAdmin.from('transactions').delete().eq('id', txId);
 
-  notifyDelete({ adminName: old.admins?.name ?? '-' }).catch(() => undefined);
+  notifyDelete({ adminName: editorName }).catch(() => undefined);
 
-  return { name: old.admins?.name ?? '-', holdingUsdt: newHolding };
+  return { name: editorName, holdingUsdt: newHolding };
 }
 
 // ============================================================
@@ -808,7 +833,7 @@ export async function getRecentSlips(
   limit = 5,
   sinceIso?: string | null,
 ): Promise<RecentSlip[]> {
-  const safeLimit = Number.isSafeInteger(limit) && limit >= 1 && limit <= 20 ? limit : 5;
+  const safeLimit = Number.isSafeInteger(limit) && limit >= 1 && limit <= 50 ? limit : 5;
   const numericChatId = Number(chatId);
   let query = supabaseAdmin
     .from('transactions')
@@ -822,19 +847,7 @@ export async function getRecentSlips(
   const { data, error } = await query;
   if (error) throw new Error('RECENT_SLIPS_QUERY_FAILED');
   const rows = (data ?? []) as any[];
-
-  const adminIds = [...new Set(rows.map((row) => String(row.admin_id || '')).filter(Boolean))];
-  const adminById = new Map<string, { name?: string | null; telegram_user_id?: number | null }>();
-  if (adminIds.length > 0) {
-    const { data: admins } = await supabaseAdmin
-      .from('admins')
-      .select('id, name, telegram_user_id')
-      .in('id', adminIds);
-    for (const admin of admins ?? []) {
-      adminById.set(String((admin as any).id), admin as any);
-    }
-  }
-
+  const adminById = await loadAdminsByIds(rows.map((row) => row.admin_id));
   return rows.map((row) => mapRecentSlipRow(row, adminById));
 }
 
@@ -842,7 +855,7 @@ export async function getRecentSlips(
 export async function exportRoomCsv(chatId: number, sinceIso?: string | null): Promise<{ csv: string; rows: number }> {
   let q = supabaseAdmin
     .from('transactions')
-    .select('ledger_ref, created_at, room_name, thb_amount, usdt_amount, buy_rate, sell_rate, net_profit_thb, receiver_name, receiver_bank, receiver_last4, usdt_network, usdt_txid, ocr_confidence, admins(name)')
+    .select('ledger_ref, created_at, room_name, thb_amount, usdt_amount, buy_rate, sell_rate, net_profit_thb, receiver_name, receiver_bank, receiver_last4, usdt_network, usdt_txid, ocr_confidence, admin_id')
     .eq('type', 'THB_DEPOSIT')
     .eq('chat_id', chatId)
     .order('created_at', { ascending: false })
@@ -851,6 +864,7 @@ export async function exportRoomCsv(chatId: number, sinceIso?: string | null): P
   const { data, error } = await q;
   if (error) throw error;
   const rows = (data ?? []) as any[];
+  const adminById = await loadAdminsByIds(rows.map((r) => r.admin_id));
   const cols = ['ledger_ref', 'created_at', 'staff', 'room_name', 'thb_amount', 'usdt_amount', 'buy_rate', 'sell_rate', 'net_profit_thb', 'receiver_name', 'receiver_bank', 'receiver_last4', 'usdt_network', 'usdt_txid', 'ocr_confidence'];
   const cell = (v: any) => {
     if (v == null) return '';
@@ -858,7 +872,7 @@ export async function exportRoomCsv(chatId: number, sinceIso?: string | null): P
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const lines = rows.map((r) =>
-    cols.map((c) => (c === 'staff' ? cell(r.admins?.name) : cell(r[c]))).join(','),
+    cols.map((c) => (c === 'staff' ? cell(adminById.get(String(r.admin_id ?? ''))?.name) : cell(r[c]))).join(','),
   );
   return { csv: [cols.join(','), ...lines].join('\n'), rows: rows.length };
 }
@@ -920,16 +934,17 @@ export async function getStaffLeaderboard(
 ): Promise<StaffStat[]> {
   let q = supabaseAdmin
     .from('transactions')
-    .select('thb_amount, net_profit_thb, admins(name)')
+    .select('thb_amount, net_profit_thb, admin_id')
     .eq('type', 'THB_DEPOSIT');
   if (sinceIso) q = q.gte('created_at', sinceIso);
   if (chatId != null) q = q.eq('chat_id', chatId);
   const { data, error } = await q;
   if (error) throw error;
   const rows = (data ?? []) as any[];
+  const adminById = await loadAdminsByIds(rows.map((r) => r.admin_id));
   const map = new Map<string, StaffStat>();
   for (const r of rows) {
-    const name = r.admins?.name ?? '-';
+    const name = adminById.get(String(r.admin_id ?? ''))?.name ?? '-';
     const cur = map.get(name) ?? { name, count: 0, totalThb: 0, profitThb: 0 };
     cur.count += 1;
     cur.totalThb += Number(r.thb_amount || 0);

@@ -9,6 +9,7 @@ import {
   integer,
   jsonb,
   bigserial,
+  uniqueIndex,
   primaryKey,
 } from "drizzle-orm/pg-core";
 
@@ -99,7 +100,10 @@ export const transactions = pgTable("transactions", {
   liveStatus: text("live_status"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  uniqueIndex("uq_transactions_slip_fingerprint").on(table.slipFingerprint),
+  uniqueIndex("uq_transactions_ledger_ref").on(table.ledgerRef),
+]);
 
 // 6) transaction_status_logs
 export const transactionStatusLogs = pgTable("transaction_status_logs", {
