@@ -1,6 +1,6 @@
 import { Admin } from '@/types/transactions';
 
-const { parseSlipText, computeShouldSend, parseDeskPin, parseDeskRate, hasRatePrefix, isBareDeskRate } = require('../src/bot/parse');
+const { parseSlipText, computeShouldSend, parseDeskPin, parseDeskRate, hasRatePrefix, isBareDeskRate, parseTelegramId } = require('../src/bot/parse');
 const { parseAmounts, parseAmountTokens } = require('../src/lib/amounts');
 const {
   commandName,
@@ -286,6 +286,7 @@ const {
   SLIP_ACTIONS,
   VAULT_ACTIONS,
   PIN_ACTIONS,
+  ADMIN_ACTIONS,
 } = require('../src/lib/ct/callbacks');
 const { adminKeyboard } = require('../src/lib/ct/format');
 
@@ -333,6 +334,7 @@ for (const data of cbs) {
   if (cb.domain === 'slip') assert(SLIP_ACTIONS.has(cb.action), `slip action ${cb.action} from ${data}`);
   if (cb.domain === 'vault') assert(VAULT_ACTIONS.has(cb.action), `vault action ${cb.action} from ${data}`);
   if (cb.domain === 'pin') assert(PIN_ACTIONS.has(cb.action), `pin action ${cb.action} from ${data}`);
+  if (cb.domain === 'admin') assert(ADMIN_ACTIONS.has(cb.action), `admin action ${cb.action} from ${data}`);
 }
 assert(collectCbs(CT.cardInReady(sample)).includes('slip:lock:A4F2'), 'keep → lock');
 assert(collectCbs(CT.cardLocked({ ...sample, time: '06:20', canUndo: true })).includes('slip:settle:A4F2'), 'sent → settle');
@@ -343,5 +345,10 @@ assert(hasRatePrefix('/setrate 36.70') === true, 'setrate is explicit');
 assert(isBareDeskRate('36.70') === true, '36.70 is a bare desk rate token');
 assert(isBareDeskRate('โอน 36.70 แล้ว') === false, 'rate inside chat is not bare');
 assert(VAULT_ACTIONS.has('set'), 'settings callback exists');
+assert(matchReplyCommand('/admin') === 'addadmin', '/admin asks for id');
+assert(parseTelegramId('/admin 5676959274') === 5676959274, '/admin + telegram id');
+assert(parseTelegramId('5676959274') === 5676959274, 'bare telegram id parses');
+assert(parseTelegramId('โอน 5676959274 แล้ว') === null, 'id inside chat is ignored');
+assert(collectCbs(CT.settingsCard({ desk: 36.7, mkt: 32.7, pins: [], admins: [] })).includes('admin:add'), 'settings has add-admin');
 
 console.log('🎉 ALL TESTS PASSED SUCCESSFULLY!');

@@ -84,13 +84,31 @@ export function settingsCard(d: {
       '',
       'ตั้งเรท: กดเรท แล้วพิมพ์เลขอย่างเดียว เช่น <code>36.70</code>',
       'หรือ <code>/setrate 36.70</code>',
-      'เพิ่มแอดมิน: <code>/admin 5676959274</code>',
+      'เพิ่มแอดมิน: กดแอด แล้วส่ง Telegram ID',
+      'หรือ <code>/admin 5676959274</code>',
     ].join('\n'),
     ik([
-      [btn('เรท', 'vault:rateask'), btn('หมุด', 'pin:view'), btn('ใหม่', 'vault:newday')],
-      [urlBtn('desk', deskUrl())],
+      [btn('เรท', 'vault:rateask'), btn('หมุด', 'pin:view'), btn('แอด', 'admin:add')],
+      [btn('ใหม่', 'vault:newday'), urlBtn('desk', deskUrl())],
     ]),
   );
+}
+
+export function askAdminId(): OutgoingMessage {
+  return msg(
+    [
+      head('SET', 'เพิ่มแอดมิน'),
+      '',
+      'ส่ง Telegram ID ตัวเลขอย่างเดียว',
+      'เช่น <code>5676959274</code>',
+      'ดูได้จาก @userinfobot',
+      'ข้อความอื่นในกลุ่มจะไม่ถูกอ่านเป็นไอดี',
+    ].join('\n'),
+  );
+}
+
+export function adminAdded(id: number, name: string): OutgoingMessage {
+  return msg(`${head('SET', 'เพิ่มแล้ว')}\n<code>${id}</code>  ${esc(name)}`);
 }
 
 export function cardInReady(d: {

@@ -119,3 +119,12 @@ export function computeShouldSend(thb: number, rate: number): number {
   if (!rate || rate <= 0 || !thb || thb <= 0) return 0;
   return parseFloat((thb / rate).toFixed(2));
 }
+
+export function parseTelegramId(text: string): number | null {
+  const t = (text || '').trim();
+  const m = t.match(/^(?:\/admin(?:@[a-z0-9_]+)?\s+)?(?:id[:\s]*)?(\d{5,15})$/i);
+  if (!m) return null;
+  const n = Number(m[1]);
+  if (!Number.isFinite(n) || n < 10000) return null;
+  return n;
+}

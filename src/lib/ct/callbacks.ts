@@ -1,6 +1,6 @@
 import { answerCallback, editMessage, sendMessage, sendPhoto, editPhoto, deleteMessage } from '../telegram';
 import { parseAmounts } from '../amounts';
-import { parseDeskPin, parseDeskRate, hasRatePrefix, isBareDeskRate } from '../../bot/parse';
+import { parseDeskPin, parseDeskRate, hasRatePrefix, isBareDeskRate, parseTelegramId } from '../../bot/parse';
 import { listPinnedBanks, accountLast4, pinBankAccount, unpinBankAccount } from '../banks';
 import {
   recordIncoming,
@@ -37,7 +37,7 @@ export function parseCb(data: string): {
 
 export function isCtCallback(data: string): boolean {
   const d = (data || '').split(':')[0];
-  return d === 'vault' || d === 'slip' || d === 'pin';
+  return d === 'vault' || d === 'slip' || d === 'pin' || d === 'admin';
 }
 
 export const SLIP_ACTIONS = new Set([
@@ -47,8 +47,9 @@ export const SLIP_ACTIONS = new Set([
 
 export const VAULT_ACTIONS = new Set(['today', 'pending', 'rateask', 'newday', 'recent', 'all', 'set']);
 export const PIN_ACTIONS = new Set(['view', 'unpin']);
+export const ADMIN_ACTIONS = new Set(['add']);
 
-export type ReplyCmd = 'vault' | 'pending' | 'menu' | 'newday' | 'pin' | 'rate' | 'recent' | 'settings';
+export type ReplyCmd = 'vault' | 'pending' | 'menu' | 'newday' | 'pin' | 'rate' | 'recent' | 'settings' | 'addadmin';
 
 export function matchReplyCommand(text: string): ReplyCmd | null {
   const t = (text || '').trim();
@@ -58,7 +59,8 @@ export function matchReplyCommand(text: string): ReplyCmd | null {
     t === 'ยอดวันนี้' || t === 'สรุปวันนี้'
   ) return 'vault';
   if (t === 'คิว' || t === 'รอส่ง' || t === 'wait' || t === '/pending') return 'pending';
-  if (t === 'ตั้ง' || t === 'ตั้งค่า' || t === '/settings' || t === '/admin') return 'settings';
+  if (t === 'ตั้ง' || t === 'ตั้งค่า' || t === '/settings') return 'settings';
+  if (t === '/admin' || t === 'แอด' || t === '+แอด') return 'addadmin';
   if (t === 'เมนู' || t === '/menu' || t === '/help' || low === 'menu' || t === 'ช่วย') return 'settings';
   if (t === 'ใหม่' || t === 'วันใหม่' || t === '/newday' || low === 'new') return 'newday';
   if (t === 'pin' || t === 'หมุด' || t === '/pin' || t === 'บัญชี') return 'pin';
@@ -98,9 +100,19 @@ async function renderSettings(chatId: number) {
 async function armRatePrompt(chatId: number, userId: number) {
   try {
     await setSession(chatId, userId, { state: 'AWAITING_RATE' });
-  } catch {
-    /* session table optional */
-  }
+  } catch { /* session table optional */ }
+}
+
+async function armAdminPrompt(chatId: number, userId: number) {
+  try {
+    await setSession(chatId, userId, { state: 'AWAITING_ADMIN' });
+  } catch { /* session table optional */ }
+}
+
+async function addAdminById(chatId: number, tgId: number) {
+  const row = await upsertAdmin(tgId, `Admin ${tgId}`);
+  await sendMessage(chatId, C.adminAdded(tgId, row.name));
+  await sendMessage(chatId, await renderSettings(chatId));
 }
 
 async function load(chatId: number, ref: string, cbId: string): Promise<PendingSlip | null> {
@@ -198,6 +210,17 @@ export async function handleCtCallback(opts: {
       bank: b.bank_name,
       last4: accountLast4(b.account_number) ?? '????',
     }))));
+    return;
+  }
+
+  if (cb.domain === 'admin' && cb.action === 'add') {
+    if (!isLead(admin)) {
+      await answerCallback(id, 'เฉพาะ lead');
+      return;
+    }
+    await armAdminPrompt(chatId, userId);
+    await answerCallback(id, 'ส่งไอดี');
+    await sendMessage(chatId, C.askAdminId());
     return;
   }
 
@@ -608,15 +631,34 @@ export async function handleCtText(opts: {
     return true;
   }
 
-  const addAdmin = t.match(/^\/admin(?:@[a-z0-9_]+)?\s+(\d{5,15})\s*$/i);
-  if (addAdmin) {
+  if (cmd === 'addadmin') {
     if (!isLead(opts.admin)) {
       await sendMessage(opts.chatId, { text: 'เฉพาะ lead' });
       return true;
     }
-    const tgId = Number(addAdmin[1]);
-    await upsertAdmin(tgId, `Admin ${tgId}`);
-    await sendMessage(opts.chatId, await renderSettings(opts.chatId));
+    await armAdminPrompt(opts.chatId, opts.userId);
+    await sendMessage(opts.chatId, C.askAdminId());
+    return true;
+  }
+
+  const tgId = parseTelegramId(t);
+  if (tgId != null) {
+    let allowed = /^\/admin/i.test(t);
+    if (!allowed) {
+      try {
+        const session = await getSession(opts.chatId, opts.userId);
+        allowed = session?.state === 'AWAITING_ADMIN';
+      } catch {
+        allowed = false;
+      }
+    }
+    if (!allowed) return false;
+    if (!isLead(opts.admin)) {
+      await sendMessage(opts.chatId, { text: 'เฉพาะ lead' });
+      return true;
+    }
+    try { await clearSession(opts.chatId, opts.userId); } catch { /* ignore */ }
+    await addAdminById(opts.chatId, tgId);
     return true;
   }
 
