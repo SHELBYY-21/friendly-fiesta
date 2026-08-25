@@ -33,6 +33,7 @@ import { notifyDailySummary, notifyReady } from '@/lib/notifier';
 import { analyzeSlip, analyzeUsdtScreenshot } from '@/lib/ocr';
 import { getBotGate } from '@/lib/systemSettings';
 import { parseAmounts } from '@/lib/amounts';
+import { routeIncomingSlip, routeOutgoingSlip } from '@/lib/actions';
 import { findReceiversByLast4, upsertReceiverOnDeposit } from '@/lib/receivers';
 import { getSticker, validateStickers, type StickerState } from '@/config/stickers';
 import {
@@ -579,7 +580,6 @@ async function handleUpdate(update: any): Promise<void> {
 
         const suggestedUsdt = roomRate > 0 ? slip.thbAmount / roomRate : 0;
 
-        // Save session state before showing verification
         await setSession(chatId, userId, {
           state: 'WAITING_USDT', pending_type: 'THB_DEPOSIT', slip_url: imgUrl,
           slip_fingerprint: fingerprint, ocr_thb: slip.thbAmount,
@@ -587,10 +587,40 @@ async function handleUpdate(update: any): Promise<void> {
           slip_bank: slip.bank, slip_receiver_name: slip.receiverName,
           ocr_conf: slip.confidence, ledger_ref: ledgerRef,
           admin_id: admin!.id, admin_name: admin!.name,
-          vision_message_id: null, // will update in next step
+          vision_message_id: null,
         });
 
-        // Send verification card
+        const route = routeIncomingSlip({
+          authorized: true,
+          ocrThb: slip.thbAmount,
+          ocrConfidence: slip.confidence,
+          ocrAutoMin: OCR_AUTO_MIN,
+          pinned,
+          ocrBank: slip.bank,
+          ocrLast4: slip.receiverLast4,
+        });
+
+        if (route.level === 'AUTO') {
+          const res = await commitIncoming(chatId, userId, route.thb, {
+            slipUrl: imgUrl,
+            slipFingerprint: fingerprint,
+            bankAccountId: route.bank.id,
+            bank: route.bank.bank_name,
+            last4: accountLast4(route.bank.account_number),
+            receiverName: slip.receiverName ?? null,
+            confidence: slip.confidence ?? null,
+          });
+          await clearSession(chatId, userId);
+          sticker(chatId, 'SUCCESS');
+          await sendMessage(chatId, UI.incomingRecorded({
+            transactionId: res.transactionId, ledgerRef: res.ledgerRef, thb: res.thb,
+            usdtOwed: res.usdtOwed, sellRate: res.sellRate, adminName: res.adminName,
+            bank: res.bank, last4: res.last4, confidence: res.confidence,
+            todayIncoming: res.todayIncoming, todayTotalThb: res.todayTotalThb,
+          }));
+          return;
+        }
+
         const verifyMsg = await sendMessage(
           chatId,
           UI.visionSlipVerification({
@@ -610,7 +640,6 @@ async function handleUpdate(update: any): Promise<void> {
           }),
         );
 
-        // Store message_id for later inline editing
         await setSession(chatId, userId, { vision_message_id: verifyMsg });
         return;
       }
@@ -618,6 +647,27 @@ async function handleUpdate(update: any): Promise<void> {
       // USDT screenshot: keep OCR result, require explicit -13.6U confirmation.
       const u = await analyzeUsdtScreenshot(imgUrl);
       if (u?.amount && u.amount > 0) {
+        const outRoute = routeOutgoingSlip({
+          authorized: true,
+          usdt: u.amount,
+          ocrConfidence: u.confidence,
+          ocrAutoMin: OCR_AUTO_MIN,
+        });
+        if (outRoute.level === 'AUTO') {
+          const res = await commitOutgoing(chatId, userId, outRoute.usdt, {
+            slipUrl: imgUrl,
+            slipFingerprint: fingerprint,
+            network: u.network,
+            txid: u.txid,
+          });
+          sticker(chatId, 'SUCCESS');
+          await sendMessage(chatId, UI.outgoingRecorded({
+            transactionId: res.transactionId, ledgerRef: res.ledgerRef,
+            usdt: res.usdt, adminName: res.adminName,
+            shouldSendUsdt: res.shouldSendUsdt, remainingUsdt: res.remainingUsdt,
+          }));
+          return;
+        }
         await setSession(chatId, userId, {
           state: 'WAITING_USDT', pending_type: 'USDT_SEND', pending_usdt: u.amount,
           slip_url: imgUrl, slip_fingerprint: fingerprint,
