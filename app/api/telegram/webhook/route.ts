@@ -45,6 +45,7 @@ import {
   isSlipMediaMessage,
   telegramDisplayName,
 } from '@/lib/slipPipeline';
+import { routeIncomingSlip, routeOutgoingSlip } from '@/lib/actions';
 import { round2, thbToUsdt } from '@/lib/profit';
 import { findReceiversByLast4, upsertReceiverOnDeposit } from '@/lib/receivers';
 import { getSticker, validateStickers, type StickerState } from '@/config/stickers';
@@ -550,7 +551,12 @@ async function handleUpdate(update: any): Promise<void> {
       }
 
       const pinned = await listPinnedBanks(chatId);
-      const pinDecision = decidePinnedMatch({
+      const route = routeIncomingSlip({
+        authorized: true,
+        manualThb: manual.thb,
+        ocrThb: slip.thbAmount,
+        ocrConfidence: slip.confidence,
+        ocrAutoMin: OCR_AUTO_MIN,
         pinned,
         ocrBank: slip.bank,
         ocrLast4: slip.receiverLast4,
@@ -561,14 +567,6 @@ async function handleUpdate(update: any): Promise<void> {
       const r = await getLatestRates();
       const roomRate = (await getChatRate(chatId)) ?? r.sellRate;
       const suggestedUsdt = thbToUsdt(amountDecision.thb, roomRate);
-      const matchedBank = pinDecision.ok ? pinDecision.bank : null;
-      let todayCount = 0;
-      let todayTotal = 0;
-      if (matchedBank) {
-        const dayTotals = await getTodayBankAccountTotals(matchedBank.id);
-        todayCount = dayTotals.count;
-        todayTotal = dayTotals.totalThb;
-      }
 
       await setSession(chatId, userId, {
         state: 'WAITING_USDT',
@@ -587,6 +585,44 @@ async function handleUpdate(update: any): Promise<void> {
         admin_name: admin!.name,
         caption: amountDecision.source === 'manual' ? 'AMOUNT_MANUAL' : null,
       });
+
+      if (route.level === 'AUTO') {
+        const bank = route.bank;
+        const res = await commitIncoming(chatId, userId, route.thb, {
+          slipUrl: imgUrl,
+          slipFingerprint: fingerprint,
+          bankAccountId: bank.id,
+          bank: bank.bank_name,
+          last4: accountLast4(bank.account_number),
+          receiverName: slip.receiverName,
+          confidence: amountDecision.source === 'manual' ? Math.max(slip.confidence ?? 0, OCR_AUTO_MIN) : slip.confidence,
+        });
+        await clearSession(chatId, userId);
+        await sendMessage(chatId, UI.incomingRecorded({
+          transactionId: res.transactionId, ledgerRef: res.ledgerRef, thb: res.thb,
+          usdtOwed: res.usdtOwed, sellRate: res.sellRate, adminName: res.adminName,
+          bank: res.bank, last4: res.last4, confidence: res.confidence,
+          todayIncoming: res.todayIncoming, todayTotalThb: res.todayTotalThb,
+        }));
+        sticker(chatId, 'SUCCESS');
+        return;
+      }
+
+      const pinDecision = decidePinnedMatch({
+        pinned,
+        ocrBank: slip.bank,
+        ocrLast4: slip.receiverLast4,
+        manualBank: manual.bank,
+        manualLast4: manual.last4,
+      });
+      const matchedBank = pinDecision.ok ? pinDecision.bank : null;
+      let todayCount = 0;
+      let todayTotal = 0;
+      if (matchedBank) {
+        const dayTotals = await getTodayBankAccountTotals(matchedBank.id);
+        todayCount = dayTotals.count;
+        todayTotal = dayTotals.totalThb;
+      }
 
       if (!pinDecision.ok) {
         await sendMessage(
@@ -691,6 +727,38 @@ async function handleUpdate(update: any): Promise<void> {
           caption: null,
         });
 
+        const route = routeIncomingSlip({
+          authorized: true,
+          ocrThb: slip.thbAmount,
+          ocrConfidence: slip.confidence,
+          ocrAutoMin: OCR_AUTO_MIN,
+          pinned,
+          ocrBank: slip.bank,
+          ocrLast4: slip.receiverLast4,
+        });
+
+        if (route.level === 'AUTO') {
+          const bank = route.bank;
+          const res = await commitIncoming(chatId, userId, route.thb, {
+            slipUrl: imgUrl,
+            slipFingerprint: fingerprint,
+            bankAccountId: bank.id,
+            bank: bank.bank_name,
+            last4: accountLast4(bank.account_number),
+            receiverName: slip.receiverName,
+            confidence: slip.confidence,
+          });
+          await clearSession(chatId, userId);
+          await sendMessage(chatId, UI.incomingRecorded({
+            transactionId: res.transactionId, ledgerRef: res.ledgerRef, thb: res.thb,
+            usdtOwed: res.usdtOwed, sellRate: res.sellRate, adminName: res.adminName,
+            bank: res.bank, last4: res.last4, confidence: res.confidence,
+            todayIncoming: res.todayIncoming, todayTotalThb: res.todayTotalThb,
+          }));
+          sticker(chatId, 'SUCCESS');
+          return;
+        }
+
         await sendMessage(
           chatId,
           UI.visionSlipVerification({
@@ -717,6 +785,27 @@ async function handleUpdate(update: any): Promise<void> {
 
       const u = await analyzeUsdtScreenshot(imgUrl);
       if (u?.amount && u.amount > 0) {
+        const outRoute = routeOutgoingSlip({
+          authorized: true,
+          usdt: u.amount,
+          ocrConfidence: u.confidence,
+          ocrAutoMin: OCR_AUTO_MIN,
+        });
+        if (outRoute.level === 'AUTO') {
+          const res = await commitOutgoing(chatId, userId, outRoute.usdt, {
+            slipUrl: imgUrl,
+            slipFingerprint: fingerprint,
+            network: u.network,
+            txid: u.txid,
+          });
+          await sendMessage(chatId, UI.outgoingRecorded({
+            transactionId: res.transactionId, ledgerRef: res.ledgerRef,
+            usdt: res.usdt, adminName: res.adminName,
+            shouldSendUsdt: res.shouldSendUsdt, remainingUsdt: res.remainingUsdt,
+          }));
+          sticker(chatId, 'SUCCESS');
+          return;
+        }
         await setSession(chatId, userId, {
           state: 'WAITING_USDT', pending_type: 'USDT_SEND', pending_usdt: u.amount,
           slip_url: imgUrl, slip_fingerprint: fingerprint,
