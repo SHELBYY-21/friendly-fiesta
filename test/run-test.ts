@@ -262,9 +262,9 @@ const inReady = CT.cardInReady({
   ledger: 'CE-20260826-A4F2', adminName: 'Admin A', short: 'A4F2',
 });
 assert(inReady.text.includes('THB'), 'IN_READY amount table');
-assert(inReady.text.includes('pnl'), 'IN_READY pnl');
+assert(inReady.text.includes('ส่วนต่าง'), 'IN_READY pnl');
 assert(inReady.text.includes('MKT'), 'IN_READY market');
-assert(inReady.text.includes('ocr'), 'IN_READY progress tape');
+assert(inReady.text.includes('ตรวจยอด'), 'IN_READY progress tape');
 assert(inReady.text.includes('#CE-20260826-A4F2'), 'ledger id with hash');
 assert(JSON.stringify(inReady.reply_markup).includes('slip:lock:A4F2'), 'lock callback present');
 assert(hasBalancedTelegramHtml(inReady.text), 'IN_READY html balanced');
@@ -274,7 +274,7 @@ const vault = CT.vaultBanner({
   inThb: 0, inCount: 0, inRows: [], outUsdt: 0, outCount: 0, outRows: [],
   pendingUsdt: 0, desk: 36.7, mkt: 36.52, pendingShorts: [],
 });
-assert(vault.text.includes('◈') && vault.text.includes('[ VAULT ]'), 'empty vault density');
+assert(vault.text.includes('◈') && vault.text.includes('[ สรุปยอด ]'), 'empty vault density');
 assert(vault.text.includes('วันนี้ยังไม่มีสลิป'), 'empty vault microcopy');
 assert(hasBalancedTelegramHtml(vault.text), 'vault html balanced');
 assert(!/[👑✨🌿💎🤍🟢🔴💰📈🎯💵🏦👤⚠❤🔥⚡]/.test(vault.text), 'vault has no public emoji');
@@ -291,14 +291,14 @@ const {
 const { adminKeyboard } = require('../src/lib/ct/format');
 
 const pad = adminKeyboard().keyboard.flat().map((b: { text: string }) => b.text);
-assert(JSON.stringify(pad) === JSON.stringify(['ยอด', 'คิว', 'เรท', 'หมุด', 'ตั้ง', 'ใหม่']), 'reply pad labels');
+assert(JSON.stringify(pad) === JSON.stringify(['ยอดวันนี้', 'รอส่ง', 'อัตรา', 'บัญชีรับ', 'ตั้งค่า', 'วันใหม่']), 'reply pad labels');
 const padMap: Record<string, string> = {
-  'ยอด': 'vault',
-  'คิว': 'pending',
-  'หมุด': 'pin',
-  'เรท': 'rate',
-  'ตั้ง': 'settings',
-  'ใหม่': 'newday',
+  'ยอดวันนี้': 'vault',
+  'รอส่ง': 'pending',
+  'บัญชีรับ': 'pin',
+  'อัตรา': 'rate',
+  'ตั้งค่า': 'settings',
+  'วันใหม่': 'newday',
 };
 for (const label of pad) {
   assert(matchReplyCommand(label) === padMap[label], `pad ${label} wired`);

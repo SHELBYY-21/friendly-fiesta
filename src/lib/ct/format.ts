@@ -87,11 +87,11 @@ export function quoteBlock(d: { thb: number; usdt: number; desk: number; mkt: nu
   const p = pnlThb(d.thb, d.usdt, d.desk, d.mkt);
   const pnl = p == null ? '—' : `${p >= 0 ? '+' : ''}${thbInt(p)}`;
   return [
-    `THB    <b>${thbCard(d.thb)}</b>`,
-    `USDT   <b>${usdt(d.usdt)}</b>`,
-    `MKT    <code>${rateCode(d.mkt)}</code>`,
-    `DESK   <code>${rateCode(d.desk)}</code>`,
-    `pnl    <b>${pnl}</b>`,
+    `เงินเข้า     <b>${thbCard(d.thb)}</b> THB`,
+    `ยอดที่ต้องใช้  <b>${usdt(d.usdt)}</b> USDT`,
+    `ตลาด (MKT)   <code>${rateCode(d.mkt)}</code>`,
+    `อัตราโต๊ะ    <code>${rateCode(d.desk)}</code>`,
+    `ส่วนต่าง      <b>${pnl}</b>`,
   ].join('\n');
 }
 
@@ -116,8 +116,8 @@ export function ik(rows: Array<Array<Record<string, unknown>>>) {
 export function adminKeyboard() {
   return {
     keyboard: [
-      [{ text: 'ยอด' }, { text: 'คิว' }, { text: 'เรท' }],
-      [{ text: 'หมุด' }, { text: 'ตั้ง' }, { text: 'ใหม่' }],
+      [{ text: 'ยอดวันนี้' }, { text: 'รอส่ง' }, { text: 'อัตรา' }],
+      [{ text: 'บัญชีรับ' }, { text: 'ตั้งค่า' }, { text: 'วันใหม่' }],
     ],
     resize_keyboard: true,
     is_persistent: true,

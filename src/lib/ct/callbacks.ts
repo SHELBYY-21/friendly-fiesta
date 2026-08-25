@@ -55,17 +55,17 @@ export function matchReplyCommand(text: string): ReplyCmd | null {
   const t = (text || '').trim();
   const low = t.toLowerCase();
   if (
-    t === 'ยอด' || t === 'วันนี้' || t === 'VAULT' || t === 'VAULT วันนี้' || t === '/vault' || t === '/today' ||
-    t === 'ยอดวันนี้' || t === 'สรุปวันนี้'
+    t === 'ยอดวันนี้' || t === 'ยอด' || t === 'วันนี้' || t === 'VAULT' || t === 'VAULT วันนี้' || t === '/vault' || t === '/today' ||
+    t === 'สรุปวันนี้'
   ) return 'vault';
-  if (t === 'คิว' || t === 'รอส่ง' || t === 'wait' || t === '/pending') return 'pending';
-  if (t === 'ตั้ง' || t === 'ตั้งค่า' || t === '/settings') return 'settings';
-  if (t === '/admin' || t === 'แอด' || t === '+แอด') return 'addadmin';
+  if (t === 'รอส่ง' || t === 'คิว' || t === 'wait' || t === '/pending') return 'pending';
+  if (t === 'ตั้งค่า' || t === 'ตั้ง' || t === '/settings') return 'settings';
+  if (t === '/admin' || t === 'แอด' || t === '+แอด' || t === 'เพิ่มผู้ดูแล') return 'addadmin';
   if (t === 'เมนู' || t === '/menu' || t === '/help' || low === 'menu' || t === 'ช่วย') return 'settings';
-  if (t === 'ใหม่' || t === 'วันใหม่' || t === '/newday' || low === 'new') return 'newday';
-  if (t === 'pin' || t === 'หมุด' || t === '/pin' || t === 'บัญชี') return 'pin';
+  if (t === 'วันใหม่' || t === 'ใหม่' || t === '/newday' || low === 'new') return 'newday';
+  if (t === 'pin' || t === 'หมุด' || t === 'บัญชีรับ' || t === '/pin' || t === 'บัญชี') return 'pin';
   if (t === '/recent' || t === '/recent_slips') return 'recent';
-  if (/^(?:\/setrate(?:@[a-z0-9_]+)?|\/rate(?:@[a-z0-9_]+)?|setrate|rate|เรท|เรต|เรทตอนนี้|เรทวันนี้|เรตตอนนี้)\s*$/i.test(t)) {
+  if (/^(?:\/setrate(?:@[a-z0-9_]+)?|\/rate(?:@[a-z0-9_]+)?|setrate|rate|เรท|เรต|อัตรา|เรทตอนนี้|เรทวันนี้|เรตตอนนี้|อัตราแลกเปลี่ยน)\s*$/i.test(t)) {
     return 'rate';
   }
   return null;
@@ -118,7 +118,7 @@ async function addAdminById(chatId: number, tgId: number) {
 async function load(chatId: number, ref: string, cbId: string): Promise<PendingSlip | null> {
   const p = await findSlip(chatId, ref);
   if (!p) {
-    await answerCallback(cbId, 'ปุ่มหมดอายุ');
+    await answerCallback(cbId, 'ปุ่มนี้หมดอายุแล้วครับ');
     return null;
   }
   return p;
@@ -165,7 +165,7 @@ export async function handleCtCallback(opts: {
     if (cb.action === 'rateask') {
       const rates = await opsRates(chatId);
       await armRatePrompt(chatId, userId);
-      await answerCallback(id, 'เรท');
+      await answerCallback(id, 'อัตรา');
       await sendMessage(chatId, C.askDeskRate(rates.desk || null));
       return;
     }
@@ -177,13 +177,13 @@ export async function handleCtCallback(opts: {
     if (cb.action === 'newday') {
       const { startNewDay } = await import('../botSessions');
       await startNewDay(chatId);
-      await answerCallback(id, 'new');
+      await answerCallback(id, 'วันใหม่');
       const view = await renderVault(chatId, 'today');
       await sendHero(chatId, messageId, 'vault', view, 'VAULT', 'NEW DAY', '◈');
       return;
     }
     const mode = cb.action === 'pending' ? 'pending' : cb.action === 'all' ? 'all' : 'today';
-    await answerCallback(id, mode === 'pending' ? 'wait' : 'Vault');
+    await answerCallback(id, mode === 'pending' ? 'รอส่ง' : 'สรุปยอด');
     const view = cb.action === 'recent'
       ? await renderRecent(chatId, admin.name)
       : await renderVault(chatId, mode);
@@ -192,7 +192,7 @@ export async function handleCtCallback(opts: {
   }
 
   if (cb.domain === 'pin' && cb.action === 'view') {
-    await answerCallback(id, 'หมุด');
+    await answerCallback(id, 'บัญชีรับ');
     const pinned = await listPinnedBanks(chatId);
     await redraw(chatId, messageId, C.pinView(pinned.map((b) => ({
       bank: b.bank_name,
@@ -204,7 +204,7 @@ export async function handleCtCallback(opts: {
   if (cb.domain === 'pin' && cb.action === 'unpin') {
     const slot = cb.ref || cb.extra;
     await unpinBankAccount(chatId, slot);
-    await answerCallback(id, 'ถอนแล้ว');
+    await answerCallback(id, 'ยกเลิกบัญชีแล้ว');
     const pinned = await listPinnedBanks(chatId);
     await redraw(chatId, messageId, C.pinView(pinned.map((b) => ({
       bank: b.bank_name,
@@ -215,11 +215,11 @@ export async function handleCtCallback(opts: {
 
   if (cb.domain === 'admin' && cb.action === 'add') {
     if (!isLead(admin)) {
-      await answerCallback(id, 'เฉพาะ lead');
+      await answerCallback(id, 'ใช้ได้เฉพาะหัวหน้าห้องครับ');
       return;
     }
     await armAdminPrompt(chatId, userId);
-    await answerCallback(id, 'ส่งไอดี');
+    await answerCallback(id, 'กรุณาส่งไอดี');
     await sendMessage(chatId, C.askAdminId());
     return;
   }
@@ -237,7 +237,7 @@ export async function handleCtCallback(opts: {
   }
 
   if (cb.domain !== 'slip') {
-    await answerCallback(id, 'ปุ่มหมดอายุ');
+    await answerCallback(id, 'ปุ่มนี้หมดอายุแล้วครับ');
     return;
   }
 
@@ -253,14 +253,14 @@ export async function handleCtCallback(opts: {
       return;
     case 'force':
       if (!isLead(admin)) {
-        await answerCallback(id, 'เฉพาะ lead');
+        await answerCallback(id, 'ใช้ได้เฉพาะหัวหน้าห้องครับ');
         return;
       }
       await doLock(id, chatId, userId, admin, p, messageId, true);
       return;
     case 'forceask':
       if (!isLead(admin)) {
-        await answerCallback(id, 'เฉพาะ lead');
+        await answerCallback(id, 'ใช้ได้เฉพาะหัวหน้าห้องครับ');
         return;
       }
       await answerCallback(id);
@@ -290,40 +290,40 @@ export async function handleCtCallback(opts: {
       await sendMessage(chatId, { text: `<code>${displayLedger(p.ledger_ref)}</code>` });
       return;
     case 'hold':
-      await answerCallback(id, 'HOLD');
+      await answerCallback(id, 'พักรายการแล้ว');
       await patchSlip(p.id, { status: 'HOLD' });
       await redraw(chatId, messageId, {
-        text: `◆  <b>HOLD</b>\n<code>${displayLedger(p.ledger_ref)}</code>\nถือไว้ ยังไม่เข้าสมุด`,
+        text: `◈  <b>CT</b>\n<i>[ แจ้งเตือน ]  พักรายการ</i>\n<code>${displayLedger(p.ledger_ref)}</code>\nถือไว้ก่อน ยังไม่บันทึกลงสมุดครับ`,
       });
       return;
     case 'cancel':
-      await answerCallback(id, 'ยกเลิก');
+      await answerCallback(id, 'ยกเลิกแล้ว');
       await patchSlip(p.id, { status: 'DELETED' });
-      await redraw(chatId, messageId, { text: 'ยกเลิกแล้ว · ยังไม่บันทึก' });
+      await redraw(chatId, messageId, { text: 'ยกเลิกรายการแล้ว ไม่ได้บันทึกครับ' });
       return;
     case 'retry':
-      await answerCallback(id, 'ส่งสลิปใหม่');
+      await answerCallback(id, 'กรุณาส่งสลิปใหม่');
       await patchSlip(p.id, { status: 'DELETED' });
-      await redraw(chatId, messageId, { text: 'ส่งสลิปใหม่ได้เลย' });
+      await redraw(chatId, messageId, { text: 'กรุณาส่งสลิปใหม่อีกครั้งครับ' });
       return;
     case 'edit':
-      await answerCallback(id, 'พิมพ์ +500B');
+      await answerCallback(id, 'กรุณาพิมพ์ยอด');
       await sendMessage(chatId, {
-        text: `แก้ยอด <code>${p.short_ref}</code>\nพิมพ์ <code>+500B</code>`,
+        text: `กรุณาแก้ยอดของ <code>${p.short_ref}</code>\nพิมพ์เช่น <code>+500B</code>`,
       });
       return;
     case 'note':
-      await answerCallback(id, 'พิมพ์โน้ต');
-      await sendMessage(chatId, { text: `โน้ตสำหรับ <code>${p.short_ref}</code>\nพิมพ์ต่อข้อความนี้` });
+      await answerCallback(id, 'กรุณาพิมพ์หมายเหตุ');
+      await sendMessage(chatId, { text: `หมายเหตุสำหรับ <code>${p.short_ref}</code>\nกรุณาพิมพ์ต่อข้อความนี้ครับ` });
       return;
     case 'amt': {
       const parsed = parseAmounts(cb.extra.startsWith('+') || cb.extra.startsWith('-') ? cb.extra : `+${cb.extra}`);
       const thb = parsed.thb?.value;
       if (!thb) {
-        await answerCallback(id, 'ยอดไม่ถูกต้อง');
+        await answerCallback(id, 'ยอดไม่ถูกต้องครับ');
         return;
       }
-      await answerCallback(id, `Locked · ${p.short_ref}`);
+      await answerCallback(id, `บันทึกแล้ว · ${p.short_ref}`);
       const desk = p.desk_rate || (await opsRates(chatId)).desk;
       const owed = shouldSend(thb, desk);
       const next = await patchSlip(p.id, {
@@ -349,13 +349,13 @@ export async function handleCtCallback(opts: {
       return;
     }
     case 'unit':
-      await answerCallback(id, cb.extra === '-U' ? 'พิมพ์ -13.6U' : 'พิมพ์ +500B');
+      await answerCallback(id, cb.extra === '-U' ? 'กรุณาพิมพ์ยอด USDT' : 'กรุณาพิมพ์ยอดบาท');
       await sendMessage(chatId, {
-        text: cb.extra === '-U' ? 'พิมพ์ยอด เช่น <code>-13.6U</code>' : 'พิมพ์ยอด เช่น <code>+500</code>',
+        text: cb.extra === '-U' ? 'กรุณาพิมพ์ยอด เช่น <code>-13.6U</code>' : 'กรุณาพิมพ์ยอด เช่น <code>+500</code>',
       });
       return;
     default:
-      await answerCallback(id, 'ปุ่มหมดอายุ');
+      await answerCallback(id, 'ปุ่มนี้หมดอายุแล้วครับ');
       if (messageId) await editMessage(chatId, messageId, C.expiredToastCard());
   }
 }
@@ -392,15 +392,15 @@ async function doLock(
   force: boolean,
 ) {
   if (p.status === 'LOCKED' || p.status === 'SETTLED') {
-    await answerCallback(cbId, `Locked · ${p.short_ref}`);
+    await answerCallback(cbId, `บันทึกแล้ว · ${p.short_ref}`);
     return;
   }
   if (!force && !p.pin_match) {
-    await answerCallback(cbId, 'บัญชีไม่ตรงหมุด');
+    await answerCallback(cbId, 'บัญชีไม่ตรงกับบัญชีรับวันนี้ครับ');
     return;
   }
   if (p.thb_in == null || p.thb_in <= 0) {
-    await answerCallback(cbId, 'ยังไม่มียอด');
+    await answerCallback(cbId, 'ยังไม่พบยอดเงินครับ');
     return;
   }
   const room = await getRoom(chatId);
@@ -433,7 +433,7 @@ async function doLock(
     undo_until: new Date(Date.now() + 30_000).toISOString(),
     pin_match: force ? p.pin_match : true,
   });
-  await answerCallback(cbId, `Locked · ${p.short_ref}`);
+  await answerCallback(cbId, `บันทึกแล้ว · ${p.short_ref}`);
   const card = C.cardLocked({
     thb: next.thb_in ?? 0,
     shouldSend: owed,
@@ -465,11 +465,11 @@ async function doSettle(
   messageId: number | undefined,
 ) {
   if (p.status === 'SETTLED') {
-    await answerCallback(cbId, `Settled · ${p.short_ref}`);
+    await answerCallback(cbId, `โอนครบแล้ว · ${p.short_ref}`);
     return;
   }
   if (p.status !== 'LOCKED' || !p.should_send) {
-    await answerCallback(cbId, 'ยังไม่ LOCKED');
+    await answerCallback(cbId, 'รายการนี้ยังไม่ได้ยืนยันครับ');
     return;
   }
   if (messageId) await editMessage(chatId, messageId, C.skeletonSettle(p.ledger_ref, p.should_send));
@@ -510,7 +510,7 @@ async function doUndo(
   messageId: number | undefined,
 ) {
   if (!canUndo(p) || !p.tx_id) {
-    await answerCallback(cbId, 'หมดเวลาเลิกทำ');
+    await answerCallback(cbId, 'หมดเวลาแก้ไขแล้วครับ');
     await redraw(chatId, messageId, C.cardLocked({
       thb: p.thb_in ?? 0,
       shouldSend: p.should_send ?? 0,
@@ -525,7 +525,7 @@ async function doUndo(
   }
   await deleteTransaction(p.tx_id);
   const next = await patchSlip(p.id, { status: 'IN_READY', tx_id: null, undo_until: null });
-  await answerCallback(cbId, 'เลิกทำแล้ว');
+  await answerCallback(cbId, 'ยกเลิกการบันทึกแล้วครับ');
   const gate = gateOcr({
     thb: next.thb_in,
     confidence: next.ocr_confidence,
@@ -551,7 +551,7 @@ async function doDelete(
 ) {
   if (p.tx_id) await deleteTransaction(p.tx_id);
   await patchSlip(p.id, { status: 'DELETED', tx_id: null });
-  await answerCallback(cbId, `ลบ · ${p.short_ref}`);
+  await answerCallback(cbId, `ลบรายการแล้ว · ${p.short_ref}`);
   await redraw(chatId, messageId, { text: `ลบ <code>${displayLedger(p.ledger_ref)}</code> แล้ว` });
 }
 
@@ -594,7 +594,7 @@ export async function handleCtText(opts: {
           last4: accountLast4(b.account_number) ?? '????',
         }))));
       } catch (e: any) {
-        await sendMessage(opts.chatId, { text: e?.message === 'PIN_LIMIT_REACHED' ? 'pin ครบ 3' : 'pin ไม่ติด' });
+        await sendMessage(opts.chatId, { text: e?.message === 'PIN_LIMIT_REACHED' ? 'หมุดครบ 3 บัญชีแล้วครับ' : 'หมุดบัญชีไม่สำเร็จครับ' });
       }
       return true;
     }
@@ -633,7 +633,7 @@ export async function handleCtText(opts: {
 
   if (cmd === 'addadmin') {
     if (!isLead(opts.admin)) {
-      await sendMessage(opts.chatId, { text: 'เฉพาะ lead' });
+      await sendMessage(opts.chatId, { text: 'ใช้ได้เฉพาะหัวหน้าห้องครับ' });
       return true;
     }
     await armAdminPrompt(opts.chatId, opts.userId);
@@ -654,7 +654,7 @@ export async function handleCtText(opts: {
     }
     if (!allowed) return false;
     if (!isLead(opts.admin)) {
-      await sendMessage(opts.chatId, { text: 'เฉพาะ lead' });
+      await sendMessage(opts.chatId, { text: 'ใช้ได้เฉพาะหัวหน้าห้องครับ' });
       return true;
     }
     try { await clearSession(opts.chatId, opts.userId); } catch { /* ignore */ }

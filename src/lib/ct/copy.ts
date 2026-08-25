@@ -12,41 +12,41 @@ function head(status: string, meta: string): string {
 }
 
 function tape(step: 'scan' | 'in' | 'wait' | 'sent' | 'done'): string {
-  const order = ['in', 'ocr', 'wait', 'sent', 'done'] as const;
+  const order = ['อ่านสลิป', 'ตรวจยอด', 'รอโอน', 'ส่งแล้ว', 'เสร็จ'] as const;
   const on =
-    step === 'scan' ? 'ocr' :
-    step === 'in' ? 'ocr' :
-    step === 'wait' ? 'wait' :
-    step === 'sent' ? 'sent' : 'done';
+    step === 'scan' ? 'อ่านสลิป' :
+    step === 'in' ? 'ตรวจยอด' :
+    step === 'wait' ? 'รอโอน' :
+    step === 'sent' ? 'ส่งแล้ว' : 'เสร็จ';
   return order.map((s) => (s === on ? `<b>${s}</b>` : s)).join('  ');
 }
 
 export function skeletonScan(bank: string, last4: string): OutgoingMessage {
-  return msg(`${head('SCAN', 'reading')}\n${tape('scan')}\n${esc(bank)}  ${esc(maskAcct(last4))}`);
+  return msg(`${head('กำลังอ่าน', 'กรุณารอสักครู่')}\n${tape('scan')}\n${esc(bank)}  ${esc(maskAcct(last4))}`);
 }
 
 export function skeletonRead(): OutgoingMessage {
-  return msg(head('SCAN', 'matching pin'));
+  return msg(head('กำลังอ่าน', 'กำลังเทียบกับบัญชีรับวันนี้'));
 }
 
 export function skeletonVault(): OutgoingMessage {
-  return msg(head('VAULT', 'loading'));
+  return msg(head('สรุปยอด', 'กำลังโหลด'));
 }
 
 export function skeletonSettle(ledger: string, usdtAmt: number): OutgoingMessage {
-  return msg(`${head('SETTLED', 'writing out')}\n<code>${esc(displayLedger(ledger))}</code>\n${usdt(usdtAmt)} USDT`);
+  return msg(`${head('โอนแล้ว', 'กำลังบันทึกยอดออก')}\n<code>${esc(displayLedger(ledger))}</code>\n${usdt(usdtAmt)} USDT`);
 }
 
 export function welcome(name: string): OutgoingMessage {
   return msg(
     [
-      head('VAULT', name),
+      head('สรุปยอด', `สวัสดีคุณ ${name}`),
       '',
-      'ใช้แป้นด้านล่างได้เลย',
-      '1. หมุดบัญชีรับวันนี้',
-      '2. ตั้งเรทห้อง เช่น <code>36.70</code>',
+      'กรุณาใช้ปุ่มด้านล่างได้เลยครับ',
+      '1. หมุดบัญชีรับของวันนี้',
+      '2. ตั้งอัตราห้อง เช่น <code>36.70</code>',
       '3. ส่งรูปสลิป',
-      '4. ยอดถูก กด keep แล้วกด sent',
+      '4. เมื่อยอดถูกต้อง กด <b>ยืนยัน</b> จากนั้นกด <b>บันทึกส่ง</b>',
     ].join('\n'),
   );
 }
@@ -68,28 +68,29 @@ export function settingsCard(d: {
 }): OutgoingMessage {
   const pinLine = d.pins.length
     ? d.pins.map((p) => `${esc(p.bank)} ${esc(maskAcct(p.last4))}`).join('\n')
-    : 'ยังไม่มีบัญชีรับ';
+    : 'ยังไม่มีบัญชีรับวันนี้ครับ';
   const adminLine = d.admins.length
     ? d.admins.map((a) => `${esc(a.name)}  ${esc(a.role)}`).join('\n')
     : '—';
   return msg(
     [
-      head('SET', 'ห้องนี้'),
+      head('ตั้งค่า', 'ห้องนี้'),
       '',
-      `เรท   <code>${rateCode(d.desk)}</code>   ตลาด <code>${rateCode(d.mkt)}</code>`,
+      `อัตราห้อง   <code>${rateCode(d.desk)}</code>`,
+      `ตลาด        <code>${rateCode(d.mkt)}</code>`,
       pinLine,
       '',
-      'แอดมิน',
+      'ผู้ดูแลระบบ',
       adminLine,
       '',
-      'ตั้งเรท: กดเรท แล้วพิมพ์เลขอย่างเดียว เช่น <code>36.70</code>',
-      'หรือ <code>/setrate 36.70</code>',
-      'เพิ่มแอดมิน: กดแอด แล้วส่ง Telegram ID',
-      'หรือ <code>/admin 5676959274</code>',
+      'ตั้งอัตรา: กดปุ่มอัตรา แล้วพิมพ์ตัวเลขอย่างเดียว เช่น <code>36.70</code>',
+      'หรือพิมพ์ <code>/setrate 36.70</code>',
+      'เพิ่มผู้ดูแล: กดปุ่มเพิ่มผู้ดูแล แล้วส่ง Telegram ID',
+      'หรือพิมพ์ <code>/admin 5676959274</code>',
     ].join('\n'),
     ik([
-      [btn('เรท', 'vault:rateask'), btn('หมุด', 'pin:view'), btn('แอด', 'admin:add')],
-      [btn('ใหม่', 'vault:newday'), urlBtn('desk', deskUrl())],
+      [btn('อัตรา', 'vault:rateask'), btn('บัญชีรับ', 'pin:view'), btn('เพิ่มผู้ดูแล', 'admin:add')],
+      [btn('วันใหม่', 'vault:newday'), urlBtn('เปิดโต๊ะ', deskUrl())],
     ]),
   );
 }
@@ -97,18 +98,18 @@ export function settingsCard(d: {
 export function askAdminId(): OutgoingMessage {
   return msg(
     [
-      head('SET', 'เพิ่มแอดมิน'),
+      head('ตั้งค่า', 'เพิ่มผู้ดูแลระบบ'),
       '',
-      'ส่ง Telegram ID ตัวเลขอย่างเดียว',
-      'เช่น <code>5676959274</code>',
-      'ดูได้จาก @userinfobot',
+      'กรุณาส่ง Telegram ID เป็นตัวเลขอย่างเดียวครับ',
+      'ตัวอย่าง <code>5676959274</code>',
+      'ตรวจสอบไอดีได้ที่ @userinfobot',
       'ข้อความอื่นในกลุ่มจะไม่ถูกอ่านเป็นไอดี',
     ].join('\n'),
   );
 }
 
 export function adminAdded(id: number, name: string): OutgoingMessage {
-  return msg(`${head('SET', 'เพิ่มแล้ว')}\n<code>${id}</code>  ${esc(name)}`);
+  return msg(`${head('ตั้งค่า', 'เพิ่มผู้ดูแลแล้ว')}\n<code>${id}</code>  ${esc(name)}\nบันทึกเรียบร้อยครับ`);
 }
 
 export function cardInReady(d: {
@@ -127,10 +128,12 @@ export function cardInReady(d: {
   fresh?: boolean;
   time?: string;
 }): OutgoingMessage {
-  const meta = d.review ? `check  ${Math.round(d.confidence)}%` : `ready  ${Math.round(d.confidence)}%`;
+  const meta = d.review
+    ? `กรุณาตรวจสอบ  ความมั่นใจ ${Math.round(d.confidence)}%`
+    : `พร้อมบันทึก  ความมั่นใจ ${Math.round(d.confidence)}%`;
   const hasDesk = d.desk > 0;
   const lines = [
-    head('IN', meta),
+    head('เงินเข้า', meta),
     tape('in'),
     '',
     `<code>${esc(displayLedger(d.ledger))}</code>`,
@@ -140,13 +143,13 @@ export function cardInReady(d: {
     esc(d.name || '—'),
   ];
   if (d.time) lines.push(esc(d.time));
-  if (d.fresh) lines.push(`new  ${esc(d.bank)}  ${esc(maskAcct(d.last4))}`);
-  if (!hasDesk) lines.push('', 'พิมพ์เรท  <code>36.65</code>');
+  if (d.fresh) lines.push(`บัญชีใหม่  ${esc(d.bank)}  ${esc(maskAcct(d.last4))}`);
+  if (!hasDesk) lines.push('', 'กรุณาตั้งอัตราห้องก่อน เช่น <code>36.65</code>');
   const rows: Array<Array<Record<string, unknown>>> = [];
-  if (hasDesk) rows.push([btn('keep', `slip:lock:${d.short}`, 'success')]);
-  rows.push([btn('edit', `slip:edit:${d.short}`), btn('hold', `slip:hold:${d.short}`)]);
-  rows.push([btn('undo', `slip:cancel:${d.short}`, 'danger')]);
-  rows.push([urlBtn('desk', deskUrl())]);
+  if (hasDesk) rows.push([btn('ยืนยัน', `slip:lock:${d.short}`, 'success')]);
+  rows.push([btn('แก้ไข', `slip:edit:${d.short}`), btn('พักรายการ', `slip:hold:${d.short}`)]);
+  rows.push([btn('ยกเลิก', `slip:cancel:${d.short}`, 'danger')]);
+  rows.push([urlBtn('เปิดโต๊ะ', deskUrl())]);
   return msg(lines.join('\n'), ik(rows));
 }
 
@@ -161,15 +164,15 @@ export function cardOcrWeak(d: {
   const chips = d.chips.slice(0, 2).map((n) => btn(`+${thbInt(n)}B`, `slip:amt:${d.short}:+${n}B`));
   const rows: Array<Array<ReturnType<typeof btn>>> = [];
   if (chips.length) rows.push(chips);
-  rows.push([btn('retry', `slip:retry:${d.short}`), btn('undo', `slip:cancel:${d.short}`, 'danger')]);
+  rows.push([btn('ลองใหม่', `slip:retry:${d.short}`), btn('ยกเลิก', `slip:cancel:${d.short}`, 'danger')]);
   return msg(
     [
-      head('IN', `weak  ${Math.round(d.confidence)}%`),
+      head('แจ้งเตือน', `อ่านสลิปไม่ชัด  ความมั่นใจ ${Math.round(d.confidence)}%`),
       '',
       `${esc(d.bank)}  ${esc(maskAcct(d.last4))}`,
       esc(d.name || '—'),
       '',
-      '<code>+500B</code>',
+      'กรุณายืนยันยอด เช่น <code>+500B</code>',
     ].join('\n'),
     ik(rows),
   );
@@ -178,14 +181,14 @@ export function cardOcrWeak(d: {
 export function cardNeedUnit(d: { short: string }): OutgoingMessage {
   return msg(
     [
-      head('IN', 'need unit'),
+      head('เงินเข้า', 'กรุณาระบุหน่วยเงิน'),
       '',
-      '<code>+500B</code>',
-      '<code>-13.6U</code>',
+      'ตัวอย่างยอดเข้า  <code>+500B</code>',
+      'ตัวอย่างยอดออก  <code>-13.6U</code>',
     ].join('\n'),
     ik([
-      [btn('keep', `slip:unit:${d.short}:+B`, 'success'), btn('sent', `slip:unit:${d.short}:-U`, 'primary')],
-      [btn('retry', `slip:cancel:${d.short}`, 'danger')],
+      [btn('ยืนยันบาท', `slip:unit:${d.short}:+B`, 'success'), btn('ยืนยันUSDT', `slip:unit:${d.short}:-U`, 'primary')],
+      [btn('ลองใหม่', `slip:cancel:${d.short}`, 'danger')],
     ]),
   );
 }
@@ -200,17 +203,17 @@ export function cardPinMismatch(d: {
   lead: boolean;
 }): OutgoingMessage {
   const rows: Array<Array<ReturnType<typeof btn>>> = [
-    [btn('retry', `slip:retry:${d.short}`)],
-    [btn('pin', 'pin:view')],
+    [btn('ลองใหม่', `slip:retry:${d.short}`)],
+    [btn('บัญชีรับ', 'pin:view')],
   ];
-  if (d.lead) rows.push([btn('force', `slip:forceask:${d.short}`, 'danger')]);
-  rows.push([btn('undo', `slip:cancel:${d.short}`, 'danger')]);
+  if (d.lead) rows.push([btn('บังคับ', `slip:forceask:${d.short}`, 'danger')]);
+  rows.push([btn('ยกเลิก', `slip:cancel:${d.short}`, 'danger')]);
   return msg(
     [
-      head('HOLD', `pin miss  ${Math.round(d.confidence)}%`),
+      head('แจ้งเตือน', `บัญชีไม่ตรงกับบัญชีรับวันนี้  ความมั่นใจ ${Math.round(d.confidence)}%`),
       '',
-      `slip  ${esc(d.slipBank)}  ${esc(maskAcct(d.slipLast4))}`,
-      `pin   ${esc(d.pinBank)}  ${esc(maskAcct(d.pinLast4))}`,
+      `จากสลิป     ${esc(d.slipBank)}  ${esc(maskAcct(d.slipLast4))}`,
+      `บัญชีรับวันนี้  ${esc(d.pinBank)}  ${esc(maskAcct(d.pinLast4))}`,
     ].join('\n'),
     ik(rows),
   );
@@ -218,10 +221,10 @@ export function cardPinMismatch(d: {
 
 export function cardForceAsk(d: { short: string; ledger: string }): OutgoingMessage {
   return msg(
-    `${head('HOLD', 'force pin')}\n<code>${esc(displayLedger(d.ledger))}</code>`,
+    `${head('แจ้งเตือน', 'ยืนยันบังคับรับรายการ')}\n<code>${esc(displayLedger(d.ledger))}</code>\nกรุณายืนยันหากต้องการบันทึกทั้งที่บัญชีไม่ตรงครับ`,
     ik([
-      [btn('keep', `slip:force:${d.short}`, 'danger')],
-      [btn('undo', `slip:cancel:${d.short}`)],
+      [btn('บังคับบันทึก', `slip:force:${d.short}`, 'danger')],
+      [btn('ยกเลิก', `slip:cancel:${d.short}`)],
     ]),
   );
 }
@@ -241,15 +244,15 @@ export function cardLocked(d: {
   name?: string | null;
 }): OutgoingMessage {
   const rows: Array<Array<Record<string, unknown>>> = [
-    [btn('sent', `slip:settle:${d.short}`, 'primary')],
-    [btn('edit', `slip:edit:${d.short}`), btn('hold', `slip:open:${d.short}`)],
+    [btn('บันทึกส่ง', `slip:settle:${d.short}`, 'primary')],
+    [btn('แก้ไข', `slip:edit:${d.short}`), btn('พักรายการ', `slip:open:${d.short}`)],
   ];
-  if (d.canUndo) rows.push([btn('undo', `slip:undo:${d.short}`, 'danger')]);
-  else rows.push([btn('undo', `slip:delask:${d.short}`, 'danger')]);
-  rows.push([urlBtn('desk', deskUrl())]);
+  if (d.canUndo) rows.push([btn('ยกเลิก', `slip:undo:${d.short}`, 'danger')]);
+  else rows.push([btn('ยกเลิก', `slip:delask:${d.short}`, 'danger')]);
+  rows.push([urlBtn('เปิดโต๊ะ', deskUrl())]);
   return msg(
     [
-      head('LOCKED', 'รอส่ง'),
+      head('รอโอน', 'รอบันทึกการส่ง USDT'),
       tape('wait'),
       '',
       `<code>${esc(displayLedger(d.ledger))}</code>`,
@@ -258,7 +261,7 @@ export function cardLocked(d: {
       d.bank ? `${esc(d.bank)}  ${esc(maskAcct(d.last4))}` : '',
       esc(d.name || d.adminName),
       '',
-      'kept.',
+      'บันทึกยอดเข้าเรียบร้อยแล้วครับ',
     ].filter(Boolean).join('\n'),
     ik(rows),
   );
@@ -266,10 +269,10 @@ export function cardLocked(d: {
 
 export function cardDeleteAsk(d: { ledger: string; thb: number; short: string }): OutgoingMessage {
   return msg(
-    `${head('HOLD', 'delete?')}\n<code>${esc(displayLedger(d.ledger))}</code>\n${thbCard(d.thb)} THB`,
+    `${head('แจ้งเตือน', 'ยืนยันลบรายการ')}\n<code>${esc(displayLedger(d.ledger))}</code>\n${thbCard(d.thb)} THB\nกรุณายืนยันหากต้องการลบรายการนี้ครับ`,
     ik([
-      [btn('undo', `slip:delete:${d.short}`, 'danger')],
-      [btn('keep', `slip:open:${d.short}`, 'success')],
+      [btn('ลบรายการ', `slip:delete:${d.short}`, 'danger')],
+      [btn('เก็บไว้', `slip:open:${d.short}`, 'success')],
     ]),
   );
 }
@@ -286,20 +289,20 @@ export function cardSettled(d: {
 }): OutgoingMessage {
   return msg(
     [
-      head('SETTLED', 'clear'),
+      head('โอนแล้ว', 'รายการเสร็จสมบูรณ์'),
       '',
-      `IN     ${thbCard(d.thb)} THB`,
-      `OUT    <b>${usdt(d.usdtOut)} USDT</b>`,
-      `DESK   <code>${rateCode(d.desk)}</code>`,
+      `เงินเข้า     ${thbCard(d.thb)} THB`,
+      `เงินออก     <b>${usdt(d.usdtOut)} USDT</b>`,
+      `อัตราโต๊ะ   <code>${rateCode(d.desk)}</code>`,
       '',
       `<code>${esc(displayLedger(d.ledger))}</code>`,
       `${esc(d.adminName)}  ${esc(d.inTime)} → ${esc(d.outTime)}`,
       '',
-      'โอนครบแล้ว',
+      'โอนครบแล้วครับ',
     ].join('\n'),
     ik([
-      [btn('hold', `slip:open:${d.short}`), btn('keep', `slip:copy:${d.short}`)],
-      [btn('vault', 'vault:today')],
+      [btn('ดูรายการ', `slip:open:${d.short}`), btn('คัดลอกเลขที่', `slip:copy:${d.short}`)],
+      [btn('ดูยอด', 'vault:today')],
     ]),
   );
 }
@@ -325,28 +328,28 @@ export function cardDetail(d: {
 }): OutgoingMessage {
   return msg(
     [
-      head('IN', displayLedger(d.ledger)),
+      head('รายการ', displayLedger(d.ledger)),
       '',
-      `IN     ${thbCard(d.thb)} THB`,
-      `OUT    ${d.usdtOut != null ? `${usdt(d.usdtOut)} USDT` : '—'}`,
-      `DESK   <code>${rateCode(d.desk)}</code>   MKT <code>${rateCode(d.mkt)}</code>`,
+      `เงินเข้า     ${thbCard(d.thb)} THB`,
+      `เงินออก     ${d.usdtOut != null ? `${usdt(d.usdtOut)} USDT` : '—'}`,
+      `อัตราโต๊ะ   <code>${rateCode(d.desk)}</code>   ตลาด <code>${rateCode(d.mkt)}</code>`,
       `${esc(d.bank)}  ${esc(maskAcct(d.last4))}`,
       esc(d.name || '—'),
-      `pin    ${d.pinMatch ? 'match' : 'miss'}`,
-      `ocr    ${d.confidence != null ? `${Math.round(d.confidence)}%` : '—'}`,
+      `บัญชีรับ    ${d.pinMatch ? 'ตรงกัน' : 'ไม่ตรง'}`,
+      `ความมั่นใจ  ${d.confidence != null ? `${Math.round(d.confidence)}%` : '—'}`,
       esc(d.adminIn),
-      `in     ${esc(d.inTime)}`,
-      `out    ${d.outTime ? esc(d.outTime) : '—'}`,
+      `เวลาเข้า     ${esc(d.inTime)}`,
+      `เวลาออก     ${d.outTime ? esc(d.outTime) : '—'}`,
     ].join('\n'),
     ik([
-      [btn('edit', `slip:note:${d.short}`), btn('keep', `slip:copy:${d.short}`)],
-      [btn('vault', 'vault:today')],
+      [btn('หมายเหตุ', `slip:note:${d.short}`), btn('คัดลอกเลขที่', `slip:copy:${d.short}`)],
+      [btn('ดูยอด', 'vault:today')],
     ]),
   );
 }
 
 export function unitHelp(): OutgoingMessage {
-  return msg(`${head('IN', 'unit')}\n<code>+500B</code>\n<code>-13.6U</code>`);
+  return msg(`${head('เงินเข้า', 'หน่วยเงิน')}\nยอดเข้า  <code>+500B</code>\nยอดออก  <code>-13.6U</code>`);
 }
 
 export type VaultRow = {
@@ -372,55 +375,57 @@ export function vaultBanner(d: {
   mkt: number | null;
   pendingShorts: string[];
 }): OutgoingMessage {
-  const meta = d.mode === 'pending' ? `wait  ${d.inRows.length}` : `${d.dateLabel}  ${d.clock}`;
-  const lines = [head('VAULT', meta), ''];
+  const meta = d.mode === 'pending' ? `รอโอน  ${d.inRows.length} รายการ` : `${d.dateLabel}  ${d.clock}`;
+  const lines = [head('สรุปยอด', meta), ''];
 
   if (d.mode === 'pending') {
     if (!d.inRows.length) {
-      lines.push('ยังไม่มีสลิปค้างโอน');
+      lines.push('ขณะนี้ยังไม่มีสลิปที่ค้างโอนครับ');
     } else {
       d.inRows.slice(0, 5).forEach((r, i) => {
         const n = String(i + 1).padStart(2, '0');
         lines.push(`${n}     ${thbInt(r.thb ?? 0)} THB → ${usdt(r.usdt ?? 0)} U  <code>${esc(r.short)}</code>`);
       });
-      lines.push('', `due    <b>${usdt(d.pendingUsdt)} USDT</b>`);
+      lines.push('', `ยอดที่ต้องใช้  <b>${usdt(d.pendingUsdt)} USDT</b>`);
     }
     return msg(lines.join('\n'), vaultButtons(d.pendingShorts));
   }
 
   if (d.inCount === 0 && d.outCount === 0) {
-    lines.push('วันนี้ยังไม่มีสลิป');
-    lines.push('', `due    <b>0 USDT</b>`);
-    lines.push(`DESK   <code>${rateCode(d.desk)}</code>        MKT <code>${rateCode(d.mkt)}</code>`);
+    lines.push('วันนี้ยังไม่มีสลิปครับ');
+    lines.push('', `ยอดที่ต้องใช้  <b>0 USDT</b>`);
+    lines.push(`อัตราโต๊ะ   <code>${rateCode(d.desk)}</code>`);
+    lines.push(`ตลาด        <code>${rateCode(d.mkt)}</code>`);
     return msg(lines.join('\n'), vaultButtons(d.pendingShorts));
   }
 
-  lines.push(`IN     <b>${thbInt(d.inThb)} THB</b>    ${d.inCount}`);
+  lines.push(`เงินเข้า     <b>${thbInt(d.inThb)} THB</b>    ${d.inCount} รายการ`);
   d.inRows.slice(0, 5).forEach((r, i) => {
     const n = String(i + 1).padStart(2, '0');
-    const flag = r.pending ? 'wait' : 'done';
+    const flag = r.pending ? 'รอโอน' : 'เสร็จ';
     lines.push(`${n}     ${thbInt(r.thb ?? 0)}          ${esc(r.time)}  <code>${esc(r.short)}</code>   ${flag}`);
   });
   if (d.outCount > 0) {
-    lines.push('', `OUT    <b>${usdt(d.outUsdt)} USDT</b>   ${d.outCount}`);
+    lines.push('', `เงินออก     <b>${usdt(d.outUsdt)} USDT</b>   ${d.outCount} รายการ`);
     d.outRows.slice(0, 5).forEach((r, i) => {
       const n = String(i + 1).padStart(2, '0');
       lines.push(`${n}     ${usdt(r.usdt ?? 0)}        ${esc(r.time)}  <code>${esc(r.short)}</code>`);
     });
   }
-  lines.push('', `due    <b>${usdt(d.pendingUsdt)} USDT</b>`);
-  lines.push(`DESK   <code>${rateCode(d.desk)}</code>        MKT <code>${rateCode(d.mkt)}</code>`);
+  lines.push('', `ยอดที่ต้องใช้  <b>${usdt(d.pendingUsdt)} USDT</b>`);
+  lines.push(`อัตราโต๊ะ   <code>${rateCode(d.desk)}</code>`);
+  lines.push(`ตลาด        <code>${rateCode(d.mkt)}</code>`);
   if (d.desk && d.mkt) {
     const p = Math.round(d.pendingUsdt * (d.desk - d.mkt));
-    lines.push(`pnl    <b>${p >= 0 ? '+' : ''}${thbInt(p)}</b>`);
+    lines.push(`ส่วนต่าง     <b>${p >= 0 ? '+' : ''}${thbInt(p)}</b>`);
   }
   return msg(lines.join('\n'), vaultButtons(d.pendingShorts));
 }
 
 function vaultButtons(pendingShorts: string[]) {
   const rows: Array<Array<Record<string, unknown>>> = [
-    [btn('คิว', 'vault:pending'), btn('เรท', 'vault:rateask'), btn('ตั้ง', 'vault:set')],
-    [urlBtn('desk', deskUrl())],
+    [btn('รอส่ง', 'vault:pending'), btn('อัตรา', 'vault:rateask'), btn('ตั้งค่า', 'vault:set')],
+    [urlBtn('เปิดโต๊ะ', deskUrl())],
   ];
   const refs = pendingShorts.slice(0, 2);
   if (refs.length) rows.unshift(refs.map((s) => btn(s, `slip:open:${s}`)));
@@ -452,18 +457,18 @@ export function cardRecent(d: {
 }
 
 export function pinView(items: Array<{ bank: string; last4: string }>): OutgoingMessage {
-  const lines = [head('PIN', 'บัญชีรับวันนี้'), ''];
+  const lines = [head('บัญชีรับ', 'บัญชีรับของวันนี้'), ''];
   if (!items.length) {
-    lines.push('ยังไม่มีบัญชีรับ');
-    lines.push('วางข้อความ pin จากไลน์มาเลย');
+    lines.push('ยังไม่มีบัญชีรับวันนี้ครับ');
+    lines.push('กรุณาวางข้อความหมุดจากไลน์ได้เลย');
     lines.push('หรือพิมพ์ <code>/pin BBL 0989887823</code>');
     return msg(lines.join('\n'));
   }
   items.forEach((it, i) => {
     lines.push(`${i + 1}  ${esc(it.bank)}  ${esc(maskAcct(it.last4))}`);
   });
-  lines.push('', 'กดถอนถ้าบัญชีนี้ไม่ใช้แล้ว');
-  const unpins = items.slice(0, 3).map((_, i) => btn(`ถอน ${i + 1}`, `pin:unpin:${i + 1}`));
+  lines.push('', 'กรุณากดยกเลิกบัญชี หากบัญชีนี้ไม่มีการใช้งานแล้ว');
+  const unpins = items.slice(0, 3).map((_, i) => btn(`ยกเลิกบัญชี ${i + 1}`, `pin:unpin:${i + 1}`));
   return msg(lines.join('\n'), ik([unpins]));
 }
 
@@ -471,11 +476,11 @@ export function askDeskRate(current?: number | null): OutgoingMessage {
   const now = current && current > 0 ? current.toFixed(2) : 'ยังไม่ตั้ง';
   return msg(
     [
-      head('RATE', 'เรทห้องนี้'),
+      head('อัตราแลกเปลี่ยน', 'อัตราสำหรับห้องนี้'),
       '',
-      `ตอนนี้  <code>${now}</code>`,
-      'พิมพ์เลขเรทอย่างเดียว เช่น <code>36.70</code>',
-      'ข้อความอื่นในกลุ่มจะไม่ถูกอ่านเป็นเรท',
+      `อัตราปัจจุบัน  <code>${now}</code>`,
+      'กรุณาพิมพ์ตัวเลขอย่างเดียว เช่น <code>36.70</code>',
+      'ข้อความอื่นในกลุ่มจะไม่ถูกอ่านเป็นอัตรา',
     ].join('\n'),
   );
 }
@@ -483,15 +488,15 @@ export function askDeskRate(current?: number | null): OutgoingMessage {
 export function deskRateSet(desk: number, mkt: number | null): OutgoingMessage {
   return msg(
     [
-      head('RATE', 'ตั้งแล้ว'),
+      head('อัตราแลกเปลี่ยน', 'บันทึกแล้ว'),
       '',
-      `DESK   <code>${desk.toFixed(2)}</code>  บาท / USDT`,
-      `ตลาด   <code>${mkt && mkt > 0 ? mkt.toFixed(2) : '—'}</code>`,
-      'สลิปใบใหม่ใช้เรทนี้ สลิปเก่าไม่ขยับ',
+      `อัตราโต๊ะ (Desk)   <code>${desk.toFixed(2)}</code>  บาท / USDT`,
+      `ตลาด              <code>${mkt && mkt > 0 ? mkt.toFixed(2) : '—'}</code>`,
+      'สลิปใบใหม่จะใช้อัตรานี้ ส่วนสลิปเก่าจะไม่ถูกนำมาคิดคำนวณ',
     ].join('\n'),
   );
 }
 
 export function expiredToastCard(): OutgoingMessage {
-  return msg(`${head('VAULT', 'หมดอายุ')}\nปุ่มนี้ใช้ไม่ได้แล้ว ส่งสลิปใหม่หรือกดวันนี้`);
+  return msg(`${head('สรุปยอด', 'หมดอายุ')}\nปุ่มนี้หมดอายุแล้วครับ กรุณาส่งสลิปใหม่ หรือกดยอดวันนี้`);
 }
