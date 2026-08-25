@@ -93,18 +93,18 @@ export async function getChatRate(chatId: number): Promise<number | null> {
   try {
     const { data, error } = await supabaseAdmin
       .from('chat_settings')
-      .select('fixed_rate')
+      .select('sell_rate')
       .eq('chat_id', chatId)
       .maybeSingle();
     if (error) return null;
-    return data?.fixed_rate ? Number(data.fixed_rate) : null;
+    return data?.sell_rate ? Number(data.sell_rate) : null;
   } catch {
     return null;
   }
 }
 
 export async function setChatRate(chatId: number, rate: number, roomName?: string | null): Promise<void> {
-  const row: any = { chat_id: chatId, fixed_rate: rate, updated_at: new Date().toISOString() };
+  const row: any = { chat_id: chatId, sell_rate: rate, updated_at: new Date().toISOString() };
   if (roomName) row.room_name = roomName;
   const { error } = await supabaseAdmin
     .from('chat_settings')
@@ -119,12 +119,12 @@ export async function getRoom(
   try {
     const { data, error } = await supabaseAdmin
       .from('chat_settings')
-      .select('fixed_rate, room_name, day_cut_at')
+      .select('sell_rate, room_name, day_cut_at')
       .eq('chat_id', chatId)
       .maybeSingle();
     if (error || !data) return { rate: null, name: null, dayCutAt: null };
     return {
-      rate: data.fixed_rate ? Number(data.fixed_rate) : null,
+      rate: data.sell_rate ? Number(data.sell_rate) : null,
       name: (data as any).room_name ?? null,
       dayCutAt: (data as any).day_cut_at ?? null,
     };
