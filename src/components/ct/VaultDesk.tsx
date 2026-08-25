@@ -208,6 +208,9 @@ export default function VaultDesk() {
             pendingUsdt: due,
             coinDelta: coin,
             feeUsdt: fee,
+            inCount: v?.inCount ?? 0,
+            outCount: v?.outCount ?? 0,
+            waitCount: tape.filter((r) => r.pending).length,
           }}
           rates={{ sellRate: desk, marketRate: mkt ?? 0 }}
           lastSync={data ? new Date() : null}
