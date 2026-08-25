@@ -46,19 +46,19 @@ export default function PinGate({ nextPath = '/dashboard' }: { nextPath?: string
       if (res.status === 429) {
         setStatus('locked');
         setLockSeconds(Number(json.secondsLeft) || 900);
-        setMessage('locked');
+        setMessage('ล็อกอยู่ รอสักครู่');
       } else if (res.status === 503) {
         window.location.href = nextPath;
         return;
       } else {
         setStatus('error');
-        setMessage('wrong pin');
+        setMessage('รหัสผิด');
       }
       setDigits(['', '', '', '', '', '']);
       inputs.current[0]?.focus();
     } catch {
       setStatus('error');
-      setMessage('offline');
+      setMessage('ต่อเน็ตไม่ได้');
     }
   };
 
@@ -91,7 +91,7 @@ export default function PinGate({ nextPath = '/dashboard' }: { nextPath?: string
     <section className="card w-full max-w-sm text-center">
       <p className="text-2xl text-gold">◈</p>
       <h1 className="mt-4 text-sm tracking-[0.22em]">CT</h1>
-      <p className="mt-2 text-xs text-muted">private desk</p>
+      <p className="mt-2 text-xs text-muted">ใส่รหัส 6 หลัก</p>
       <div className="mt-8 flex justify-center gap-2">
         {digits.map((d, i) => (
           <input

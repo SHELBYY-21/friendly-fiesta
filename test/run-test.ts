@@ -274,7 +274,7 @@ const vault = CT.vaultBanner({
   pendingUsdt: 0, desk: 36.7, mkt: 36.52, pendingShorts: [],
 });
 assert(vault.text.includes('◈') && vault.text.includes('[ VAULT ]'), 'empty vault density');
-assert(vault.text.includes('today is quiet'), 'empty vault microcopy');
+assert(vault.text.includes('วันนี้ยังไม่มีสลิป'), 'empty vault microcopy');
 assert(hasBalancedTelegramHtml(vault.text), 'vault html balanced');
 assert(!/[👑✨🌿💎🤍🟢🔴💰📈🎯💵🏦👤⚠❤🔥⚡]/.test(vault.text), 'vault has no public emoji');
 

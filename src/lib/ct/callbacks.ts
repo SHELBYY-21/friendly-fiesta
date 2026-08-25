@@ -1,7 +1,7 @@
 import { answerCallback, editMessage, sendMessage, sendPhoto, editPhoto, deleteMessage } from '../telegram';
 import { parseAmounts } from '../amounts';
 import { parseDeskPin, parseDeskRate } from '../../bot/parse';
-import { listPinnedBanks, accountLast4, pinBankAccount } from '../banks';
+import { listPinnedBanks, accountLast4, pinBankAccount, unpinBankAccount } from '../banks';
 import {
   recordIncoming,
   recordOutgoing,
@@ -119,6 +119,18 @@ export async function handleCtCallback(opts: {
 
   if (cb.domain === 'pin' && cb.action === 'view') {
     await answerCallback(id, 'หมุด');
+    const pinned = await listPinnedBanks(chatId);
+    await redraw(chatId, messageId, C.pinView(pinned.map((b) => ({
+      bank: b.bank_name,
+      last4: accountLast4(b.account_number) ?? '????',
+    }))));
+    return;
+  }
+
+  if (cb.domain === 'pin' && cb.action === 'unpin') {
+    const slot = cb.ref || cb.extra;
+    await unpinBankAccount(chatId, slot);
+    await answerCallback(id, 'ถอนแล้ว');
     const pinned = await listPinnedBanks(chatId);
     await redraw(chatId, messageId, C.pinView(pinned.map((b) => ({
       bank: b.bank_name,
@@ -465,17 +477,33 @@ export async function handleCtText(opts: {
   text: string;
 }): Promise<boolean> {
   const t = opts.text.trim();
-  if (t === 'VAULT' || t === 'VAULT วันนี้' || t === '/vault' || t === '/today') {
+  const low = t.toLowerCase();
+
+  if (
+    t === 'วันนี้' || t === 'VAULT' || t === 'VAULT วันนี้' || t === '/vault' || t === '/today' ||
+    t === 'ยอด' || t === 'ยอดวันนี้' || t === 'สรุปวันนี้'
+  ) {
     const view = await renderVault(opts.chatId, 'today');
-    await sendHero(opts.chatId, undefined, 'vault', view, 'VAULT', 'TODAY IS QUIET', 'CT');
+    await sendHero(opts.chatId, undefined, 'vault', view, 'VAULT', 'TODAY', 'CT');
     return true;
   }
-  if (t === 'wait' || t === 'รอส่ง' || t === '/pending') {
+  if (t === 'รอส่ง' || t === 'wait' || t === '/pending' || t === 'คิว') {
     const view = await renderVault(opts.chatId, 'pending');
     await sendHero(opts.chatId, undefined, 'vault', view, 'WAIT', 'DUE', 'CT');
     return true;
   }
-  if (t === 'pin' || t === 'หมุด' || t === '/pin') {
+  if (t === 'เมนู' || t === '/menu' || t === '/help' || low === 'menu' || t === 'ช่วย') {
+    await sendMessage(opts.chatId, { ...C.menuCard(), reply_markup: adminKeyboard() });
+    return true;
+  }
+  if (t === 'วันใหม่' || t === '/newday' || low === 'new') {
+    const { startNewDay } = await import('../botSessions');
+    await startNewDay(opts.chatId);
+    const view = await renderVault(opts.chatId, 'today');
+    await sendHero(opts.chatId, undefined, 'vault', view, 'VAULT', 'NEW DAY', '◈');
+    return true;
+  }
+  if (t === 'pin' || t === 'หมุด' || t === '/pin' || t === 'บัญชี') {
     const pasted = parseDeskPin(t);
     if (pasted) {
       try {
@@ -515,7 +543,7 @@ export async function handleCtText(opts: {
     return true;
   }
 
-  if (/^(?:\/setrate(?:@[a-z0-9_]+)?|\/rate(?:@[a-z0-9_]+)?|setrate|rate|เรท|เรต)\s*$/i.test(t)) {
+  if (/^(?:\/setrate(?:@[a-z0-9_]+)?|\/rate(?:@[a-z0-9_]+)?|setrate|rate|เรท|เรต|เรทตอนนี้|เรทวันนี้|เรตตอนนี้)\s*$/i.test(t)) {
     const rates = await opsRates(opts.chatId);
     await sendMessage(opts.chatId, C.askDeskRate(rates.desk || null));
     return true;

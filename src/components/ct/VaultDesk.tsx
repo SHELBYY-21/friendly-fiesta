@@ -187,12 +187,12 @@ export default function VaultDesk() {
         </div>
         <div className="flex items-center gap-2">
           <div className="seg">
-            <button type="button" data-on={mode === 'today'} onClick={() => setMode('today')}>Today</button>
-            <button type="button" data-on={mode === 'pending'} onClick={() => setMode('pending')}>Due</button>
+            <button type="button" data-on={mode === 'today'} onClick={() => setMode('today')}>วันนี้</button>
+            <button type="button" data-on={mode === 'pending'} onClick={() => setMode('pending')}>รอส่ง</button>
           </div>
           <form onSubmit={saveDesk} className="hidden items-center gap-1 md:flex">
             <input value={deskDraft} onChange={(e) => setDeskDraft(e.target.value)} placeholder="rate" inputMode="decimal" aria-label="desk rate" className="field w-20 px-2 text-sm" />
-            <button type="submit" disabled={saving} className="keep px-3 text-xs">Keep</button>
+            <button type="submit" disabled={saving} className="keep px-3 text-xs">ตั้งเรท</button>
           </form>
         </div>
       </header>
@@ -223,7 +223,7 @@ export default function VaultDesk() {
 
       <form onSubmit={saveDesk} className="flex gap-2 border-b border-[var(--line)] px-4 py-3 md:hidden">
         <input value={deskDraft} onChange={(e) => setDeskDraft(e.target.value)} placeholder="36.70" inputMode="decimal" aria-label="desk rate" className="field" />
-        <button type="submit" disabled={saving} className="keep px-4 text-xs">Keep</button>
+        <button type="submit" disabled={saving} className="keep px-4 text-xs">ตั้งเรท</button>
       </form>
 
       <section className="overflow-x-auto">
@@ -242,7 +242,7 @@ export default function VaultDesk() {
           </thead>
           <tbody>
             {tape.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-muted">today is quiet</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-muted">วันนี้ยังไม่มีสลิป</td></tr>
             ) : tape.slice(0, 40).map((row, i) => (
               <tr key={row.id} className={flash.has(row.id) ? 'flash' : undefined}>
                 <td className="text-faint">{String(i + 1).padStart(2, '0')}</td>
@@ -265,7 +265,7 @@ export default function VaultDesk() {
 
       <section className="overflow-x-auto border-t border-[var(--line)]">
         <div className="flex items-center justify-between px-4 py-2">
-          <p className="text-[11px] uppercase tracking-[0.14em] text-faint">Open slips</p>
+          <p className="text-[11px] uppercase tracking-[0.14em] text-faint">สลิปที่ยังไม่จบ</p>
           <p className="text-[11px] text-faint">{queue.length}</p>
         </div>
         <table className="tape">
@@ -282,7 +282,7 @@ export default function VaultDesk() {
           </thead>
           <tbody>
             {queue.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-6 text-muted">clear.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-6 text-muted">ไม่มีคิวรอส่ง</td></tr>
             ) : queue.map((q) => (
               <tr key={q.short_ref}>
                 <td>{clockOf(q.created_at)}</td>

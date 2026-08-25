@@ -42,11 +42,30 @@ export function welcome(name: string): OutgoingMessage {
     [
       head('VAULT', name),
       '',
-      'ส่งสลิป',
-      'พิมพ์เรท  <code>36.65</code>',
-      'keep เมื่อยอดถูก',
+      'ใช้แป้นด้านล่างได้เลย',
+      '1. หมุดบัญชีรับวันนี้',
+      '2. ตั้งเรทห้อง เช่น <code>36.70</code>',
+      '3. ส่งรูปสลิป',
+      '4. ยอดถูก กด keep แล้วกด sent',
+    ].join('\n'),
+  );
+}
+
+export function menuCard(): OutgoingMessage {
+  return msg(
+    [
+      head('MENU', 'ห้องนี้'),
       '',
-      `<a href="${deskUrl()}">desk</a>`,
+      'วันนี้ — ดูยอดเข้า–ออก',
+      'รอส่ง — สลิปที่ยังไม่โอน',
+      'หมุด — บัญชีรับวันนี้',
+      'เรท — ตั้งเรทห้อง',
+      'วันใหม่ — ตัดรอบ ยอดเริ่มศูนย์',
+      '',
+      'วางข้อความ pin จากไลน์ได้',
+      'ส่งรูปสลิปมาได้เลย',
+      '',
+      `<a href="${deskUrl()}">เปิด desk</a>`,
     ].join('\n'),
   );
 }
@@ -235,7 +254,7 @@ export function cardSettled(d: {
       `<code>${esc(displayLedger(d.ledger))}</code>`,
       `${esc(d.adminName)}  ${esc(d.inTime)} → ${esc(d.outTime)}`,
       '',
-      'clear.',
+      'โอนครบแล้ว',
     ].join('\n'),
     ik([
       [btn('hold', `slip:open:${d.short}`), btn('keep', `slip:copy:${d.short}`)],
@@ -317,7 +336,7 @@ export function vaultBanner(d: {
 
   if (d.mode === 'pending') {
     if (!d.inRows.length) {
-      lines.push('today is quiet');
+      lines.push('ยังไม่มีสลิปค้างโอน');
     } else {
       d.inRows.slice(0, 5).forEach((r, i) => {
         const n = String(i + 1).padStart(2, '0');
@@ -329,7 +348,7 @@ export function vaultBanner(d: {
   }
 
   if (d.inCount === 0 && d.outCount === 0) {
-    lines.push('today is quiet');
+    lines.push('วันนี้ยังไม่มีสลิป');
     lines.push('', `due    <b>0 USDT</b>`);
     lines.push(`DESK   <code>${rateCode(d.desk)}</code>        MKT <code>${rateCode(d.mkt)}</code>`);
     return msg(lines.join('\n'), vaultButtons(d.pendingShorts));
@@ -359,7 +378,7 @@ export function vaultBanner(d: {
 
 function vaultButtons(pendingShorts: string[]) {
   const rows: Array<Array<Record<string, unknown>>> = [
-    [btn('wait', 'vault:pending'), btn('rate', 'vault:rateask'), btn('new', 'vault:newday')],
+    [btn('รอส่ง', 'vault:pending'), btn('เรท', 'vault:rateask'), btn('วันใหม่', 'vault:newday')],
     [urlBtn('desk', deskUrl())],
   ];
   const refs = pendingShorts.slice(0, 2);
@@ -392,21 +411,29 @@ export function cardRecent(d: {
 }
 
 export function pinView(items: Array<{ bank: string; last4: string }>): OutgoingMessage {
-  const lines = [head('VAULT', 'pin'), ''];
-  if (!items.length) lines.push('pin empty');
-  else items.forEach((it) => lines.push(`${esc(it.bank)}  ${esc(maskAcct(it.last4))}`));
-  return msg(lines.join('\n'));
+  const lines = [head('PIN', 'บัญชีรับวันนี้'), ''];
+  if (!items.length) {
+    lines.push('ยังไม่มีบัญชีรับ');
+    lines.push('วางข้อความ pin จากไลน์มาเลย');
+    lines.push('หรือพิมพ์ <code>/pin BBL 0989887823</code>');
+    return msg(lines.join('\n'));
+  }
+  items.forEach((it, i) => {
+    lines.push(`${i + 1}  ${esc(it.bank)}  ${esc(maskAcct(it.last4))}`);
+  });
+  lines.push('', 'กดถอนถ้าบัญชีนี้ไม่ใช้แล้ว');
+  const unpins = items.slice(0, 3).map((_, i) => btn(`ถอน ${i + 1}`, `pin:unpin:${i + 1}`));
+  return msg(lines.join('\n'), ik([unpins]));
 }
 
 export function askDeskRate(current?: number | null): OutgoingMessage {
-  const now = current && current > 0 ? current.toFixed(2) : '—';
+  const now = current && current > 0 ? current.toFixed(2) : 'ยังไม่ตั้ง';
   return msg(
     [
-      head('RATE', 'this room'),
+      head('RATE', 'เรทห้องนี้'),
       '',
-      `DESK   <code>${now}</code>`,
-      'พิมพ์เรทห้อง 20–80 เช่น <code>36.70</code>',
-      'หรือ <code>/setrate 36.70</code>',
+      `ตอนนี้  <code>${now}</code>`,
+      'พิมพ์ตัวเลข 20–80 เช่น <code>36.70</code>',
     ].join('\n'),
   );
 }
@@ -414,15 +441,15 @@ export function askDeskRate(current?: number | null): OutgoingMessage {
 export function deskRateSet(desk: number, mkt: number | null): OutgoingMessage {
   return msg(
     [
-      head('RATE', 'kept'),
+      head('RATE', 'ตั้งแล้ว'),
       '',
-      `DESK   <code>${desk.toFixed(2)}</code>`,
-      `MKT    <code>${mkt && mkt > 0 ? mkt.toFixed(2) : '—'}</code>`,
-      'เรทนี้ใช้กับสลิปห้องนี้',
+      `DESK   <code>${desk.toFixed(2)}</code>  บาท / USDT`,
+      `ตลาด   <code>${mkt && mkt > 0 ? mkt.toFixed(2) : '—'}</code>`,
+      'สลิปใบใหม่ใช้เรทนี้ สลิปเก่าไม่ขยับ',
     ].join('\n'),
   );
 }
 
 export function expiredToastCard(): OutgoingMessage {
-  return msg(`${head('VAULT', 'expired')}\nretry`);
+  return msg(`${head('VAULT', 'หมดอายุ')}\nปุ่มนี้ใช้ไม่ได้แล้ว ส่งสลิปใหม่หรือกดวันนี้`);
 }
