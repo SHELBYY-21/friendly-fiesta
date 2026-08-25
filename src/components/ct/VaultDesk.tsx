@@ -191,8 +191,8 @@ export default function VaultDesk() {
             <button type="button" data-on={mode === 'pending'} onClick={() => setMode('pending')}>Due</button>
           </div>
           <form onSubmit={saveDesk} className="hidden items-center gap-1 md:flex">
-            <input value={deskDraft} onChange={(e) => setDeskDraft(e.target.value)} placeholder="rate" inputMode="decimal" aria-label="desk rate" className="field h-9 w-20 px-2 text-sm" />
-            <button type="submit" disabled={saving} className="keep h-9 px-3 text-xs">Keep</button>
+            <input value={deskDraft} onChange={(e) => setDeskDraft(e.target.value)} placeholder="rate" inputMode="decimal" aria-label="desk rate" className="field w-20 px-2 text-sm" />
+            <button type="submit" disabled={saving} className="keep px-3 text-xs">Keep</button>
           </form>
         </div>
       </header>
@@ -219,8 +219,8 @@ export default function VaultDesk() {
       {error && <p className="px-4 py-2 text-sm text-danger">{error}</p>}
 
       <form onSubmit={saveDesk} className="flex gap-2 border-b border-[var(--line)] px-4 py-3 md:hidden">
-        <input value={deskDraft} onChange={(e) => setDeskDraft(e.target.value)} placeholder="36.70" inputMode="decimal" aria-label="desk rate" className="field h-9" />
-        <button type="submit" disabled={saving} className="keep h-9 px-4 text-xs">Keep</button>
+        <input value={deskDraft} onChange={(e) => setDeskDraft(e.target.value)} placeholder="36.70" inputMode="decimal" aria-label="desk rate" className="field" />
+        <button type="submit" disabled={saving} className="keep px-4 text-xs">Keep</button>
       </form>
 
       <section className="overflow-x-auto">

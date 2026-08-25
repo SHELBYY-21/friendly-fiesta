@@ -1,17 +1,10 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono, Instrument_Serif, Noto_Sans_Thai } from 'next/font/google';
+import { Geist, Geist_Mono, Noto_Sans_Thai } from 'next/font/google';
 import './globals.css';
 
 const sans = Geist({
   subsets: ['latin'],
   variable: '--font-sans-next',
-  display: 'swap',
-});
-
-const display = Instrument_Serif({
-  subsets: ['latin'],
-  weight: '400',
-  variable: '--font-display-next',
   display: 'swap',
 });
 
@@ -35,7 +28,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="th" className={`${sans.variable} ${display.variable} ${thai.variable} ${mono.variable} antialiased`}>
+    <html lang="th" className={`${sans.variable} ${thai.variable} ${mono.variable} antialiased`}>
       <body className="min-h-screen bg-bg text-fg">{children}</body>
     </html>
   );
