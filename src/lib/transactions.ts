@@ -64,7 +64,14 @@ export async function getAdminByTelegramId(telegramId: number): Promise<Admin | 
   return (data as Admin) ?? null;
 }
 
-/** Bootstrap admin เฉพาะ Telegram ID ที่ผ่าน allowlist ใน webhook แล้ว */
+export async function listAdmins(): Promise<Admin[]> {
+  const { data, error } = await supabaseAdmin
+    .from('admins')
+    .select('*')
+    .order('name', { ascending: true });
+  if (error) throw error;
+  return (data as Admin[]) ?? [];
+}
 export async function upsertAdmin(telegramId: number, name: string): Promise<Admin> {
   const { data, error } = await supabaseAdmin
     .from('admins')

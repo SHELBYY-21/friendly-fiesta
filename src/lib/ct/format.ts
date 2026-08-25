@@ -116,9 +116,8 @@ export function ik(rows: Array<Array<Record<string, unknown>>>) {
 export function adminKeyboard() {
   return {
     keyboard: [
-      [{ text: 'วันนี้' }, { text: 'รอส่ง' }],
-      [{ text: 'หมุด' }, { text: 'เรท' }],
-      [{ text: 'วันใหม่' }, { text: 'เมนู' }],
+      [{ text: 'ยอด' }, { text: 'คิว' }, { text: 'เรท' }],
+      [{ text: 'หมุด' }, { text: 'ตั้ง' }, { text: 'ใหม่' }],
     ],
     resize_keyboard: true,
     is_persistent: true,

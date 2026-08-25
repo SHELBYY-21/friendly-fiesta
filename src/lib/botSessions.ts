@@ -3,7 +3,7 @@
 // ============================================================
 import { supabaseAdmin } from './supabaseAdmin';
 
-export type SessionState = 'AWAITING_NAME' | 'AWAITING_AMOUNT' | 'EDITING' | 'WAITING_USDT';
+export type SessionState = 'AWAITING_NAME' | 'AWAITING_AMOUNT' | 'AWAITING_RATE' | 'EDITING' | 'WAITING_USDT';
 
 export interface BotSession {
   chat_id: number;

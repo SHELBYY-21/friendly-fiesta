@@ -61,7 +61,12 @@ export function parseSlipText(text: string): ParsedSlipText {
 }
 
 export function parseDeskPin(text: string): DeskPin | null {
-  const raw = (text || '').replace(/^\/pin(?:@[a-z0-9_]+)?/i, '').trim();
+  const rawFull = text || '';
+  const hadPinCmd = /^\/pin(?:@[a-z0-9_]+)?/i.test(rawFull.trim());
+  const labeled = /เลขบัญชี|วงเงิน|ชื่อ(?:\s*-?\s*สกุล)/.test(rawFull);
+  if (!hadPinCmd && !labeled) return null;
+
+  const raw = rawFull.replace(/^\/pin(?:@[a-z0-9_]+)?/i, '').trim();
   if (!raw) return null;
 
   const acc =
@@ -92,6 +97,14 @@ export function parseDeskPin(text: string): DeskPin | null {
   const nameM = raw.match(/ชื่อ(?:\s*-?\s*สกุล)?\s*[:：]\s*([^\n]+)/i);
   const name = nameM ? nameM[1].replace(/^[^\u0E00-\u0E7Fa-zA-Z]+/, '').trim() : null;
   return { bank, account, name: name || null };
+}
+
+export function hasRatePrefix(text: string): boolean {
+  return /^(?:\/setrate(?:@[a-z0-9_]+)?|\/rate(?:@[a-z0-9_]+)?|setrate|เรตแลก|เรทแลก|เรท|เรต|rate)\s+\d/i.test((text || '').trim());
+}
+
+export function isBareDeskRate(text: string): boolean {
+  return /^\d{2}(?:\.\d{1,2})?$/.test((text || '').trim());
 }
 
 export function parseDeskRate(text: string): number | null {

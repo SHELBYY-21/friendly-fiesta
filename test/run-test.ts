@@ -1,6 +1,6 @@
 import { Admin } from '@/types/transactions';
 
-const { parseSlipText, computeShouldSend, parseDeskPin, parseDeskRate } = require('../src/bot/parse');
+const { parseSlipText, computeShouldSend, parseDeskPin, parseDeskRate, hasRatePrefix, isBareDeskRate } = require('../src/bot/parse');
 const { parseAmounts, parseAmountTokens } = require('../src/lib/amounts');
 const {
   commandName,
@@ -80,6 +80,7 @@ assert(deskPin?.bank === 'BBL', `desk pin BBL (got ${deskPin?.bank})`);
 assert(deskPin?.account === '0989887823', `desk pin account (got ${deskPin?.account})`);
 assert(Boolean(deskPin?.name && deskPin.name.includes('วุฒิ')), `desk pin name (got ${deskPin?.name})`);
 assert(parseDeskPin('/pin KBANK 1234567890')?.bank === 'KBANK', 'slash pin KBANK');
+assert(parseDeskPin('BBL 1234567890') == null, 'bare bank+acct in group is not a pin');
 assert(parseDeskRate('40') === 40, 'desk rate 40');
 assert(parseDeskRate('เรตแลก 36.65') === 36.65, 'desk rate thai prefix');
 assert(parseDeskRate('/setrate 36.70') === 36.70, 'setrate command');
@@ -289,14 +290,14 @@ const {
 const { adminKeyboard } = require('../src/lib/ct/format');
 
 const pad = adminKeyboard().keyboard.flat().map((b: { text: string }) => b.text);
-assert(JSON.stringify(pad) === JSON.stringify(['วันนี้', 'รอส่ง', 'หมุด', 'เรท', 'วันใหม่', 'เมนู']), 'reply pad labels');
+assert(JSON.stringify(pad) === JSON.stringify(['ยอด', 'คิว', 'เรท', 'หมุด', 'ตั้ง', 'ใหม่']), 'reply pad labels');
 const padMap: Record<string, string> = {
-  'วันนี้': 'vault',
-  'รอส่ง': 'pending',
+  'ยอด': 'vault',
+  'คิว': 'pending',
   'หมุด': 'pin',
   'เรท': 'rate',
-  'วันใหม่': 'newday',
-  'เมนู': 'menu',
+  'ตั้ง': 'settings',
+  'ใหม่': 'newday',
 };
 for (const label of pad) {
   assert(matchReplyCommand(label) === padMap[label], `pad ${label} wired`);
@@ -337,6 +338,10 @@ assert(collectCbs(CT.cardInReady(sample)).includes('slip:lock:A4F2'), 'keep → 
 assert(collectCbs(CT.cardLocked({ ...sample, time: '06:20', canUndo: true })).includes('slip:settle:A4F2'), 'sent → settle');
 assert(collectCbs(CT.pinView([{ bank: 'BBL', last4: '7823' }])).includes('pin:unpin:1'), 'unpin 1');
 assert(matchReplyCommand('36.70') === null, 'bare rate number is not a pad command');
-assert(parseDeskRate('36.70') === 36.70, 'bare rate number still sets desk');
+assert(hasRatePrefix('36.70') === false, 'bare number is not an explicit rate command');
+assert(hasRatePrefix('/setrate 36.70') === true, 'setrate is explicit');
+assert(isBareDeskRate('36.70') === true, '36.70 is a bare desk rate token');
+assert(isBareDeskRate('โอน 36.70 แล้ว') === false, 'rate inside chat is not bare');
+assert(VAULT_ACTIONS.has('set'), 'settings callback exists');
 
 console.log('🎉 ALL TESTS PASSED SUCCESSFULLY!');

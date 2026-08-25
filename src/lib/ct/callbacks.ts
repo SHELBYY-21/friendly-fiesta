@@ -1,13 +1,15 @@
 import { answerCallback, editMessage, sendMessage, sendPhoto, editPhoto, deleteMessage } from '../telegram';
 import { parseAmounts } from '../amounts';
-import { parseDeskPin, parseDeskRate } from '../../bot/parse';
+import { parseDeskPin, parseDeskRate, hasRatePrefix, isBareDeskRate } from '../../bot/parse';
 import { listPinnedBanks, accountLast4, pinBankAccount, unpinBankAccount } from '../banks';
 import {
   recordIncoming,
   recordOutgoing,
   deleteTransaction,
+  listAdmins,
+  upsertAdmin,
 } from '../transactions';
-import { getRoom } from '../botSessions';
+import { getRoom, getSession, setSession, clearSession } from '../botSessions';
 import { findSlip, patchSlip, type PendingSlip } from './store';
 import { renderVault, renderRecent } from './vault';
 import { opsRates, applyDeskRate } from './rates';
@@ -43,21 +45,22 @@ export const SLIP_ACTIONS = new Set([
   'open', 'copy', 'hold', 'cancel', 'retry', 'edit', 'note', 'amt', 'unit',
 ]);
 
-export const VAULT_ACTIONS = new Set(['today', 'pending', 'rateask', 'newday', 'recent', 'all']);
+export const VAULT_ACTIONS = new Set(['today', 'pending', 'rateask', 'newday', 'recent', 'all', 'set']);
 export const PIN_ACTIONS = new Set(['view', 'unpin']);
 
-export type ReplyCmd = 'vault' | 'pending' | 'menu' | 'newday' | 'pin' | 'rate' | 'recent';
+export type ReplyCmd = 'vault' | 'pending' | 'menu' | 'newday' | 'pin' | 'rate' | 'recent' | 'settings';
 
 export function matchReplyCommand(text: string): ReplyCmd | null {
   const t = (text || '').trim();
   const low = t.toLowerCase();
   if (
-    t === 'วันนี้' || t === 'VAULT' || t === 'VAULT วันนี้' || t === '/vault' || t === '/today' ||
-    t === 'ยอด' || t === 'ยอดวันนี้' || t === 'สรุปวันนี้'
+    t === 'ยอด' || t === 'วันนี้' || t === 'VAULT' || t === 'VAULT วันนี้' || t === '/vault' || t === '/today' ||
+    t === 'ยอดวันนี้' || t === 'สรุปวันนี้'
   ) return 'vault';
-  if (t === 'รอส่ง' || t === 'wait' || t === '/pending' || t === 'คิว') return 'pending';
-  if (t === 'เมนู' || t === '/menu' || t === '/help' || low === 'menu' || t === 'ช่วย') return 'menu';
-  if (t === 'วันใหม่' || t === '/newday' || low === 'new') return 'newday';
+  if (t === 'คิว' || t === 'รอส่ง' || t === 'wait' || t === '/pending') return 'pending';
+  if (t === 'ตั้ง' || t === 'ตั้งค่า' || t === '/settings' || t === '/admin') return 'settings';
+  if (t === 'เมนู' || t === '/menu' || t === '/help' || low === 'menu' || t === 'ช่วย') return 'settings';
+  if (t === 'ใหม่' || t === 'วันใหม่' || t === '/newday' || low === 'new') return 'newday';
   if (t === 'pin' || t === 'หมุด' || t === '/pin' || t === 'บัญชี') return 'pin';
   if (t === '/recent' || t === '/recent_slips') return 'recent';
   if (/^(?:\/setrate(?:@[a-z0-9_]+)?|\/rate(?:@[a-z0-9_]+)?|setrate|rate|เรท|เรต|เรทตอนนี้|เรทวันนี้|เรตตอนนี้)\s*$/i.test(t)) {
@@ -73,6 +76,31 @@ function isLead(admin: Admin): boolean {
 function canUndo(p: PendingSlip): boolean {
   if (!p.undo_until) return false;
   return Date.now() < new Date(p.undo_until).getTime();
+}
+
+async function renderSettings(chatId: number) {
+  const [rates, pinned, admins] = await Promise.all([
+    opsRates(chatId),
+    listPinnedBanks(chatId),
+    listAdmins().catch(() => [] as Admin[]),
+  ]);
+  return C.settingsCard({
+    desk: rates.desk || null,
+    mkt: rates.mkt,
+    pins: pinned.map((b) => ({
+      bank: b.bank_name,
+      last4: accountLast4(b.account_number) ?? '????',
+    })),
+    admins: admins.map((a) => ({ name: a.name, role: a.role || 'admin' })),
+  });
+}
+
+async function armRatePrompt(chatId: number, userId: number) {
+  try {
+    await setSession(chatId, userId, { state: 'AWAITING_RATE' });
+  } catch {
+    /* session table optional */
+  }
 }
 
 async function load(chatId: number, ref: string, cbId: string): Promise<PendingSlip | null> {
@@ -124,8 +152,14 @@ export async function handleCtCallback(opts: {
   if (cb.domain === 'vault') {
     if (cb.action === 'rateask') {
       const rates = await opsRates(chatId);
-      await answerCallback(id, 'rate');
+      await armRatePrompt(chatId, userId);
+      await answerCallback(id, 'เรท');
       await sendMessage(chatId, C.askDeskRate(rates.desk || null));
+      return;
+    }
+    if (cb.action === 'set') {
+      await answerCallback(id, 'ตั้ง');
+      await redraw(chatId, messageId, await renderSettings(chatId));
       return;
     }
     if (cb.action === 'newday') {
@@ -516,8 +550,8 @@ export async function handleCtText(opts: {
     await sendHero(opts.chatId, undefined, 'vault', view, 'WAIT', 'DUE', 'CT');
     return true;
   }
-  if (cmd === 'menu') {
-    await sendMessage(opts.chatId, { ...C.menuCard(), reply_markup: adminKeyboard() });
+  if (cmd === 'menu' || cmd === 'settings') {
+    await sendMessage(opts.chatId, await renderSettings(opts.chatId));
     return true;
   }
   if (cmd === 'newday') {
@@ -568,13 +602,39 @@ export async function handleCtText(opts: {
   }
 
   if (cmd === 'rate') {
+    await armRatePrompt(opts.chatId, opts.userId);
     const rates = await opsRates(opts.chatId);
     await sendMessage(opts.chatId, C.askDeskRate(rates.desk || null));
     return true;
   }
 
+  const addAdmin = t.match(/^\/admin(?:@[a-z0-9_]+)?\s+(\d{5,15})\s*$/i);
+  if (addAdmin) {
+    if (!isLead(opts.admin)) {
+      await sendMessage(opts.chatId, { text: 'เฉพาะ lead' });
+      return true;
+    }
+    const tgId = Number(addAdmin[1]);
+    await upsertAdmin(tgId, `Admin ${tgId}`);
+    await sendMessage(opts.chatId, await renderSettings(opts.chatId));
+    return true;
+  }
+
   const deskRate = parseDeskRate(t);
   if (deskRate != null) {
+    let allowed = hasRatePrefix(t);
+    if (!allowed && isBareDeskRate(t)) {
+      try {
+        const session = await getSession(opts.chatId, opts.userId);
+        allowed = session?.state === 'AWAITING_RATE';
+      } catch {
+        allowed = false;
+      }
+    }
+    if (!allowed) return false;
+    try {
+      await clearSession(opts.chatId, opts.userId);
+    } catch { /* ignore */ }
     const saved = await applyDeskRate(opts.chatId, opts.admin.id, deskRate);
     const open = await (await import('./store')).latestOpenSlip(opts.chatId, opts.userId);
     if (open && open.thb_in && (open.status === 'OCR_WEAK' || open.status === 'NEED_UNIT' || open.status === 'IN_READY' || open.status === 'IN_READY_REVIEW' || open.status === 'HOLD')) {

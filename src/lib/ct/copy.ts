@@ -52,21 +52,44 @@ export function welcome(name: string): OutgoingMessage {
 }
 
 export function menuCard(): OutgoingMessage {
+  return settingsCard({
+    desk: null,
+    mkt: null,
+    pins: [],
+    admins: [],
+  });
+}
+
+export function settingsCard(d: {
+  desk: number | null;
+  mkt: number | null;
+  pins: Array<{ bank: string; last4: string }>;
+  admins: Array<{ name: string; role: string }>;
+}): OutgoingMessage {
+  const pinLine = d.pins.length
+    ? d.pins.map((p) => `${esc(p.bank)} ${esc(maskAcct(p.last4))}`).join('\n')
+    : 'ยังไม่มีบัญชีรับ';
+  const adminLine = d.admins.length
+    ? d.admins.map((a) => `${esc(a.name)}  ${esc(a.role)}`).join('\n')
+    : '—';
   return msg(
     [
-      head('MENU', 'ห้องนี้'),
+      head('SET', 'ห้องนี้'),
       '',
-      'วันนี้ — ดูยอดเข้า–ออก',
-      'รอส่ง — สลิปที่ยังไม่โอน',
-      'หมุด — บัญชีรับวันนี้',
-      'เรท — ตั้งเรทห้อง',
-      'วันใหม่ — ตัดรอบ ยอดเริ่มศูนย์',
+      `เรท   <code>${rateCode(d.desk)}</code>   ตลาด <code>${rateCode(d.mkt)}</code>`,
+      pinLine,
       '',
-      'วางข้อความ pin จากไลน์ได้',
-      'ส่งรูปสลิปมาได้เลย',
+      'แอดมิน',
+      adminLine,
       '',
-      `<a href="${deskUrl()}">เปิด desk</a>`,
+      'ตั้งเรท: กดเรท แล้วพิมพ์เลขอย่างเดียว เช่น <code>36.70</code>',
+      'หรือ <code>/setrate 36.70</code>',
+      'เพิ่มแอดมิน: <code>/admin 5676959274</code>',
     ].join('\n'),
+    ik([
+      [btn('เรท', 'vault:rateask'), btn('หมุด', 'pin:view'), btn('ใหม่', 'vault:newday')],
+      [urlBtn('desk', deskUrl())],
+    ]),
   );
 }
 
@@ -378,7 +401,7 @@ export function vaultBanner(d: {
 
 function vaultButtons(pendingShorts: string[]) {
   const rows: Array<Array<Record<string, unknown>>> = [
-    [btn('รอส่ง', 'vault:pending'), btn('เรท', 'vault:rateask'), btn('วันใหม่', 'vault:newday')],
+    [btn('คิว', 'vault:pending'), btn('เรท', 'vault:rateask'), btn('ตั้ง', 'vault:set')],
     [urlBtn('desk', deskUrl())],
   ];
   const refs = pendingShorts.slice(0, 2);
@@ -433,7 +456,8 @@ export function askDeskRate(current?: number | null): OutgoingMessage {
       head('RATE', 'เรทห้องนี้'),
       '',
       `ตอนนี้  <code>${now}</code>`,
-      'พิมพ์ตัวเลข 20–80 เช่น <code>36.70</code>',
+      'พิมพ์เลขเรทอย่างเดียว เช่น <code>36.70</code>',
+      'ข้อความอื่นในกลุ่มจะไม่ถูกอ่านเป็นเรท',
     ].join('\n'),
   );
 }
