@@ -38,6 +38,34 @@ export function isCtCallback(data: string): boolean {
   return d === 'vault' || d === 'slip' || d === 'pin';
 }
 
+export const SLIP_ACTIONS = new Set([
+  'lock', 'force', 'forceask', 'settle', 'undo', 'delask', 'delete',
+  'open', 'copy', 'hold', 'cancel', 'retry', 'edit', 'note', 'amt', 'unit',
+]);
+
+export const VAULT_ACTIONS = new Set(['today', 'pending', 'rateask', 'newday', 'recent', 'all']);
+export const PIN_ACTIONS = new Set(['view', 'unpin']);
+
+export type ReplyCmd = 'vault' | 'pending' | 'menu' | 'newday' | 'pin' | 'rate' | 'recent';
+
+export function matchReplyCommand(text: string): ReplyCmd | null {
+  const t = (text || '').trim();
+  const low = t.toLowerCase();
+  if (
+    t === 'วันนี้' || t === 'VAULT' || t === 'VAULT วันนี้' || t === '/vault' || t === '/today' ||
+    t === 'ยอด' || t === 'ยอดวันนี้' || t === 'สรุปวันนี้'
+  ) return 'vault';
+  if (t === 'รอส่ง' || t === 'wait' || t === '/pending' || t === 'คิว') return 'pending';
+  if (t === 'เมนู' || t === '/menu' || t === '/help' || low === 'menu' || t === 'ช่วย') return 'menu';
+  if (t === 'วันใหม่' || t === '/newday' || low === 'new') return 'newday';
+  if (t === 'pin' || t === 'หมุด' || t === '/pin' || t === 'บัญชี') return 'pin';
+  if (t === '/recent' || t === '/recent_slips') return 'recent';
+  if (/^(?:\/setrate(?:@[a-z0-9_]+)?|\/rate(?:@[a-z0-9_]+)?|setrate|rate|เรท|เรต|เรทตอนนี้|เรทวันนี้|เรตตอนนี้)\s*$/i.test(t)) {
+    return 'rate';
+  }
+  return null;
+}
+
 function isLead(admin: Admin): boolean {
   return admin.role === 'SuperAdmin' || admin.role === 'Admin';
 }
@@ -477,33 +505,29 @@ export async function handleCtText(opts: {
   text: string;
 }): Promise<boolean> {
   const t = opts.text.trim();
-  const low = t.toLowerCase();
-
-  if (
-    t === 'วันนี้' || t === 'VAULT' || t === 'VAULT วันนี้' || t === '/vault' || t === '/today' ||
-    t === 'ยอด' || t === 'ยอดวันนี้' || t === 'สรุปวันนี้'
-  ) {
+  const cmd = matchReplyCommand(t);
+  if (cmd === 'vault') {
     const view = await renderVault(opts.chatId, 'today');
     await sendHero(opts.chatId, undefined, 'vault', view, 'VAULT', 'TODAY', 'CT');
     return true;
   }
-  if (t === 'รอส่ง' || t === 'wait' || t === '/pending' || t === 'คิว') {
+  if (cmd === 'pending') {
     const view = await renderVault(opts.chatId, 'pending');
     await sendHero(opts.chatId, undefined, 'vault', view, 'WAIT', 'DUE', 'CT');
     return true;
   }
-  if (t === 'เมนู' || t === '/menu' || t === '/help' || low === 'menu' || t === 'ช่วย') {
+  if (cmd === 'menu') {
     await sendMessage(opts.chatId, { ...C.menuCard(), reply_markup: adminKeyboard() });
     return true;
   }
-  if (t === 'วันใหม่' || t === '/newday' || low === 'new') {
+  if (cmd === 'newday') {
     const { startNewDay } = await import('../botSessions');
     await startNewDay(opts.chatId);
     const view = await renderVault(opts.chatId, 'today');
     await sendHero(opts.chatId, undefined, 'vault', view, 'VAULT', 'NEW DAY', '◈');
     return true;
   }
-  if (t === 'pin' || t === 'หมุด' || t === '/pin' || t === 'บัญชี') {
+  if (cmd === 'pin') {
     const pasted = parseDeskPin(t);
     if (pasted) {
       try {
@@ -538,12 +562,12 @@ export async function handleCtText(opts: {
     }
     return true;
   }
-  if (t === '/recent' || t === '/recent_slips') {
+  if (cmd === 'recent') {
     await sendMessage(opts.chatId, await renderRecent(opts.chatId, opts.admin.name));
     return true;
   }
 
-  if (/^(?:\/setrate(?:@[a-z0-9_]+)?|\/rate(?:@[a-z0-9_]+)?|setrate|rate|เรท|เรต|เรทตอนนี้|เรทวันนี้|เรตตอนนี้)\s*$/i.test(t)) {
+  if (cmd === 'rate') {
     const rates = await opsRates(opts.chatId);
     await sendMessage(opts.chatId, C.askDeskRate(rates.desk || null));
     return true;

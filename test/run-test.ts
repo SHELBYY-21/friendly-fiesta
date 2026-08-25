@@ -278,4 +278,65 @@ assert(vault.text.includes('วันนี้ยังไม่มีสลิ�
 assert(hasBalancedTelegramHtml(vault.text), 'vault html balanced');
 assert(!/[👑✨🌿💎🤍🟢🔴💰📈🎯💵🏦👤⚠❤🔥⚡]/.test(vault.text), 'vault has no public emoji');
 
+const {
+  matchReplyCommand,
+  parseCb: parseCb2,
+  isCtCallback: isCt2,
+  SLIP_ACTIONS,
+  VAULT_ACTIONS,
+  PIN_ACTIONS,
+} = require('../src/lib/ct/callbacks');
+const { adminKeyboard } = require('../src/lib/ct/format');
+
+const pad = adminKeyboard().keyboard.flat().map((b: { text: string }) => b.text);
+assert(JSON.stringify(pad) === JSON.stringify(['วันนี้', 'รอส่ง', 'หมุด', 'เรท', 'วันใหม่', 'เมนู']), 'reply pad labels');
+const padMap: Record<string, string> = {
+  'วันนี้': 'vault',
+  'รอส่ง': 'pending',
+  'หมุด': 'pin',
+  'เรท': 'rate',
+  'วันใหม่': 'newday',
+  'เมนู': 'menu',
+};
+for (const label of pad) {
+  assert(matchReplyCommand(label) === padMap[label], `pad ${label} wired`);
+}
+
+const sample = {
+  review: false, thb: 500, shouldSend: 13.62, desk: 36.7, mkt: 32.71,
+  bank: 'BBL', last4: '7823', name: 'วุฒิ', confidence: 96,
+  ledger: 'CE-20260826-A4F2', adminName: 'RAZEN', short: 'A4F2',
+};
+const cards = [
+  CT.cardInReady(sample),
+  CT.cardOcrWeak({ bank: 'BBL', last4: '7823', name: 'วุฒิ', confidence: 40, short: 'A4F2', chips: [500, 1000] }),
+  CT.cardLocked({ thb: 500, shouldSend: 13.62, desk: 36.7, mkt: 32.71, bank: 'BBL', last4: '7823', name: 'วุฒิ', ledger: 'CE-20260826-A4F2', adminName: 'RAZEN', time: '06:20', short: 'A4F2', canUndo: true }),
+  CT.vaultBanner({
+    mode: 'today', dateLabel: '26 Aug', clock: '03:59',
+    inThb: 500, inCount: 1,
+    inRows: [{ thb: 500, usdt: 13.62, time: '06:20', short: 'A4F2', pending: true }],
+    outUsdt: 0, outCount: 0, outRows: [], pendingUsdt: 13.62, desk: 36.7, mkt: 32.71,
+    pendingShorts: ['A4F2'],
+  }),
+  CT.pinView([{ bank: 'BBL', last4: '7823' }]),
+];
+function collectCbs(card: { reply_markup?: any }): string[] {
+  const rows = card.reply_markup?.inline_keyboard ?? [];
+  return rows.flat().map((b: any) => b.callback_data).filter(Boolean);
+}
+const cbs = cards.flatMap(collectCbs);
+assert(cbs.length > 0, 'cards expose callbacks');
+for (const data of cbs) {
+  assert(isCt2(data), `callback domain ${data}`);
+  const cb = parseCb2(data);
+  if (cb.domain === 'slip') assert(SLIP_ACTIONS.has(cb.action), `slip action ${cb.action} from ${data}`);
+  if (cb.domain === 'vault') assert(VAULT_ACTIONS.has(cb.action), `vault action ${cb.action} from ${data}`);
+  if (cb.domain === 'pin') assert(PIN_ACTIONS.has(cb.action), `pin action ${cb.action} from ${data}`);
+}
+assert(collectCbs(CT.cardInReady(sample)).includes('slip:lock:A4F2'), 'keep → lock');
+assert(collectCbs(CT.cardLocked({ ...sample, time: '06:20', canUndo: true })).includes('slip:settle:A4F2'), 'sent → settle');
+assert(collectCbs(CT.pinView([{ bank: 'BBL', last4: '7823' }])).includes('pin:unpin:1'), 'unpin 1');
+assert(matchReplyCommand('36.70') === null, 'bare rate number is not a pad command');
+assert(parseDeskRate('36.70') === 36.70, 'bare rate number still sets desk');
+
 console.log('🎉 ALL TESTS PASSED SUCCESSFULLY!');
