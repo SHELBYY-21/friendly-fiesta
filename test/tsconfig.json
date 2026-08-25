@@ -1,0 +1,18 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "isolatedModules": false,
+    "incremental": false,
+    "noEmit": true
+  },
+  "include": [
+    "./run-test.ts",
+    "../src/**/*.ts"
+  ],
+  "exclude": [
+    "../node_modules",
+    "../bot"
+  ]
+}

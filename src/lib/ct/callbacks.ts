@@ -1,0 +1,591 @@
+import { answerCallback, editMessage, sendMessage, sendPhoto, editPhoto, deleteMessage } from '../telegram';
+import { parseAmounts } from '../amounts';
+import { parseDeskPin, parseDeskRate } from '../../bot/parse';
+import { listPinnedBanks, accountLast4, pinBankAccount } from '../banks';
+import {
+  recordIncoming,
+  recordOutgoing,
+  deleteTransaction,
+} from '../transactions';
+import { getRoom } from '../botSessions';
+import { findSlip, patchSlip, type PendingSlip } from './store';
+import { renderVault, renderRecent } from './vault';
+import { opsRates, applyDeskRate } from './rates';
+import { shouldSend, clockBkk, displayLedger, adminKeyboard, thbCard, usdt } from './format';
+import { renderHeroPng } from './cardImage';
+import { gateOcr } from './gate';
+import { renderGateCard } from './photo';
+import * as C from './copy';
+import type { Admin } from '@/types/transactions';
+
+export function parseCb(data: string): {
+  domain: string;
+  action: string;
+  ref: string;
+  extra: string;
+} {
+  const parts = (data || '').split(':');
+  return {
+    domain: parts[0] || '',
+    action: parts[1] || '',
+    ref: (parts[2] || '').toUpperCase(),
+    extra: parts.slice(3).join(':'),
+  };
+}
+
+export function isCtCallback(data: string): boolean {
+  const d = (data || '').split(':')[0];
+  return d === 'vault' || d === 'slip' || d === 'pin';
+}
+
+function isLead(admin: Admin): boolean {
+  return admin.role === 'SuperAdmin' || admin.role === 'Admin';
+}
+
+function canUndo(p: PendingSlip): boolean {
+  if (!p.undo_until) return false;
+  return Date.now() < new Date(p.undo_until).getTime();
+}
+
+async function load(chatId: number, ref: string, cbId: string): Promise<PendingSlip | null> {
+  const p = await findSlip(chatId, ref);
+  if (!p) {
+    await answerCallback(cbId, 'ปุ่มหมดอายุ');
+    return null;
+  }
+  return p;
+}
+
+async function redraw(chatId: number, messageId: number | undefined, card: { text: string; reply_markup?: unknown }) {
+  if (messageId) await editMessage(chatId, messageId, card);
+  else await sendMessage(chatId, card);
+}
+
+async function sendHero(
+  chatId: number,
+  messageId: number | undefined,
+  kind: 'vault' | 'locked' | 'settled',
+  card: { text: string; reply_markup?: unknown },
+  hero: string,
+  sub?: string,
+  meta?: string,
+): Promise<number> {
+  const png = renderHeroPng(kind, { hero, sub, meta });
+  if (messageId && kind !== 'locked') {
+    try {
+      await editPhoto(chatId, messageId, png, card);
+      return messageId;
+    } catch { /* send new */ }
+  }
+  const id = await sendPhoto(chatId, png, card);
+  if (messageId) await deleteMessage(chatId, messageId);
+  return id;
+}
+
+export async function handleCtCallback(opts: {
+  id: string;
+  chatId: number;
+  userId: number;
+  admin: Admin;
+  data: string;
+  messageId?: number;
+}): Promise<void> {
+  const { id, chatId, userId, admin, data, messageId } = opts;
+  const cb = parseCb(data);
+
+  if (cb.domain === 'vault') {
+    if (cb.action === 'rateask') {
+      const rates = await opsRates(chatId);
+      await answerCallback(id, 'rate');
+      await sendMessage(chatId, C.askDeskRate(rates.desk || null));
+      return;
+    }
+    if (cb.action === 'newday') {
+      const { startNewDay } = await import('../botSessions');
+      await startNewDay(chatId);
+      await answerCallback(id, 'new');
+      const view = await renderVault(chatId, 'today');
+      await sendHero(chatId, messageId, 'vault', view, 'VAULT', 'NEW DAY', '◈');
+      return;
+    }
+    const mode = cb.action === 'pending' ? 'pending' : cb.action === 'all' ? 'all' : 'today';
+    await answerCallback(id, mode === 'pending' ? 'wait' : 'Vault');
+    const view = cb.action === 'recent'
+      ? await renderRecent(chatId, admin.name)
+      : await renderVault(chatId, mode);
+    await sendHero(chatId, messageId, 'vault', view, mode === 'pending' ? 'WAIT' : 'VAULT', 'CT DESK', '◈');
+    return;
+  }
+
+  if (cb.domain === 'pin' && cb.action === 'view') {
+    await answerCallback(id, 'หมุด');
+    const pinned = await listPinnedBanks(chatId);
+    await redraw(chatId, messageId, C.pinView(pinned.map((b) => ({
+      bank: b.bank_name,
+      last4: accountLast4(b.account_number) ?? '????',
+    }))));
+    return;
+  }
+
+  if (cb.domain === 'slip' && cb.action === 'unithelp') {
+    await answerCallback(id);
+    await sendMessage(chatId, C.unitHelp());
+    return;
+  }
+
+  if (cb.domain === 'slip' && cb.action === 'recent') {
+    await answerCallback(id, 'TODAY');
+    await redraw(chatId, messageId, await renderRecent(chatId, admin.name));
+    return;
+  }
+
+  if (cb.domain !== 'slip') {
+    await answerCallback(id, 'ปุ่มหมดอายุ');
+    return;
+  }
+
+  const p = await load(chatId, cb.ref, id);
+  if (!p) {
+    if (messageId) await editMessage(chatId, messageId, C.expiredToastCard());
+    return;
+  }
+
+  switch (cb.action) {
+    case 'lock':
+      await doLock(id, chatId, userId, admin, p, messageId, false);
+      return;
+    case 'force':
+      if (!isLead(admin)) {
+        await answerCallback(id, 'เฉพาะ lead');
+        return;
+      }
+      await doLock(id, chatId, userId, admin, p, messageId, true);
+      return;
+    case 'forceask':
+      if (!isLead(admin)) {
+        await answerCallback(id, 'เฉพาะ lead');
+        return;
+      }
+      await answerCallback(id);
+      await redraw(chatId, messageId, C.cardForceAsk({ short: p.short_ref, ledger: p.ledger_ref }));
+      return;
+    case 'settle':
+      await doSettle(id, chatId, userId, p, messageId);
+      return;
+    case 'undo':
+      await doUndo(id, chatId, p, messageId);
+      return;
+    case 'delask':
+      await answerCallback(id);
+      await redraw(chatId, messageId, C.cardDeleteAsk({
+        ledger: p.ledger_ref, thb: p.thb_in ?? 0, short: p.short_ref,
+      }));
+      return;
+    case 'delete':
+      await doDelete(id, chatId, p, messageId);
+      return;
+    case 'open':
+      await answerCallback(id);
+      await redraw(chatId, messageId, detailCard(p));
+      return;
+    case 'copy':
+      await answerCallback(id, displayLedger(p.ledger_ref));
+      await sendMessage(chatId, { text: `<code>${displayLedger(p.ledger_ref)}</code>` });
+      return;
+    case 'hold':
+      await answerCallback(id, 'HOLD');
+      await patchSlip(p.id, { status: 'HOLD' });
+      await redraw(chatId, messageId, {
+        text: `◆  <b>HOLD</b>\n<code>${displayLedger(p.ledger_ref)}</code>\nถือไว้ ยังไม่เข้าสมุด`,
+      });
+      return;
+    case 'cancel':
+      await answerCallback(id, 'ยกเลิก');
+      await patchSlip(p.id, { status: 'DELETED' });
+      await redraw(chatId, messageId, { text: 'ยกเลิกแล้ว · ยังไม่บันทึก' });
+      return;
+    case 'retry':
+      await answerCallback(id, 'ส่งสลิปใหม่');
+      await patchSlip(p.id, { status: 'DELETED' });
+      await redraw(chatId, messageId, { text: 'ส่งสลิปใหม่ได้เลย' });
+      return;
+    case 'edit':
+      await answerCallback(id, 'พิมพ์ +500B');
+      await sendMessage(chatId, {
+        text: `แก้ยอด <code>${p.short_ref}</code>\nพิมพ์ <code>+500B</code>`,
+      });
+      return;
+    case 'note':
+      await answerCallback(id, 'พิมพ์โน้ต');
+      await sendMessage(chatId, { text: `โน้ตสำหรับ <code>${p.short_ref}</code>\nพิมพ์ต่อข้อความนี้` });
+      return;
+    case 'amt': {
+      const parsed = parseAmounts(cb.extra.startsWith('+') || cb.extra.startsWith('-') ? cb.extra : `+${cb.extra}`);
+      const thb = parsed.thb?.value;
+      if (!thb) {
+        await answerCallback(id, 'ยอดไม่ถูกต้อง');
+        return;
+      }
+      await answerCallback(id, `Locked · ${p.short_ref}`);
+      const desk = p.desk_rate || (await opsRates(chatId)).desk;
+      const owed = shouldSend(thb, desk);
+      const next = await patchSlip(p.id, {
+        thb_in: thb,
+        should_send: owed,
+        desk_rate: desk,
+        status: 'IN_READY',
+      });
+      await redraw(chatId, messageId, C.cardInReady({
+        review: false,
+        thb,
+        shouldSend: owed,
+        desk,
+        mkt: next.mkt_rate,
+        bank: next.bank ?? '—',
+        last4: (next.account_masked ?? '').replace(/\D/g, '').slice(-4),
+        name: next.name,
+        confidence: next.ocr_confidence ?? 95,
+        ledger: next.ledger_ref,
+        adminName: next.admin_name ?? admin.name,
+        short: next.short_ref,
+      }));
+      return;
+    }
+    case 'unit':
+      await answerCallback(id, cb.extra === '-U' ? 'พิมพ์ -13.6U' : 'พิมพ์ +500B');
+      await sendMessage(chatId, {
+        text: cb.extra === '-U' ? 'พิมพ์ยอด เช่น <code>-13.6U</code>' : 'พิมพ์ยอด เช่น <code>+500</code>',
+      });
+      return;
+    default:
+      await answerCallback(id, 'ปุ่มหมดอายุ');
+      if (messageId) await editMessage(chatId, messageId, C.expiredToastCard());
+  }
+}
+
+function detailCard(p: PendingSlip) {
+  return C.cardDetail({
+    ledger: p.ledger_ref,
+    thb: p.thb_in ?? 0,
+    usdtOut: p.status === 'SETTLED' ? p.should_send : null,
+    desk: p.desk_rate ?? 0,
+    mkt: p.mkt_rate,
+    usd: p.bot_usd,
+    bank: p.bank ?? '—',
+    last4: (p.account_masked ?? '').replace(/\D/g, '').slice(-4),
+    name: p.name,
+    pinMatch: p.pin_match,
+    confidence: p.ocr_confidence,
+    adminIn: p.admin_name ?? 'Admin',
+    inTime: clockBkk(p.undo_until ? new Date(new Date(p.undo_until).getTime() - 30_000) : new Date()),
+    outTime: p.status === 'SETTLED' ? clockBkk() : null,
+    adminOut: p.status === 'SETTLED' ? p.admin_name : null,
+    note: p.note,
+    short: p.short_ref,
+  });
+}
+
+async function doLock(
+  cbId: string,
+  chatId: number,
+  userId: number,
+  admin: Admin,
+  p: PendingSlip,
+  messageId: number | undefined,
+  force: boolean,
+) {
+  if (p.status === 'LOCKED' || p.status === 'SETTLED') {
+    await answerCallback(cbId, `Locked · ${p.short_ref}`);
+    return;
+  }
+  if (!force && !p.pin_match) {
+    await answerCallback(cbId, 'บัญชีไม่ตรงหมุด');
+    return;
+  }
+  if (p.thb_in == null || p.thb_in <= 0) {
+    await answerCallback(cbId, 'ยังไม่มียอด');
+    return;
+  }
+  const room = await getRoom(chatId);
+  const rates = await opsRates(chatId);
+  const desk = p.desk_rate || rates.desk;
+  const owed = shouldSend(p.thb_in, desk);
+  const r = await recordIncoming({
+    adminTelegramId: userId,
+    chatId,
+    thb: p.thb_in,
+    sellRate: desk,
+    marketRate: p.mkt_rate || rates.mkt || desk,
+    roomName: room.name,
+    ledgerRef: p.ledger_ref,
+    ocrConfidence: p.ocr_confidence,
+    slipImageUrl: p.slip_url,
+    slipFingerprint: p.slip_fingerprint,
+    bankAccountId: p.bank_account_id,
+    receiver: {
+      name: p.name,
+      bank: p.bank,
+      last4: (p.account_masked ?? '').replace(/\D/g, '').slice(-4),
+    },
+  });
+  const next = await patchSlip(p.id, {
+    status: 'LOCKED',
+    tx_id: r.transactionId,
+    should_send: owed,
+    desk_rate: desk,
+    undo_until: new Date(Date.now() + 30_000).toISOString(),
+    pin_match: force ? p.pin_match : true,
+  });
+  await answerCallback(cbId, `Locked · ${p.short_ref}`);
+  const card = C.cardLocked({
+    thb: next.thb_in ?? 0,
+    shouldSend: owed,
+    desk,
+    mkt: next.mkt_rate,
+    ledger: next.ledger_ref,
+    adminName: admin.name,
+    time: clockBkk(),
+    short: next.short_ref,
+    canUndo: true,
+  });
+  const photoId = await sendHero(
+    chatId,
+    messageId,
+    'locked',
+    card,
+    `${thbCard(next.thb_in ?? 0)} THB`,
+    `DUE ${usdt(owed)} USDT`,
+    next.ledger_ref,
+  );
+  await patchSlip(p.id, { message_id: photoId });
+}
+
+async function doSettle(
+  cbId: string,
+  chatId: number,
+  userId: number,
+  p: PendingSlip,
+  messageId: number | undefined,
+) {
+  if (p.status === 'SETTLED') {
+    await answerCallback(cbId, `Settled · ${p.short_ref}`);
+    return;
+  }
+  if (p.status !== 'LOCKED' || !p.should_send) {
+    await answerCallback(cbId, 'ยังไม่ LOCKED');
+    return;
+  }
+  if (messageId) await editMessage(chatId, messageId, C.skeletonSettle(p.ledger_ref, p.should_send));
+  await recordOutgoing({
+    adminTelegramId: userId,
+    chatId,
+    usdt: p.should_send,
+    ledgerRef: p.ledger_ref,
+    slipImageUrl: p.slip_url,
+  });
+  const next = await patchSlip(p.id, { status: 'SETTLED', undo_until: null });
+  await answerCallback(cbId, `Settled · ${p.short_ref}`);
+  const card = C.cardSettled({
+    thb: next.thb_in ?? 0,
+    usdtOut: next.should_send ?? 0,
+    desk: next.desk_rate ?? 0,
+    ledger: next.ledger_ref,
+    adminName: next.admin_name ?? 'Admin',
+    inTime: clockBkk(),
+    outTime: clockBkk(),
+    short: next.short_ref,
+  });
+  await sendHero(
+    chatId,
+    messageId,
+    'settled',
+    card,
+    `${usdt(next.should_send ?? 0)} USDT`,
+    `IN ${thbCard(next.thb_in ?? 0)} THB`,
+    next.ledger_ref,
+  );
+}
+
+async function doUndo(
+  cbId: string,
+  chatId: number,
+  p: PendingSlip,
+  messageId: number | undefined,
+) {
+  if (!canUndo(p) || !p.tx_id) {
+    await answerCallback(cbId, 'หมดเวลาเลิกทำ');
+    await redraw(chatId, messageId, C.cardLocked({
+      thb: p.thb_in ?? 0,
+      shouldSend: p.should_send ?? 0,
+      desk: p.desk_rate ?? 0,
+      ledger: p.ledger_ref,
+      adminName: p.admin_name ?? 'Admin',
+      time: clockBkk(),
+      short: p.short_ref,
+      canUndo: false,
+    }));
+    return;
+  }
+  await deleteTransaction(p.tx_id);
+  const next = await patchSlip(p.id, { status: 'IN_READY', tx_id: null, undo_until: null });
+  await answerCallback(cbId, 'เลิกทำแล้ว');
+  const gate = gateOcr({
+    thb: next.thb_in,
+    confidence: next.ocr_confidence,
+    pinMatch: next.pin_match,
+    hasCurrency: next.thb_in != null,
+  });
+  await redraw(chatId, messageId, renderGateCard(next, {
+    gate,
+    slipBank: next.bank ?? '—',
+    slipLast4: (next.account_masked ?? '').replace(/\D/g, '').slice(-4),
+    pinBank: next.bank ?? '—',
+    pinLast4: (next.account_masked ?? '').replace(/\D/g, '').slice(-4),
+    lead: false,
+    chips: next.thb_in ? [next.thb_in] : [500],
+  }));
+}
+
+async function doDelete(
+  cbId: string,
+  chatId: number,
+  p: PendingSlip,
+  messageId: number | undefined,
+) {
+  if (p.tx_id) await deleteTransaction(p.tx_id);
+  await patchSlip(p.id, { status: 'DELETED', tx_id: null });
+  await answerCallback(cbId, `ลบ · ${p.short_ref}`);
+  await redraw(chatId, messageId, { text: `ลบ <code>${displayLedger(p.ledger_ref)}</code> แล้ว` });
+}
+
+export async function handleCtText(opts: {
+  chatId: number;
+  userId: number;
+  admin: Admin;
+  text: string;
+}): Promise<boolean> {
+  const t = opts.text.trim();
+  if (t === 'VAULT' || t === 'VAULT วันนี้' || t === '/vault' || t === '/today') {
+    const view = await renderVault(opts.chatId, 'today');
+    await sendHero(opts.chatId, undefined, 'vault', view, 'VAULT', 'TODAY IS QUIET', 'CT');
+    return true;
+  }
+  if (t === 'wait' || t === 'รอส่ง' || t === '/pending') {
+    const view = await renderVault(opts.chatId, 'pending');
+    await sendHero(opts.chatId, undefined, 'vault', view, 'WAIT', 'DUE', 'CT');
+    return true;
+  }
+  if (t === 'pin' || t === 'หมุด' || t === '/pin') {
+    const pasted = parseDeskPin(t);
+    if (pasted) {
+      try {
+        const result = await pinBankAccount(opts.chatId, pasted.bank, pasted.account);
+        await sendMessage(opts.chatId, C.pinView(result.pinned.map((b) => ({
+          bank: b.bank_name,
+          last4: accountLast4(b.account_number) ?? '????',
+        }))));
+      } catch (e: any) {
+        await sendMessage(opts.chatId, { text: e?.message === 'PIN_LIMIT_REACHED' ? 'pin ครบ 3' : 'pin ไม่ติด' });
+      }
+      return true;
+    }
+    const pinned = await listPinnedBanks(opts.chatId);
+    await sendMessage(opts.chatId, C.pinView(pinned.map((b) => ({
+      bank: b.bank_name,
+      last4: accountLast4(b.account_number) ?? '????',
+    }))));
+    return true;
+  }
+
+  const deskPin = parseDeskPin(t);
+  if (deskPin) {
+    try {
+      const result = await pinBankAccount(opts.chatId, deskPin.bank, deskPin.account);
+      await sendMessage(opts.chatId, C.pinView(result.pinned.map((b) => ({
+        bank: b.bank_name,
+        last4: accountLast4(b.account_number) ?? '????',
+      }))));
+    } catch (e: any) {
+      await sendMessage(opts.chatId, { text: e?.message === 'PIN_LIMIT_REACHED' ? 'pin ครบ 3' : 'pin ไม่ติด' });
+    }
+    return true;
+  }
+  if (t === '/recent' || t === '/recent_slips') {
+    await sendMessage(opts.chatId, await renderRecent(opts.chatId, opts.admin.name));
+    return true;
+  }
+
+  if (/^(?:\/setrate(?:@[a-z0-9_]+)?|\/rate(?:@[a-z0-9_]+)?|setrate|rate|เรท|เรต)\s*$/i.test(t)) {
+    const rates = await opsRates(opts.chatId);
+    await sendMessage(opts.chatId, C.askDeskRate(rates.desk || null));
+    return true;
+  }
+
+  const deskRate = parseDeskRate(t);
+  if (deskRate != null) {
+    const saved = await applyDeskRate(opts.chatId, opts.admin.id, deskRate);
+    const open = await (await import('./store')).latestOpenSlip(opts.chatId, opts.userId);
+    if (open && open.thb_in && (open.status === 'OCR_WEAK' || open.status === 'NEED_UNIT' || open.status === 'IN_READY' || open.status === 'IN_READY_REVIEW' || open.status === 'HOLD')) {
+      const owed = shouldSend(open.thb_in, deskRate);
+      const next = await patchSlip(open.id, {
+        desk_rate: deskRate,
+        should_send: owed,
+        status: 'IN_READY',
+      });
+      const card = C.cardInReady({
+        review: false,
+        thb: next.thb_in ?? open.thb_in,
+        shouldSend: owed,
+        desk: deskRate,
+        mkt: saved.mkt,
+        bank: next.bank ?? '—',
+        last4: (next.account_masked ?? '').replace(/\D/g, '').slice(-4),
+        name: next.name,
+        confidence: next.ocr_confidence ?? 95,
+        ledger: next.ledger_ref,
+        adminName: next.admin_name ?? opts.admin.name,
+        short: next.short_ref,
+      });
+      if (open.message_id) await editMessage(opts.chatId, open.message_id, card);
+      else await sendMessage(opts.chatId, card);
+      return true;
+    }
+    await sendMessage(opts.chatId, C.deskRateSet(saved.desk, saved.mkt));
+    return true;
+  }
+
+  const parsed = parseAmounts(t);
+  if (parsed.thb && !parsed.ambiguous) {
+    const open = await (await import('./store')).latestOpenSlip(opts.chatId, opts.userId);
+    if (open && (open.status === 'OCR_WEAK' || open.status === 'NEED_UNIT' || open.status === 'IN_READY' || open.status === 'IN_READY_REVIEW' || open.status === 'HOLD')) {
+      const desk = open.desk_rate || (await opsRates(opts.chatId)).desk;
+      const owed = shouldSend(parsed.thb.value, desk);
+      const next = await patchSlip(open.id, {
+        thb_in: parsed.thb.value,
+        should_send: owed,
+        desk_rate: desk,
+        status: 'IN_READY',
+      });
+      const card = C.cardInReady({
+        review: false,
+        thb: parsed.thb.value,
+        shouldSend: owed,
+        desk,
+        mkt: next.mkt_rate,
+        bank: next.bank ?? '—',
+        last4: (next.account_masked ?? '').replace(/\D/g, '').slice(-4),
+        name: next.name,
+        confidence: next.ocr_confidence ?? 95,
+        ledger: next.ledger_ref,
+        adminName: next.admin_name ?? opts.admin.name,
+        short: next.short_ref,
+      });
+      if (open.message_id) await editMessage(opts.chatId, open.message_id, card);
+      else await sendMessage(opts.chatId, card);
+      return true;
+    }
+  }
+  return false;
+}
+
+export { adminKeyboard };
