@@ -112,7 +112,7 @@ export async function setChatRate(chatId: number, rate: number, roomName?: strin
   if (error) throw error;
 }
 
-/** ดึงเรต + ชื่อห้อง + จุดตัดวัน (Sell Rate มาจาก fixed_rate) */
+/** ดึงเรต + ชื่อห้อง + จุดตัดวัน (Sell Rate = sell_rate) */
 export async function getRoom(
   chatId: number,
 ): Promise<{ rate: number | null; name: string | null; dayCutAt: string | null }> {

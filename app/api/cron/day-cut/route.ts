@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   const now = new Date().toISOString();
   const { data: rooms } = await supabaseAdmin
     .from('chat_settings')
-    .select('chat_id, room_name, fixed_rate, day_cut_at');
+    .select('chat_id, room_name, sell_rate, day_cut_at');
 
   let posted = 0;
   for (const room of rooms ?? []) {
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
           totalThb: ledger.totalThb,
           totalIncomingUsdt: ledger.totalIncomingUsdt,
           totalOutgoingUsdt: ledger.totalOutgoingUsdt,
-          fixedRate: (room as any).fixed_rate ? Number((room as any).fixed_rate) : null,
+          fixedRate: (room as any).sell_rate ? Number((room as any).sell_rate) : null,
           feePercent: 0,
           netProfitThb: ledger.netProfitThb,
           lastAdminName: ledger.lastAdminName,
