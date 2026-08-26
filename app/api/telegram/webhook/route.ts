@@ -480,6 +480,7 @@ async function handleUpdate(update: any): Promise<void> {
         thbAmount: session?.ocr_thb ?? null,
         bank: session?.slip_bank ?? null,
         receiverLast4: session?.slip_last4 ?? null,
+        senderLast4: null,
         receiverName: session?.slip_receiver_name ?? null,
         senderName: null,
         date: session?.slip_date ?? null,
