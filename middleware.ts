@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { SESSION_COOKIE, verifySessionToken, isAuthConfigured } from '@/lib/dashboardAuth';
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/api/admin/:path*'],
+  matcher: ['/dashboard/:path*', '/api/dashboard/:path*', '/api/admin/:path*'],
 };
 
 export async function middleware(req: NextRequest) {
