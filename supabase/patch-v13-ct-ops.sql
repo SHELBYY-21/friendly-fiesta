@@ -35,4 +35,5 @@ create index if not exists idx_pending_slips_ledger on public.pending_slips (led
 
 alter table public.pending_slips enable row level security;
 drop policy if exists pending_slips_service on public.pending_slips;
-create policy pending_slips_service on public.pending_slips for all to public using (true) with check (true);
+revoke all on table public.pending_slips from public, anon, authenticated;
+grant all on table public.pending_slips to service_role;
