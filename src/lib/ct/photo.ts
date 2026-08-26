@@ -38,15 +38,11 @@ async function rejectDuplicate(
     findPendingByFingerprint(fingerprint),
   ]);
   if (ledger) {
-    await sendMessage(chatId, {
-      text: `สลิปนี้ถูกบันทึกแล้ว${ledger.ledgerRef ? ` — <code>${ledger.ledgerRef}</code>` : ''}`,
-    });
+    await sendMessage(chatId, C.cardDuplicate(ledger.ledgerRef));
     return true;
   }
   if (pending) {
-    await sendMessage(chatId, {
-      text: `◈  <b>CT</b>\n<i>[ คิว ]</i>\n\nสลิปใบนี้มีในคิวแล้ว\n<code>${pending.ledger_ref}</code>\nใช้ปุ่มบนการ์ดเดิม`,
-    });
+    await sendMessage(chatId, C.cardAlreadyQueued(pending.ledger_ref));
     return true;
   }
   return false;
@@ -97,18 +93,13 @@ export async function handleCtPhoto(opts: {
 
   const { cardId, url, slip } = read;
   const ai = new AiTransition(chatId, cardId);
-  await ai.step('init');
   await ai.step('ocr');
 
   const matchedPin = matchPinnedBank(slip.bank, slip.receiverLast4, pins);
   const pinMatch = Boolean(matchedPin);
   const thb = slip.thbAmount && slip.thbAmount > 0 ? slip.thbAmount : null;
   const last4Early = slip.receiverLast4 ?? accountLast4(matchedPin?.account_number);
-  await ai.step('extract', { thb });
-  await ai.step('match', {
-    bank: slip.bank ?? todayPin?.bank_name,
-    last4: last4Early,
-  });
+  await ai.step('match', { bank: slip.bank ?? todayPin?.bank_name, last4: last4Early, thb });
   const gate = gateOcr({
     thb,
     confidence: slip.confidence,
@@ -116,9 +107,7 @@ export async function handleCtPhoto(opts: {
     hasCurrency: thb != null,
   });
   const usdtDue = thb && rates.desk ? shouldSend(thb, rates.desk) : null;
-  await ai.step('security');
-  await ai.step('calc', { thb, usdt: usdtDue });
-  await ai.step('ledger');
+  await ai.step('calc', { thb, usdt: usdtDue, bank: slip.bank ?? todayPin?.bank_name, last4: last4Early });
 
   const pending = await insertPending({
     chat_id: chatId,
