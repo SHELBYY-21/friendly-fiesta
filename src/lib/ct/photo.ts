@@ -1,5 +1,5 @@
-import { sendMessage, editMessage, uploadSlipFromTelegram, getChatPinnedText } from '../telegram';
-import { analyzeSlip } from '../ocr';
+import { sendMessage, editMessage, downloadTelegramFile, uploadSlipBuffer, getChatPinnedText } from '../telegram';
+import { analyzeSlipFast } from '../ocr';
 import { listPinnedBanks, matchPinnedBank, accountLast4, pinBankAccount } from '../banks';
 import { findSlipByFingerprint } from '../transactions';
 import { findReceiversByLast4 } from '../receivers';
@@ -8,13 +8,11 @@ import { parseDeskPin } from '../../bot/parse';
 import { gateOcr } from './gate';
 import { opsRates } from './rates';
 import { insertPending, findPendingByFingerprint } from './store';
-import { shouldSend, maskAcct } from './format';
+import { shouldSend, maskAcct, clockBkk } from './format';
 import { canAutoQueue, commitIncomingLock, dueSummary } from './queue';
 import * as C from './copy';
 import type { Admin } from '@/types/transactions';
 import type { PinnedBank } from '../banks';
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function ensureTodayPins(chatId: number): Promise<PinnedBank[]> {
   const existing = await listPinnedBanks(chatId);
@@ -39,14 +37,19 @@ export async function handleCtPhoto(opts: {
 }): Promise<void> {
   const { chatId, userId, admin, fileId, fileUniqueId } = opts;
   const fingerprint = slipFingerprint(fileUniqueId);
-  const dup = await findSlipByFingerprint(fingerprint);
+
+  const [dup, queued, pinned, rates] = await Promise.all([
+    findSlipByFingerprint(fingerprint),
+    findPendingByFingerprint(fingerprint),
+    ensureTodayPins(chatId),
+    opsRates(chatId),
+  ]);
   if (dup) {
     await sendMessage(chatId, {
       text: `สลิปนี้ถูกบันทึกแล้ว${dup.ledgerRef ? ` — <code>${dup.ledgerRef}</code>` : ''}`,
     });
     return;
   }
-  const queued = await findPendingByFingerprint(fingerprint);
   if (queued) {
     await sendMessage(chatId, {
       text: `◈  <b>CT</b>\n<i>[ คิว ]</i>\n\nสลิปใบนี้มีในคิวแล้ว\n<code>${queued.ledger_ref}</code>\nใช้ปุ่มบนการ์ดเดิม`,
@@ -54,30 +57,37 @@ export async function handleCtPhoto(opts: {
     return;
   }
 
-  const pinned = await ensureTodayPins(chatId);
   const pin0 = pinned[0];
-  const scanId = await sendMessage(
+  const scanP = sendMessage(
     chatId,
     C.skeletonScan(pin0?.bank_name ?? 'ยังไม่หมุด', accountLast4(pin0?.account_number) ?? '----'),
   );
-  await sleep(350);
 
   let imgUrl: string;
-  let slip: Awaited<ReturnType<typeof analyzeSlip>>;
+  let slip: Awaited<ReturnType<typeof analyzeSlipFast>>['slip'];
+  let scanId: number;
   try {
-    imgUrl = await uploadSlipFromTelegram(fileId);
-    slip = await analyzeSlip(imgUrl);
+    const buffer = await downloadTelegramFile(fileId);
+    const dataUrl = `data:image/jpeg;base64,${buffer.toString('base64')}`;
+    const publicUrlP = uploadSlipBuffer(buffer, fileId);
+    const [scan, analyzed] = await Promise.all([
+      scanP,
+      analyzeSlipFast(dataUrl, publicUrlP),
+    ]);
+    scanId = scan;
+    imgUrl = analyzed.url;
+    slip = analyzed.slip;
   } catch (e: any) {
-    await editMessage(chatId, scanId, {
-      text: `อ่านสลิปไม่สำเร็จ — ${e?.message ?? 'ลองส่งใหม่'}`,
-    });
+    scanId = await scanP.catch(() => 0);
+    if (scanId) {
+      await editMessage(chatId, scanId, {
+        text: `อ่านสลิปไม่สำเร็จ — ${e?.message ?? 'ลองส่งใหม่'}`,
+      });
+    }
     return;
   }
 
-  await editMessage(chatId, scanId, C.skeletonRead());
-  await sleep(300);
-
-  const rates = await opsRates(chatId);
+  editMessage(chatId, scanId, C.skeletonRead()).catch(() => undefined);
   const bank = matchPinnedBank(slip.bank, slip.receiverLast4, pinned);
   const pinMatch = Boolean(bank);
   const thb = slip.thbAmount && slip.thbAmount > 0 ? slip.thbAmount : null;
@@ -115,7 +125,6 @@ export async function handleCtPhoto(opts: {
   });
 
   const last4 = slip.receiverLast4 ?? accountLast4(bank?.account_number);
-  const known = last4 ? await findReceiversByLast4(last4) : [];
 
   if (canAutoQueue(gate, thb, rates.desk) && pinMatch) {
     try {
@@ -130,7 +139,7 @@ export async function handleCtPhoto(opts: {
         mkt: locked.mkt_rate,
         ledger: locked.ledger_ref,
         adminName: admin.name,
-        time: new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', hour12: false }),
+        time: clockBkk(),
         short: locked.short_ref,
         canUndo: true,
         queued: true,
@@ -144,6 +153,8 @@ export async function handleCtPhoto(opts: {
       /* fall through to review card */
     }
   }
+
+  const known = last4 ? await findReceiversByLast4(last4) : [];
 
   const card = renderGateCard(pending, {
     gate,

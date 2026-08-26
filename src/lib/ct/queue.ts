@@ -46,16 +46,17 @@ export async function commitIncomingLock(
   if (p.status === 'LOCKED' || p.status === 'SETTLED') return p;
   if (!opts.force && !p.pin_match) throw new Error('PIN_MISMATCH');
   if (p.thb_in == null || p.thb_in <= 0) throw new Error('NO_AMOUNT');
-  const room = await getRoom(opts.chatId);
-  const rates = await opsRates(opts.chatId);
-  const desk = p.desk_rate || rates.desk;
+  const desk = p.desk_rate && p.desk_rate > 0
+    ? p.desk_rate
+    : (await opsRates(opts.chatId)).desk;
   const owed = shouldSend(p.thb_in, desk);
+  const room = await getRoom(opts.chatId);
   const r = await recordIncoming({
     adminTelegramId: opts.userId,
     chatId: opts.chatId,
     thb: p.thb_in,
     sellRate: desk,
-    marketRate: p.mkt_rate || rates.mkt || desk,
+    marketRate: p.mkt_rate || desk,
     roomName: room.name,
     ledgerRef: p.ledger_ref,
     ocrConfidence: p.ocr_confidence,

@@ -31,9 +31,14 @@ async function fetchBitkub(): Promise<number | null> {
 
 /** Bitkub USDT_THB last, then Binance TH USDTTHB. Never env. Never desk rate. */
 export async function fetchMktRate(): Promise<number | null> {
-  if (mktCache && Date.now() - mktCache.at < 25_000) return mktCache.rate;
-  const [bitkub, binance] = await Promise.all([fetchBitkub(), fetchBinanceThUsdtRate()]);
-  const rate = bitkub ?? binance ?? mktCache?.rate ?? null;
+  if (mktCache && Date.now() - mktCache.at < 60_000) return mktCache.rate;
+  const bitkub = await fetchBitkub();
+  if (bitkub) {
+    mktCache = { rate: bitkub, at: Date.now() };
+    return bitkub;
+  }
+  const binance = await fetchBinanceThUsdtRate();
+  const rate = binance ?? mktCache?.rate ?? null;
   if (rate) mktCache = { rate, at: Date.now() };
   return rate;
 }

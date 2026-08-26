@@ -101,6 +101,11 @@ export async function sendSticker(chatId: number, fileId: string): Promise<void>
 
 /** ดาวน์โหลดรูปจาก Telegram แล้วอัปโหลดขึ้น Supabase Storage → คืน public URL */
 export async function uploadSlipFromTelegram(fileId: string): Promise<string> {
+  const buffer = await downloadTelegramFile(fileId);
+  return uploadSlipBuffer(buffer, fileId);
+}
+
+export async function downloadTelegramFile(fileId: string): Promise<Buffer> {
   const file = await tg<{ file_path: string }>('getFile', { file_id: fileId });
   const fileRes = await fetch(`https://api.telegram.org/file/bot${TOKEN}/${file.file_path}`);
   if (!fileRes.ok) throw new Error(`TELEGRAM_FILE_DOWNLOAD_FAILED: HTTP ${fileRes.status}`);
@@ -108,7 +113,10 @@ export async function uploadSlipFromTelegram(fileId: string): Promise<string> {
   if (contentLength > 15 * 1024 * 1024) throw new Error('SLIP_FILE_TOO_LARGE');
   const buffer = Buffer.from(await fileRes.arrayBuffer());
   if (buffer.length === 0 || buffer.length > 15 * 1024 * 1024) throw new Error('INVALID_SLIP_FILE');
+  return buffer;
+}
 
+export async function uploadSlipBuffer(buffer: Buffer, fileId: string): Promise<string> {
   const fileKey = createHash('sha256').update(fileId).digest('hex').slice(0, 20);
   const path = `slips/${Date.now()}_${fileKey}_${randomUUID()}.jpg`;
   const { error } = await supabaseAdmin.storage.from(BUCKET).upload(path, buffer, {
@@ -116,7 +124,6 @@ export async function uploadSlipFromTelegram(fileId: string): Promise<string> {
     upsert: true,
   });
   if (error) throw error;
-
   return supabaseAdmin.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
