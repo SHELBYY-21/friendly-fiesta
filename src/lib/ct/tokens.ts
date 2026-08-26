@@ -1,11 +1,11 @@
-/** CT terminal visual tokens. No colorful public emoji. */
+/** CT terminal visual tokens. */
 
-export const MARK = '◈';
-export const NODE = '⬢';
-export const RAIL = '┃';
-export const RULE = '━━━━━━━━';
-export const DOT_ON = '●';
-export const DOT_OFF = '○';
+export const MARK = '\u25C8';
+export const NODE = '\u2B22';
+export const RAIL = '\u2503';
+export const RULE = '\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501';
+export const DOT_ON = '\u25CF';
+export const DOT_OFF = '\u25CB';
 
 export const STEPS = ['อ่าน (OCR)', 'เทียบ (MATCH)', 'ตรวจ (IN)', 'รอโอน (WAIT)', 'เสร็จ (DONE)'] as const;
 export type FlowStep = 'scan' | 'match' | 'in' | 'wait' | 'done';
@@ -20,21 +20,21 @@ const STEP_INDEX: Record<FlowStep, number> = {
 
 const STATUS_EN: Record<string, string> = {
   AGENT: 'AGENT',
-  สรุปยอด: 'VAULT',
-  เงินเข้า: 'IN',
-  รอโอน: 'WAIT',
-  รอรวมยอด: 'QUEUE',
-  โอนแล้ว: 'SETTLED',
-  แจ้งเตือน: 'ALERT',
-  ตั้งค่า: 'SETUP',
-  บัญชีรับ: 'PIN',
-  อัตราแลกเปลี่ยน: 'RATE',
-  รายการ: 'SLIP',
+  'สรุปยอด': 'VAULT',
+  'เงินเข้า': 'IN',
+  'รอโอน': 'WAIT',
+  'รอรวมยอด': 'QUEUE',
+  'โอนแล้ว': 'SETTLED',
+  'แจ้งเตือน': 'ALERT',
+  'ตั้งค่า': 'SETUP',
+  'บัญชีรับ': 'PIN',
+  'อัตราแลกเปลี่ยน': 'RATE',
+  'รายการ': 'SLIP',
 };
 
 export function progress(step: FlowStep): string {
   const idx = STEP_INDEX[step];
-  const dots = STEPS.map((_, i) => (i <= idx ? DOT_ON : DOT_OFF)).join('──');
+  const dots = STEPS.map((_, i) => (i <= idx ? DOT_ON : DOT_OFF)).join('\u2500\u2500');
   const labels = STEPS.map((s, i) => (i === idx ? `<b>${s}</b>` : s)).join('  ');
   return `${dots}\n${RAIL} ${labels}`;
 }
@@ -60,5 +60,5 @@ export function quote(text: string, expandable = true): string {
 }
 
 export function kv(th: string, en: string, value: string): string {
-  return `${th} (${en})    ${value}`;
+  return `${th}  <i>${en}</i>\n${value}`;
 }
