@@ -35,7 +35,10 @@
 @layer base {
   html { color-scheme: dark; }
   body {
-    background: var(--bg);
+    background:
+      radial-gradient(920px 420px at 50% -12%, rgba(77, 232, 212, 0.11), transparent 58%),
+      radial-gradient(640px 360px at 100% 0%, rgba(232, 199, 106, 0.08), transparent 52%),
+      var(--bg);
     color: var(--fg);
     font-family: var(--font-sans-next), var(--font-thai-next), system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -64,6 +67,16 @@
     background: color-mix(in srgb, var(--bg) 55%, transparent);
     backdrop-filter: saturate(180%) blur(18px);
     border-bottom: 1px solid color-mix(in srgb, var(--gold) 22%, var(--line));
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  }
+  .agent-rail {
+    height: 1px;
+    background: linear-gradient(90deg, transparent 4%, var(--gold) 38%, var(--cyan) 72%, transparent 96%);
+    opacity: 0.55;
+  }
+  .mark-glow {
+    color: var(--gold);
+    text-shadow: 0 0 16px rgba(232, 199, 106, 0.55);
   }
   @media (min-width: 768px) {
     .nav { min-height: calc(64px + env(safe-area-inset-top, 0px)); padding: calc(env(safe-area-inset-top, 0px) + 10px) 40px 10px; }
@@ -103,8 +116,11 @@
 
   .glass {
     border-radius: var(--radius-lg);
-    background: var(--panel);
-    box-shadow: inset 0 0 0 1px var(--line);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.016));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      inset 0 0 0 1px var(--line),
+      0 0 48px rgba(77, 232, 212, 0.045);
     padding: 20px;
   }
   .glass-hover:hover {
@@ -280,7 +296,10 @@
   .pill-live {
     color: var(--cyan);
     background: var(--cyan-dim);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cyan) 45%, transparent);
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--cyan) 45%, transparent),
+      0 0 14px rgba(77, 232, 212, 0.28);
+    animation: live-pulse 2.4s ease-in-out infinite;
   }
 
   .skel {
@@ -311,6 +330,11 @@
 @keyframes flash {
   from { background: color-mix(in srgb, var(--gold) 16%, transparent); }
   to { background: transparent; }
+}
+
+@keyframes live-pulse {
+  0%, 100% { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cyan) 45%, transparent), 0 0 10px rgba(77, 232, 212, 0.18); }
+  50% { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cyan) 70%, transparent), 0 0 18px rgba(77, 232, 212, 0.4); }
 }
 
 @keyframes num-swap {

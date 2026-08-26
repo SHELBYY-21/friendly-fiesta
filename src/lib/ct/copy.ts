@@ -12,21 +12,24 @@ function head(status: string, meta: string): string {
 }
 
 function tape(step: 'scan' | 'in' | 'wait' | 'sent' | 'done'): string {
-  const order = ['อ่านสลิป', 'ตรวจยอด', 'รอโอน', 'ส่งแล้ว', 'เสร็จ'] as const;
+  const order = ['อ่านสลิป', 'เทียบบัญชีรับ', 'ตรวจยอด', 'รอโอน', 'เสร็จ'] as const;
   const on =
     step === 'scan' ? 'อ่านสลิป' :
     step === 'in' ? 'ตรวจยอด' :
     step === 'wait' ? 'รอโอน' :
-    step === 'sent' ? 'ส่งแล้ว' : 'เสร็จ';
-  return order.map((s) => (s === on ? `<b>${s}</b>` : s)).join('  ');
+    step === 'sent' ? 'รอโอน' : 'เสร็จ';
+  if (step === 'scan') {
+    return order.map((s) => (s === 'อ่านสลิป' || s === 'เทียบบัญชีรับ' ? `<b>${s}</b>` : s)).join('  →  ');
+  }
+  return order.map((s) => (s === on ? `<b>${s}</b>` : s)).join('  →  ');
 }
 
 export function skeletonScan(bank: string, last4: string): OutgoingMessage {
-  return msg(`${head('กำลังอ่าน', 'กรุณารอสักครู่')}\n${tape('scan')}\n${esc(bank)}  ${esc(maskAcct(last4))}`);
+  return msg(`${head('AGENT', 'กำลังอ่านสลิป')}\n${tape('scan')}\n${esc(bank)}  ${esc(maskAcct(last4))}`);
 }
 
 export function skeletonRead(): OutgoingMessage {
-  return msg(head('กำลังอ่าน', 'กำลังเทียบกับบัญชีรับวันนี้'));
+  return msg(`${head('AGENT', 'เทียบบัญชีรับบนสลิปกับหมุดของเรา')}\n${tape('scan')}`);
 }
 
 export function skeletonVault(): OutgoingMessage {

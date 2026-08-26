@@ -173,10 +173,10 @@ export default function VaultDesk() {
     <div className="min-h-screen">
       <header className="nav dense-nav">
         <div className="flex min-w-0 items-center gap-3">
-          <span className="text-gold">◈</span>
+          <span className="mark-glow">◈</span>
           <span className="text-xs tracking-[0.18em]">CT</span>
           <span className={`pill hidden sm:inline-flex ${live ? 'pill-live' : 'pill-wait'}`}>
-            {live ? 'live' : 'poll'}
+            {live ? 'live' : 'agent'}
           </span>
           <span className="hidden text-xs text-faint sm:inline">
             {v ? `${v.dateLabel} ${v.clock}` : '—'}
@@ -196,6 +196,7 @@ export default function VaultDesk() {
           </form>
         </div>
       </header>
+      <div className="agent-rail" />
 
       <div className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <SummaryToday
