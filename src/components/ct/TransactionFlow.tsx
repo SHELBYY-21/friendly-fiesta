@@ -1,109 +1,83 @@
 type TapeRow = {
   id: string;
-  ledger: string | null;
   short: string;
   thb: number | null;
-  dueUsdt: number | null;
-  sentUsdt: number | null;
-  createdAt: string | null;
-  dateStamp: string;
+  expectedUsdt?: number | null;
+  sentUsdt?: number | null;
+  dueUsdt?: number | null;
+  usdt?: number | null;
   time: string;
   pending: boolean;
-  status: 'WAIT' | 'DONE';
-  bank: string | null;
-  last4: string | null;
-  name?: string | null;
+  status: string;
 };
 
-function dash(n: number | null | undefined, d = 0) {
-  if (n == null || !Number.isFinite(Number(n))) return '—';
-  return Number(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+function n(v: number | null | undefined, d = 0) {
+  if (v == null || !Number.isFinite(Number(v))) return '\u2014';
+  return Number(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 
-function Rail() {
-  return (
-    <div className="flex items-center gap-2 py-1 pl-1 text-faint" aria-hidden>
-      <span>↓</span>
-      <span className="h-px flex-1 bg-[var(--line)]" />
-    </div>
-  );
-}
-
-export function TransactionFlowCard({ row, flash }: { row: TapeRow; flash?: boolean }) {
-  const done = row.status === 'DONE';
-  return (
-    <article className={`glass accent-top p-5 ${flash ? 'flash' : ''}`}>
-      <p className="mb-3 font-mono text-xs text-gold">{row.short || '—'}</p>
-      <div>
-        <p className="text-[10px] uppercase tracking-[0.14em] text-faint">TIME</p>
-        <p className="font-mono text-sm">
-          {row.dateStamp && row.time !== '—' ? `${row.dateStamp} • ${row.time}` : '—'}
-        </p>
-        <Rail />
-        <p className="text-[10px] uppercase tracking-[0.14em] text-faint">IN</p>
-        <p className="font-mono text-lg">{row.thb == null ? '—' : `${dash(row.thb)} THB`}</p>
-        <Rail />
-        <p className="text-[10px] uppercase tracking-[0.14em] text-faint">DUE</p>
-        <p className="font-mono text-lg text-gold">{row.dueUsdt == null ? '—' : `${dash(row.dueUsdt, 2)} USDT`}</p>
-        {done && (
-          <>
-            <Rail />
-            <p className="text-[10px] uppercase tracking-[0.14em] text-faint">SENT</p>
-            <p className="font-mono text-lg">{row.sentUsdt == null ? '—' : `${dash(row.sentUsdt, 2)} USDT`}</p>
-          </>
-        )}
-        <Rail />
-        <span className={`pill ${done ? 'pill-done' : 'pill-wait'}`}>{done ? 'DONE' : 'WAITING'}</span>
-      </div>
-    </article>
-  );
-}
-
-export function VaultHistoryTable({
+export function QueueTape({
   rows,
   dateLabel,
   clock,
+  waiting,
+  sent,
+  due,
   flash,
 }: {
   rows: TapeRow[];
   dateLabel: string;
   clock: string;
+  waiting: number;
+  sent: number;
+  due: number;
   flash: Set<string>;
 }) {
   return (
-    <section className="px-4 pb-8">
-      <div className="mb-3 flex items-baseline justify-between gap-3">
-        <p className="text-xs tracking-[0.16em]">◈ CT &nbsp;|&nbsp; VAULT HISTORY</p>
-        <p className="font-mono text-xs text-faint">{dateLabel} &nbsp;•&nbsp; {clock}</p>
+    <section className="px-4 pb-10">
+      <div className="mb-3 flex items-baseline justify-between">
+        <p className="text-xs tracking-[0.16em]">\u25c8 CT &nbsp;|&nbsp; {dateLabel}</p>
+        <p className="font-mono text-xs text-faint">{clock}</p>
       </div>
+      <p className="mb-2 text-[10px] uppercase tracking-[0.18em] text-faint">QUEUE</p>
+      <div className="mb-3 h-px bg-[var(--line)]" />
       <table className="tape">
         <thead>
           <tr>
-            <th>เวลา</th>
-            <th className="num">ฝากเข้า</th>
-            <th className="num">ต้องส่ง U</th>
-            <th className="num">ส่งจริง</th>
-            <th>สถานะ</th>
+            <th>\u0e40\u0e27\u0e25\u0e32</th>
+            <th className="num">THB</th>
+            <th className="num">USDT</th>
+            <th>REF</th>
+            <th>STATUS</th>
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 ? (
-            <tr><td colSpan={5} className="px-4 py-8 text-muted">วันนี้ยังไม่มีสลิป</td></tr>
+            <tr><td colSpan={5} className="px-4 py-8 text-muted">\u0e04\u0e34\u0e27\u0e27\u0e48\u0e32\u0e07</td></tr>
           ) : rows.map((row) => (
             <tr key={row.id} className={flash.has(row.id) ? 'flash' : undefined}>
-              <td>{row.time || '—'}</td>
-              <td className="num">{row.thb == null ? '—' : `${dash(row.thb)} THB`}</td>
-              <td className="num">{row.dueUsdt == null ? '—' : `${dash(row.dueUsdt, 2)} U`}</td>
-              <td className="num">{row.sentUsdt == null ? '—' : `${dash(row.sentUsdt, 2)} U`}</td>
+              <td>{row.time || '\u2014'}</td>
+              <td className="num">{row.thb == null ? '\u2014' : n(row.thb)}</td>
+              <td className="num">{n(row.expectedUsdt ?? row.usdt, 2)}</td>
+              <td className="font-mono text-gold">{row.short || '\u2014'}</td>
               <td>
-                <span className={`pill ${row.status === 'DONE' ? 'pill-done' : 'pill-wait'}`}>
-                  {row.status === 'DONE' ? 'DONE' : 'WAIT'}
+                <span className={`pill ${row.status === 'DONE' ? 'pill-done' : row.status === 'ERR' ? 'pill-live' : 'pill-wait'}`}>
+                  {row.status}
                 </span>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
+      <div className="mt-3 h-px bg-[var(--line)]" />
+      <dl className="mt-3 grid max-w-xs grid-cols-[7rem_1fr] gap-y-1 font-mono text-sm">
+        <dt className="text-faint">WAITING</dt>
+        <dd className="text-right">{n(waiting, 2)} U</dd>
+        <dt className="text-faint">SENT</dt>
+        <dd className="text-right">{n(sent, 2)} U</dd>
+        <dt className="text-gold">DUE</dt>
+        <dd className="text-right text-gold">{n(due, 2)} U</dd>
+      </dl>
     </section>
   );
 }

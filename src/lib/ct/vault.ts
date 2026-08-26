@@ -3,6 +3,7 @@ import { opsRates } from './rates';
 import { bannerDate, clockBkk, shortOf, ymdBkk } from './format';
 import { vaultBanner, cardRecent, type VaultRow } from './copy';
 import type { OutgoingMessage } from '../telegram';
+import { dueUsdt as calcDue, stateFromSlip, statusChip } from './state';
 
 function midnightIso(): string {
   const now = new Date();
@@ -92,7 +93,6 @@ export async function loadVault(chatId?: number | null, mode: 'today' | 'pending
   const pendingUsdt = Math.max(0, Math.round((owed - outUsdt) * 100) / 100);
   const coinDelta = Math.round((outUsdt - owed) * 100) / 100;
   const pendingShorts = inRows.filter((r) => r.pending).map((r) => r.short);
-
   const viewRows = mode === 'pending' ? inRows.filter((r) => r.pending) : inRows;
 
   return {
@@ -115,22 +115,24 @@ export async function loadVault(chatId?: number | null, mode: 'today' | 'pending
     ymd: ymdBkk(),
     tape: (ins ?? []).map((r) => {
       const out = outByRef.get(String(r.ledger_ref || ''));
-      const dueUsdt = numOrNull(r.usdt_amount);
+      const expectedUsdt = numOrNull(r.usdt_amount);
       const sentUsdt = out ? out.usdt : null;
-      const done = Boolean(out);
+      const state = stateFromSlip({ slipStatus: r.status, expectedUsdt, sentUsdt });
       return {
         id: r.id,
         ledger: r.ledger_ref ?? null,
         short: shortOf(String(r.ledger_ref || '----')),
         thb: numOrNull(r.thb_amount),
-        usdt: dueUsdt ?? 0,
-        dueUsdt,
+        usdt: expectedUsdt ?? 0,
+        expectedUsdt,
+        dueUsdt: calcDue(expectedUsdt, sentUsdt),
         sentUsdt,
         createdAt: r.created_at ?? null,
-        dateStamp: r.created_at ? fmtDate(r.created_at) : '—',
-        time: r.created_at ? fmtTime(r.created_at) : '—',
-        pending: !done,
-        status: done ? 'DONE' as const : 'WAIT' as const,
+        dateStamp: r.created_at ? fmtDate(r.created_at) : '\u2014',
+        time: r.created_at ? fmtTime(r.created_at) : '\u2014',
+        pending: state !== 'DONE',
+        status: statusChip(state),
+        state,
         bank: r.receiver_bank ?? null,
         name: r.receiver_name ?? null,
         last4: r.receiver_last4 ?? null,
