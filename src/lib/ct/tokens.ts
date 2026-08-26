@@ -7,7 +7,7 @@ export const RULE = '━━━━━━━━';
 export const DOT_ON = '●';
 export const DOT_OFF = '○';
 
-export const STEPS = ['อ่าน', 'เทียบ', 'ตรวจ', 'รอโอน', 'เสร็จ'] as const;
+export const STEPS = ['อ่าน (OCR)', 'เทียบ (MATCH)', 'ตรวจ (IN)', 'รอโอน (WAIT)', 'เสร็จ (DONE)'] as const;
 export type FlowStep = 'scan' | 'match' | 'in' | 'wait' | 'done';
 
 const STEP_INDEX: Record<FlowStep, number> = {
@@ -18,6 +18,20 @@ const STEP_INDEX: Record<FlowStep, number> = {
   done: 4,
 };
 
+const STATUS_EN: Record<string, string> = {
+  AGENT: 'AGENT',
+  สรุปยอด: 'VAULT',
+  เงินเข้า: 'IN',
+  รอโอน: 'WAIT',
+  รอรวมยอด: 'QUEUE',
+  โอนแล้ว: 'SETTLED',
+  แจ้งเตือน: 'ALERT',
+  ตั้งค่า: 'SETUP',
+  บัญชีรับ: 'PIN',
+  อัตราแลกเปลี่ยน: 'RATE',
+  รายการ: 'SLIP',
+};
+
 export function progress(step: FlowStep): string {
   const idx = STEP_INDEX[step];
   const dots = STEPS.map((_, i) => (i <= idx ? DOT_ON : DOT_OFF)).join('──');
@@ -26,7 +40,9 @@ export function progress(step: FlowStep): string {
 }
 
 export function head(status: string, meta: string): string {
-  return `${MARK}  <b>CT</b>\n<i>[ ${status} ]  ${meta}</i>`;
+  const en = STATUS_EN[status];
+  const chip = en && !status.includes('(') ? `${status} (${en})` : status;
+  return `${MARK}  <b>CT</b>\n<i>[ ${chip} ]  ${meta}</i>`;
 }
 
 export function rule(): string {
@@ -41,4 +57,8 @@ export function quote(text: string, expandable = true): string {
   return expandable
     ? `<blockquote expandable>${text}</blockquote>`
     : `<blockquote>${text}</blockquote>`;
+}
+
+export function kv(th: string, en: string, value: string): string {
+  return `${th} (${en})    ${value}`;
 }

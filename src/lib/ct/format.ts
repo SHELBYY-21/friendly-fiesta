@@ -89,10 +89,15 @@ export function quoteBlock(d: { thb: number; usdt: number; desk: number; mkt: nu
   const pnl = p == null ? '—' : `${p >= 0 ? '+' : ''}${thbInt(p)}`;
   return quote(
     [
+      `ยอดเข้า (IN)`,
       `<b>${thbCard(d.thb)}</b> THB`,
+      '',
+      `ต้องส่ง (DUE)`,
       `due  <b>${usdt(d.usdt)}</b> USDT`,
-      `ส่วนต่าง  <b>${pnl}</b>`,
-      `DESK <code>${rateCode(d.desk)}</code>  MKT <code>${rateCode(d.mkt)}</code>`,
+      '',
+      `ส่วนต่าง (PNL)  <b>${pnl}</b>`,
+      `DESK (โต๊ะ) <code>${rateCode(d.desk)}</code>`,
+      `MKT (ตลาด)  <code>${rateCode(d.mkt)}</code>`,
     ].join('\n'),
   );
 }

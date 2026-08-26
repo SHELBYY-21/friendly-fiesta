@@ -119,6 +119,10 @@ def main() -> None:
     print(f"\ncheck  THB={thb}  recv={last4}  name={name}  conf={data.get('confidence')}")
     if not thb or not last4:
         raise SystemExit("fail: need thbAmount + receiverLast4")
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from preview_card import card
+    print()
+    print(card(data))
 
 
 if __name__ == "__main__":

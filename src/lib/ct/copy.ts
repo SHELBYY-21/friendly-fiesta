@@ -2,7 +2,7 @@ import type { OutgoingMessage } from '../telegram';
 import {
   esc, ik, btn, urlBtn, displayLedger, maskAcct, thbInt, thbCard, usdt, rateCode, quoteBlock, deskUrl,
 } from './format';
-import { head as tokenHead, progress, rule, NODE } from './tokens';
+import { head as tokenHead, progress, rule, NODE, kv } from './tokens';
 import type { FlowStep } from './tokens';
 
 function msg(text: string, keyboard?: unknown): OutgoingMessage {
@@ -18,19 +18,23 @@ function tape(step: FlowStep): string {
 }
 
 export function skeletonScan(bank: string, last4: string): OutgoingMessage {
-  return msg(`${head('AGENT', 'กำลังอ่านสลิป')}\n${tape('scan')}\n${esc(bank)}  ${esc(maskAcct(last4))}`);
+  return msg(
+    `${head('AGENT', 'กำลังอ่านสลิป (scan)')}\n${tape('scan')}\n${kv('ผู้รับ', 'PAYEE', `${esc(bank)}  ${esc(maskAcct(last4))}`)}`,
+  );
 }
 
 export function skeletonRead(): OutgoingMessage {
-  return msg(`${head('AGENT', 'เทียบบัญชีรับบนสลิปกับหมุดของเรา')}\n${tape('match')}`);
+  return msg(`${head('AGENT', 'เทียบบัญชีรับ (match)')}\n${tape('match')}`);
 }
 
 export function skeletonVault(): OutgoingMessage {
-  return msg(head('สรุปยอด', 'กำลังโหลด'));
+  return msg(head('สรุปยอด', 'กำลังโหลด (loading)'));
 }
 
 export function skeletonSettle(ledger: string, usdtAmt: number): OutgoingMessage {
-  return msg(`${head('โอนแล้ว', 'กำลังบันทึกยอดออก')}\n<code>${esc(displayLedger(ledger))}</code>\n${usdt(usdtAmt)} USDT`);
+  return msg(
+    `${head('โอนแล้ว', 'กำลังบันทึกยอดออก (settle)')}\n${kv('เลขที่', 'REF', `<code>${esc(displayLedger(ledger))}</code>`)}\n${kv('เงินออก', 'OUT', `${usdt(usdtAmt)} USDT`)}`,
+  );
 }
 
 export function welcome(name: string): OutgoingMessage {
@@ -72,11 +76,11 @@ export function settingsCard(d: {
     [
       head('ตั้งค่า', 'ห้องนี้'),
       '',
-      `อัตราห้อง   <code>${rateCode(d.desk)}</code>`,
-      `ตลาด        <code>${rateCode(d.mkt)}</code>`,
+      `อัตราห้อง (DESK)   <code>${rateCode(d.desk)}</code>`,
+      `ตลาด (MKT)         <code>${rateCode(d.mkt)}</code>`,
       pinLine,
       '',
-      'ผู้ดูแลระบบ',
+      'ผู้ดูแล (ADMINS)',
       adminLine,
       '',
       'ตั้งอัตรา: กดปุ่มอัตรา แล้วพิมพ์ตัวเลขอย่างเดียว เช่น <code>36.70</code>',
@@ -135,8 +139,8 @@ export function cardInReady(d: {
     `<code>${esc(displayLedger(d.ledger))}</code>`,
     quoteBlock({ thb: d.thb, usdt: hasDesk ? d.shouldSend : 0, desk: d.desk, mkt: d.mkt ?? null }),
     '',
-    `${esc(d.bank)}  ${esc(maskAcct(d.last4))}`,
-    esc(d.name || '—'),
+    kv('ผู้รับ', 'PAYEE', `${esc(d.bank)}  ${esc(maskAcct(d.last4))}`),
+    kv('ชื่อ', 'NAME', esc(d.name || '—')),
   ];
   if (d.time) lines.push(esc(d.time));
   if (d.fresh) lines.push(`บัญชีใหม่  ${esc(d.bank)}  ${esc(maskAcct(d.last4))}`);
@@ -168,10 +172,10 @@ export function cardOcrWeak(d: {
   rows.push([btn('ลองใหม่', `slip:retry:${d.short}`), btn('ยกเลิก', `slip:cancel:${d.short}`, 'danger')]);
   return msg(
     [
-      head('แจ้งเตือน', `อ่านสลิปไม่ชัด  ความมั่นใจ ${Math.round(d.confidence)}%`),
+      head('แจ้งเตือน', `อ่านสลิปไม่ชัด (OCR weak)  ${Math.round(d.confidence)}%`),
       tape('scan'),
-      `${esc(d.bank)}  ${esc(maskAcct(d.last4))}`,
-      esc(d.name || '—'),
+      kv('ผู้รับ', 'PAYEE', `${esc(d.bank)}  ${esc(maskAcct(d.last4))}`),
+      kv('ชื่อ', 'NAME', esc(d.name || '—')),
       '',
       'กรุณายืนยันยอด เช่น <code>+500B</code>',
     ].join('\n'),
@@ -212,11 +216,11 @@ export function cardPinMismatch(d: {
   rows.push([btn('ยกเลิก', `slip:cancel:${d.short}`, 'danger')]);
   return msg(
     [
-      head('แจ้งเตือน', `บัญชีไม่ตรงกับบัญชีรับวันนี้  ความมั่นใจ ${Math.round(d.confidence)}%`),
+      head('แจ้งเตือน', `บัญชีไม่ตรง (mismatch)  ${Math.round(d.confidence)}%`),
       tape('match'),
-      `บัญชีรับบนสลิป  ${esc(d.slipBank)}  ${esc(maskAcct(d.slipLast4))}`,
-      d.name ? `ชื่อผู้รับบนสลิป  ${esc(d.name)}` : '',
-      `บัญชีรับของเรา   ${esc(d.pinBank)}  ${esc(maskAcct(d.pinLast4))}`,
+      kv('บนสลิป', 'SLIP', `${esc(d.slipBank)}  ${esc(maskAcct(d.slipLast4))}`),
+      d.name ? kv('ชื่อผู้รับ', 'NAME', esc(d.name)) : '',
+      kv('ของเรา', 'PIN', `${esc(d.pinBank)}  ${esc(maskAcct(d.pinLast4))}`),
     ].filter(Boolean).join('\n'),
     ik(rows),
   );
@@ -260,9 +264,9 @@ export function cardLocked(d: {
   const batchLines = d.batch && d.batch.count
     ? [
         '',
-        `คิววันนี้     ${d.batch.count} ใบ`,
-        `รวมเข้า      <b>${thbInt(d.batch.thb)} THB</b>`,
-        `ต้องโอนรวม   <b>${usdt(d.batch.usdt)} USDT</b>`,
+        `คิววันนี้ (QUEUE)     ${d.batch.count} ใบ`,
+        `รวมเข้า (IN)         <b>${thbInt(d.batch.thb)} THB</b>`,
+        `ต้องโอน (DUE)        <b>${usdt(d.batch.usdt)} USDT</b>`,
         d.batch.ready
           ? `เป้า ${thbInt(d.batch.target)}  ครบแล้ว กรุณากดบันทึกส่งรวม`
           : `เป้า ${thbInt(d.batch.target)}  เหลือ ${thbInt(d.batch.remain)} THB`,
@@ -276,8 +280,8 @@ export function cardLocked(d: {
       `<code>${esc(displayLedger(d.ledger))}</code>`,
       quoteBlock({ thb: d.thb, usdt: d.shouldSend, desk: d.desk, mkt: d.mkt ?? null }),
       '',
-      d.bank ? `${esc(d.bank)}  ${esc(maskAcct(d.last4))}` : '',
-      esc(d.name || d.adminName),
+      d.bank ? kv('ผู้รับ', 'PAYEE', `${esc(d.bank)}  ${esc(maskAcct(d.last4))}`) : '',
+      kv('ชื่อ', 'NAME', esc(d.name || d.adminName)),
       ...batchLines,
       '',
       d.queued
@@ -299,8 +303,8 @@ export function cardSettledBatch(d: {
       head('โอนแล้ว', `ส่งรวม ${d.count} ใบ`),
       tape('done'),
       '',
-      `เงินเข้า     <b>${thbInt(d.thb)} THB</b>`,
-      `เงินออก     <b>${usdt(d.usdt)} USDT</b>`,
+      `เงินเข้า (IN)      <b>${thbInt(d.thb)} THB</b>`,
+      `เงินออก (OUT)     <b>${usdt(d.usdt)} USDT</b>`,
       '',
       esc(d.adminName),
       'clear.',
@@ -333,9 +337,9 @@ export function cardSettled(d: {
     [
       head('โอนแล้ว', 'รายการเสร็จสมบูรณ์'),
       tape('done'),
-      `เงินเข้า     ${thbCard(d.thb)} THB`,
-      `เงินออก     <b>${usdt(d.usdtOut)} USDT</b>`,
-      `อัตราโต๊ะ   <code>${rateCode(d.desk)}</code>`,
+      `เงินเข้า (IN)      ${thbCard(d.thb)} THB`,
+      `เงินออก (OUT)     <b>${usdt(d.usdtOut)} USDT</b>`,
+      `อัตราโต๊ะ (DESK)  <code>${rateCode(d.desk)}</code>`,
       '',
       `<code>${esc(displayLedger(d.ledger))}</code>`,
       `${esc(d.adminName)}  ${esc(d.inTime)} → ${esc(d.outTime)}`,
@@ -372,13 +376,13 @@ export function cardDetail(d: {
     [
       head('รายการ', displayLedger(d.ledger)),
       '',
-      `เงินเข้า     ${thbCard(d.thb)} THB`,
-      `เงินออก     ${d.usdtOut != null ? `${usdt(d.usdtOut)} USDT` : '—'}`,
-      `อัตราโต๊ะ   <code>${rateCode(d.desk)}</code>   ตลาด <code>${rateCode(d.mkt)}</code>`,
-      `${esc(d.bank)}  ${esc(maskAcct(d.last4))}`,
-      esc(d.name || '—'),
-      `บัญชีรับ    ${d.pinMatch ? 'ตรงกัน' : 'ไม่ตรง'}`,
-      `ความมั่นใจ  ${d.confidence != null ? `${Math.round(d.confidence)}%` : '—'}`,
+      `เงินเข้า (IN)      ${thbCard(d.thb)} THB`,
+      `เงินออก (OUT)     ${d.usdtOut != null ? `${usdt(d.usdtOut)} USDT` : '—'}`,
+      `อัตราโต๊ะ (DESK)  <code>${rateCode(d.desk)}</code>   ตลาด (MKT) <code>${rateCode(d.mkt)}</code>`,
+      kv('ผู้รับ', 'PAYEE', `${esc(d.bank)}  ${esc(maskAcct(d.last4))}`),
+      kv('ชื่อ', 'NAME', esc(d.name || '—')),
+      `บัญชีรับ (PIN)    ${d.pinMatch ? 'ตรง (match)' : 'ไม่ตรง (mismatch)'}`,
+      `ความมั่นใจ (OCR)  ${d.confidence != null ? `${Math.round(d.confidence)}%` : '—'}`,
       esc(d.adminIn),
       `เวลาเข้า     ${esc(d.inTime)}`,
       `เวลาออก     ${d.outTime ? esc(d.outTime) : '—'}`,
@@ -429,7 +433,7 @@ export function vaultBanner(d: {
         const n = String(i + 1).padStart(2, '0');
         lines.push(`${n}     ${thbInt(r.thb ?? 0)} THB → ${usdt(r.usdt ?? 0)} U  <code>${esc(r.short)}</code>`);
       });
-      lines.push('', `ยอดที่ต้องใช้  <b>${usdt(d.pendingUsdt)} USDT</b>`);
+      lines.push('', `ยอดที่ต้องใช้ (DUE)  <b>${usdt(d.pendingUsdt)} USDT</b>`);
       lines.push('กดบันทึกส่งรวมเมื่อโอน USDT ก้อนเดียวครบคิว');
     }
     return msg(lines.join('\n'), vaultButtons(d.pendingShorts));
@@ -437,32 +441,32 @@ export function vaultBanner(d: {
 
   if (d.inCount === 0 && d.outCount === 0) {
     lines.push('วันนี้ยังไม่มีสลิปครับ');
-    lines.push('', `ยอดที่ต้องใช้  <b>0 USDT</b>`);
-    lines.push(`อัตราโต๊ะ   <code>${rateCode(d.desk)}</code>`);
-    lines.push(`ตลาด        <code>${rateCode(d.mkt)}</code>`);
+    lines.push('', `ยอดที่ต้องใช้ (DUE)  <b>0 USDT</b>`);
+    lines.push(`อัตราโต๊ะ (DESK)   <code>${rateCode(d.desk)}</code>`);
+    lines.push(`ตลาด (MKT)         <code>${rateCode(d.mkt)}</code>`);
     return msg(lines.join('\n'), vaultButtons(d.pendingShorts));
   }
 
-  lines.push(`${NODE}  เงินเข้า     <b>${thbInt(d.inThb)} THB</b>    ${d.inCount} รายการ`);
+  lines.push(`${NODE}  เงินเข้า (IN)     <b>${thbInt(d.inThb)} THB</b>    ${d.inCount}`);
   d.inRows.slice(0, 5).forEach((r, i) => {
     const n = String(i + 1).padStart(2, '0');
-    const flag = r.pending ? 'รอโอน' : 'เสร็จ';
+    const flag = r.pending ? 'รอโอน (wait)' : 'เสร็จ (done)';
     lines.push(`${n}     ${thbInt(r.thb ?? 0)}          ${esc(r.time)}  <code>${esc(r.short)}</code>   ${flag}`);
   });
   if (d.outCount > 0) {
-    lines.push('', `เงินออก     <b>${usdt(d.outUsdt)} USDT</b>   ${d.outCount} รายการ`);
+    lines.push('', `เงินออก (OUT)     <b>${usdt(d.outUsdt)} USDT</b>   ${d.outCount}`);
     d.outRows.slice(0, 5).forEach((r, i) => {
       const n = String(i + 1).padStart(2, '0');
       lines.push(`${n}     ${usdt(r.usdt ?? 0)}        ${esc(r.time)}  <code>${esc(r.short)}</code>`);
     });
   }
-  lines.push('', `ยอดที่ต้องใช้  <b>${usdt(d.pendingUsdt)} USDT</b>`);
+  lines.push('', `ยอดที่ต้องใช้ (DUE)  <b>${usdt(d.pendingUsdt)} USDT</b>`);
   if (d.pendingUsdt > 0) lines.push('กดบันทึกส่งรวมเมื่อโอน USDT ก้อนเดียวครบคิว');
-  lines.push(`อัตราโต๊ะ   <code>${rateCode(d.desk)}</code>`);
-  lines.push(`ตลาด        <code>${rateCode(d.mkt)}</code>`);
+  lines.push(`อัตราโต๊ะ (DESK)   <code>${rateCode(d.desk)}</code>`);
+  lines.push(`ตลาด (MKT)         <code>${rateCode(d.mkt)}</code>`);
   if (d.desk && d.mkt) {
     const p = Math.round(d.pendingUsdt * (d.desk - d.mkt));
-    lines.push(`ส่วนต่าง     <b>${p >= 0 ? '+' : ''}${thbInt(p)}</b>`);
+    lines.push(`ส่วนต่าง (PNL)     <b>${p >= 0 ? '+' : ''}${thbInt(p)}</b>`);
   }
   return msg(lines.join('\n'), vaultButtons(d.pendingShorts));
 }
@@ -538,8 +542,8 @@ export function deskRateSet(desk: number, mkt: number | null): OutgoingMessage {
     [
       head('อัตราแลกเปลี่ยน', 'บันทึกแล้ว'),
       '',
-      `อัตราโต๊ะ (Desk)   <code>${desk.toFixed(2)}</code>  บาท / USDT`,
-      `ตลาด              <code>${mkt && mkt > 0 ? mkt.toFixed(2) : '—'}</code>`,
+      `อัตราโต๊ะ (DESK)   <code>${desk.toFixed(2)}</code>  THB / USDT`,
+      `ตลาด (MKT)         <code>${mkt && mkt > 0 ? mkt.toFixed(2) : '—'}</code>`,
       'สลิปใบใหม่จะใช้อัตรานี้ ส่วนสลิปเก่าจะไม่ถูกนำมาคิดคำนวณ',
     ].join('\n'),
   );
