@@ -41,7 +41,7 @@ export function isCtCallback(data: string): boolean {
 }
 
 export const SLIP_ACTIONS = new Set([
-  'lock', 'force', 'forceask', 'settle', 'undo', 'delask', 'delete',
+  'lock', 'queue', 'force', 'forceask', 'settle', 'undo', 'delask', 'delete',
   'open', 'copy', 'hold', 'cancel', 'retry', 'edit', 'note', 'amt', 'unit',
 ]);
 
@@ -247,14 +247,17 @@ export async function handleCtCallback(opts: {
 
   switch (cb.action) {
     case 'lock':
-      await doLock(id, chatId, userId, admin, p, messageId, false);
+      await doLock(id, chatId, userId, admin, p, messageId, false, false);
+      return;
+    case 'queue':
+      await doLock(id, chatId, userId, admin, p, messageId, false, true);
       return;
     case 'force':
       if (!isLead(admin)) {
         await answerCallback(id, 'ใช้ได้เฉพาะหัวหน้าห้องครับ');
         return;
       }
-      await doLock(id, chatId, userId, admin, p, messageId, true);
+      await doLock(id, chatId, userId, admin, p, messageId, true, false);
       return;
     case 'forceask':
       if (!isLead(admin)) {
@@ -388,6 +391,7 @@ async function doLock(
   p: PendingSlip,
   messageId: number | undefined,
   force: boolean,
+  queued: boolean,
 ) {
   if (p.status === 'LOCKED' || p.status === 'SETTLED') {
     await answerCallback(cbId, `บันทึกแล้ว · ${p.short_ref}`);
@@ -430,8 +434,9 @@ async function doLock(
     desk_rate: desk,
     undo_until: new Date(Date.now() + 30_000).toISOString(),
     pin_match: force ? p.pin_match : true,
+    note: queued ? 'QUEUE' : p.note,
   });
-  await answerCallback(cbId, `บันทึกแล้ว · ${p.short_ref}`);
+  await answerCallback(cbId, queued ? `เก็บไว้แล้ว · ${p.short_ref}` : `บันทึกแล้ว · ${p.short_ref}`);
   const card = C.cardLocked({
     thb: next.thb_in ?? 0,
     shouldSend: owed,
@@ -442,6 +447,7 @@ async function doLock(
     time: clockBkk(),
     short: next.short_ref,
     canUndo: true,
+    queued,
   });
   const photoId = await sendHero(
     chatId,
@@ -449,7 +455,7 @@ async function doLock(
     'locked',
     card,
     `${thbCard(next.thb_in ?? 0)} THB`,
-    `DUE ${usdt(owed)} USDT`,
+    queued ? `KEEP ${usdt(owed)} USDT` : `DUE ${usdt(owed)} USDT`,
     next.ledger_ref,
   );
   await patchSlip(p.id, { message_id: photoId });
@@ -517,6 +523,7 @@ async function doUndo(
       time: clockBkk(),
       short: p.short_ref,
       canUndo: false,
+      queued: p.note === 'QUEUE',
     }));
     return;
   }

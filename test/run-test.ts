@@ -381,6 +381,7 @@ for (const data of cbs) {
   if (cb.domain === 'admin') assert(ADMIN_ACTIONS.has(cb.action), `admin action ${cb.action} from ${data}`);
 }
 assert(collectCbs(CT.cardInReady(sample)).includes('slip:lock:A4F2'), 'keep → lock');
+assert(collectCbs(CT.cardInReady(sample)).includes('slip:queue:A4F2'), 'queue later');
 assert(collectCbs(CT.cardLocked({ ...sample, time: '06:20', canUndo: true })).includes('slip:settle:A4F2'), 'sent → settle');
 assert(collectCbs(CT.pinView([{ bank: 'BBL', last4: '7823' }])).includes('pin:unpin:1'), 'unpin 1');
 assert(matchReplyCommand('36.70') === null, 'bare rate number is not a pad command');

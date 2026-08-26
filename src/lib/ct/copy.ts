@@ -149,7 +149,12 @@ export function cardInReady(d: {
   if (d.fresh) lines.push(`บัญชีใหม่  ${esc(d.bank)}  ${esc(maskAcct(d.last4))}`);
   if (!hasDesk) lines.push('', 'กรุณาตั้งอัตราห้องก่อน เช่น <code>36.65</code>');
   const rows: Array<Array<Record<string, unknown>>> = [];
-  if (hasDesk) rows.push([btn('ยืนยัน', `slip:lock:${d.short}`, 'success')]);
+  if (hasDesk) {
+    rows.push([
+      btn('ยืนยัน', `slip:lock:${d.short}`, 'success'),
+      btn('บันทึกไว้ก่อน', `slip:queue:${d.short}`),
+    ]);
+  }
   rows.push([btn('แก้ไข', `slip:edit:${d.short}`), btn('พักรายการ', `slip:hold:${d.short}`)]);
   rows.push([btn('ยกเลิก', `slip:cancel:${d.short}`, 'danger')]);
   rows.push([urlBtn('เปิดโต๊ะ', deskUrl())]);
@@ -247,6 +252,7 @@ export function cardLocked(d: {
   bank?: string;
   last4?: string;
   name?: string | null;
+  queued?: boolean;
 }): OutgoingMessage {
   const rows: Array<Array<Record<string, unknown>>> = [
     [btn('บันทึกส่ง', `slip:settle:${d.short}`, 'primary')],
@@ -257,7 +263,7 @@ export function cardLocked(d: {
   rows.push([urlBtn('เปิดโต๊ะ', deskUrl())]);
   return msg(
     [
-      head('รอโอน', 'รอบันทึกการส่ง USDT'),
+      head(d.queued ? 'รอรวมยอด' : 'รอโอน', d.queued ? 'บันทึกเข้าสมุดแล้ว ยังไม่โอน USDT' : 'รอบันทึกการส่ง USDT'),
       tape('wait'),
       '',
       `<code>${esc(displayLedger(d.ledger))}</code>`,
@@ -266,7 +272,9 @@ export function cardLocked(d: {
       d.bank ? `${esc(d.bank)}  ${esc(maskAcct(d.last4))}` : '',
       esc(d.name || d.adminName),
       '',
-      'บันทึกยอดเข้าเรียบร้อยแล้วครับ',
+      d.queued
+        ? 'เก็บไว้ในคิวรอส่งแล้วครับ เมื่อรวมยอดครบค่อยกดบันทึกส่ง'
+        : 'บันทึกยอดเข้าเรียบร้อยแล้วครับ',
     ].filter(Boolean).join('\n'),
     ik(rows),
   );
