@@ -166,19 +166,14 @@ export async function POST(req: NextRequest) {
     log(`⚠️ webhook error: ${e?.message || e}`, e?.stack?.slice(0, 200));
     if (failureChatId != null) {
       try {
-        await sendMessage(failureChatId, UI.error('ระบบยังดำเนินการไม่ได้ — รอสักครู่แล้วลองคำสั่งเดิมอีกครั้ง'));
+        await sendMessage(failureChatId, {
+          text: '◈  <b>CT</b>\n<i>[ แจ้งเตือน ]</i>\n\nทำงานไม่ครบ — ส่งสลิปหรือคำสั่งเดิมอีกครั้ง',
+        });
       } catch {
         // Telegram may itself be unavailable.
       }
     }
-    if (claimedUpdateId != null) {
-      try {
-        await supabaseAdmin.from('telegram_updates').delete().eq('update_id', claimedUpdateId);
-      } catch {
-        // The original failure remains authoritative; Telegram will retry.
-      }
-    }
-    return NextResponse.json({ ok: false, error: 'processing_failed' }, { status: 500 });
+    return NextResponse.json({ ok: true, error: true });
   }
   return NextResponse.json({ ok: true });
 }

@@ -106,8 +106,24 @@ export async function insertPending(input: Omit<PendingSlip, 'id' | 'short_ref' 
     bank_account_id: input.bank_account_id ?? null,
   };
   const { data, error } = await supabaseAdmin.from('pending_slips').insert(row).select('*').single();
-  if (error) throw new Error(`PENDING_SLIP_WRITE: ${error.message}`);
+  if (error) {
+    if (error.code === '23505' && input.slip_fingerprint) {
+      const existing = await findPendingByFingerprint(input.slip_fingerprint);
+      if (existing) return existing;
+    }
+    throw new Error(`PENDING_SLIP_WRITE: ${error.message}`);
+  }
   return mapRow(data);
+}
+
+export async function findPendingByFingerprint(fingerprint: string): Promise<PendingSlip | null> {
+  const { data, error } = await supabaseAdmin
+    .from('pending_slips')
+    .select('*')
+    .eq('slip_fingerprint', fingerprint)
+    .maybeSingle();
+  if (error) throw new Error(`PENDING_SLIP_READ: ${error.message}`);
+  return data ? mapRow(data) : null;
 }
 
 export async function findSlip(chatId: number, short: string, dateKey = ymdBkk()): Promise<PendingSlip | null> {

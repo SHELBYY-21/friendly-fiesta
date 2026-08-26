@@ -7,7 +7,7 @@ import { slipFingerprint } from '../botSecurity';
 import { parseDeskPin } from '../../bot/parse';
 import { gateOcr } from './gate';
 import { opsRates } from './rates';
-import { insertPending } from './store';
+import { insertPending, findPendingByFingerprint } from './store';
 import { shouldSend, maskAcct } from './format';
 import * as C from './copy';
 import type { Admin } from '@/types/transactions';
@@ -42,6 +42,13 @@ export async function handleCtPhoto(opts: {
   if (dup) {
     await sendMessage(chatId, {
       text: `สลิปนี้ถูกบันทึกแล้ว${dup.ledgerRef ? ` — <code>${dup.ledgerRef}</code>` : ''}`,
+    });
+    return;
+  }
+  const queued = await findPendingByFingerprint(fingerprint);
+  if (queued) {
+    await sendMessage(chatId, {
+      text: `◈  <b>CT</b>\n<i>[ คิว ]</i>\n\nสลิปใบนี้มีในคิวแล้ว\n<code>${queued.ledger_ref}</code>\nใช้ปุ่มบนการ์ดเดิม`,
     });
     return;
   }
