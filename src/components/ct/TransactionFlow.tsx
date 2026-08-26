@@ -15,12 +15,12 @@ type TapeRow = {
   status: string;
 };
 
+type QueueFilter = 'ALL' | 'WAIT' | 'DONE' | 'ERR';
+
 function n(v: number | null | undefined, d = 0) {
   if (v == null || !Number.isFinite(Number(v))) return '\u2014';
   return Number(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 }
-
-type QueueFilter = 'ALL' | 'WAIT' | 'DONE' | 'ERR';
 
 function matches(filter: QueueFilter, status: string, pending: boolean) {
   if (filter === 'ALL') return true;
@@ -29,8 +29,23 @@ function matches(filter: QueueFilter, status: string, pending: boolean) {
   return status === 'WAIT' || status === 'SENT' || pending;
 }
 
+function badgeOf(status: string, pending: boolean) {
+  if (status === 'DONE') return { label: 'DONE', cls: 'st-done' };
+  if (status === 'ERR' || status === 'ERROR') return { label: 'OCR', cls: 'st-ocr' };
+  if (status === 'IN' || status === 'LOCK') return { label: 'IN', cls: 'st-in' };
+  if (status === 'MATCH') return { label: 'MATCH', cls: 'st-match' };
+  if (status === 'WAIT' || status === 'SENT' || pending) return { label: 'WAIT', cls: 'st-wait' };
+  return { label: status || 'OCR', cls: 'st-ocr' };
+}
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
 export function QueueTape({
-  rows, dateLabel, clock, waiting, sent, due, flash,
+  rows, dateLabel, clock, waiting, sent, due, flash, coinDelta,
 }: {
   rows: TapeRow[];
   dateLabel: string;
@@ -39,80 +54,81 @@ export function QueueTape({
   sent: number;
   due: number;
   flash: Set<string>;
+  coinDelta?: number;
 }) {
-  const [filter, setFilter] = useState<QueueFilter>('ALL');
-  const shown = useMemo(
-    () => rows.filter((r) => matches(filter, r.status, r.pending)),
-    [rows, filter],
-  );
-  const counts = useMemo(() => ({
-    ALL: rows.length,
-    WAIT: rows.filter((r) => matches('WAIT', r.status, r.pending)).length,
-    DONE: rows.filter((r) => r.status === 'DONE').length,
-    ERR: rows.filter((r) => r.status === 'ERR').length,
-  }), [rows]);
-
+  const [filter, setFilter] = useState<QueueFilter>('WAIT');
+  const [focus, setFocus] = useState<string | null>(null);
+  const shown = useMemo(() => {
+    const base = rows.filter((r) => matches(filter, r.status, r.pending));
+    return focus ? base.filter((r) => r.short === focus) : base;
+  }, [rows, filter, focus]);
+  const refs = useMemo(() => {
+    const seen = new Set<string>();
+    return rows
+      .filter((r) => r.pending || r.status === 'WAIT')
+      .map((r) => r.short)
+      .filter((s) => {
+        if (!s || seen.has(s)) return false;
+        seen.add(s);
+        return true;
+      })
+      .slice(0, 2);
+  }, [rows]);
+  const groups = chunk(shown, 5);
+  const delta = coinDelta ?? sent - waiting;
+  const deltaLabel = (delta >= 0 ? '+' : '') + n(delta, 2);
   return (
-    <section className="px-4 pb-10">
-      <div className="mb-3 flex items-baseline justify-between">
-        <p className="text-xs tracking-[0.16em]">{'\u25C8'} CT | {dateLabel}</p>
-        <p className="font-mono text-xs text-faint">{clock}</p>
+    <section className="queue-desk">
+      <div className="qd-head">
+        <p className="qd-mark">\u25C8 CT \u00B7 {dateLabel}</p>
+        <p className="qd-clock">{clock}</p>
       </div>
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-faint">QUEUE</p>
-        <div className="flex gap-1">
-          {(['ALL', 'WAIT', 'DONE', 'ERR'] as QueueFilter[]).map((f) => (
-            <button
-              key={f}
-              type="button"
-              onClick={() => setFilter(f)}
-              className={`px-2 py-1 font-mono text-[10px] tracking-[0.12em] ${
-                filter === f ? 'text-gold border border-[var(--gold)]' : 'text-faint border border-[var(--line)]'
-              }`}
-            >
-              {f} {counts[f]}
-            </button>
-          ))}
+      <div className="qd-pills" role="tablist">
+        {refs.map((ref) => (
+          <button key={ref} type="button" className={'qd-pill' + (focus === ref ? ' is-on' : '')} onClick={() => setFocus((cur) => cur === ref ? null : ref)}>{ref}</button>
+        ))}
+        {(['WAIT', 'DONE', 'ALL'] as QueueFilter[]).map((f) => (
+          <button key={f} type="button" className={'qd-pill' + (filter === f && !focus ? ' is-on' : '')} onClick={() => { setFilter(f); setFocus(null); }}>{f}</button>
+        ))}
+      </div>
+      <article className="qd-balance">
+        <p className="qd-k">USDT DUE</p>
+        <div className="qd-amt-row">
+          <p className="qd-amt">{n(due, 2)}</p>
+          <span className={'qd-delta ' + (delta >= 0 ? 'up' : 'down')}>{deltaLabel}</span>
         </div>
+        <p className="qd-sub">WAIT {n(waiting, 2)} \u00B7 SENT {n(sent, 2)}</p>
+      </article>
+      <div className="qd-list">
+        {shown.length === 0 ? <p className="qd-empty">queue is quiet</p> : groups.map((group, gi) => (
+          <div key={gi} className="qd-group">
+            {group.map((row, i) => {
+              const badge = badgeOf(row.status, row.pending);
+              const idx = String(gi * 5 + i + 1).padStart(2, '0');
+              const usdtAmt = row.expectedUsdt ?? row.usdt;
+              return (
+                <div key={row.id} className={'qd-row' + (flash.has(row.id) ? ' is-flash' : '')}>
+                  <span className={'st ' + badge.cls}>
+                    {badge.label === 'WAIT' ? <i className="st-dot" /> : null}
+                    {badge.label === 'DONE' ? '\u2713 ' : ''}
+                    {badge.label}
+                  </span>
+                  <span className="qd-idx">{idx}</span>
+                  <span className="qd-thb">{row.thb == null ? '\u2014' : n(row.thb) + ' THB'}</span>
+                  <span className="qd-arrow">\u2192</span>
+                  <span className="qd-usdt">{n(usdtAmt, 2)} U</span>
+                  <span className="qd-flag">{row.status === 'DONE' ? 'done' : 'due'}</span>
+                </div>
+              );
+            })}
+            {gi < groups.length - 1 ? <div className="qd-split" /> : null}
+          </div>
+        ))}
       </div>
-      <div className="mb-3 h-px bg-[var(--line)]" />
-      <table className="tape">
-        <thead>
-          <tr>
-            <th>TIME</th>
-            <th className="num">THB</th>
-            <th className="num">USDT</th>
-            <th>REF</th>
-            <th>STATUS</th>
-          </tr>
-        </thead>
-        <tbody>
-          {shown.length === 0 ? (
-            <tr><td colSpan={5} className="px-4 py-8 text-muted">empty</td></tr>
-          ) : shown.map((row) => (
-            <tr key={row.id} className={flash.has(row.id) ? 'flash' : undefined}>
-              <td>{row.time || '\u2014'}</td>
-              <td className="num">{row.thb == null ? '\u2014' : n(row.thb)}</td>
-              <td className="num">{n(row.expectedUsdt ?? row.usdt, 2)}</td>
-              <td className="font-mono text-gold">{row.short || '\u2014'}</td>
-              <td>
-                <span className={`pill ${row.status === 'DONE' ? 'pill-done' : row.status === 'ERR' ? 'pill-live' : 'pill-wait'}`}>
-                  {row.status}
-                </span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="mt-3 h-px bg-[var(--line)]" />
-      <dl className="mt-3 grid max-w-xs grid-cols-[7rem_1fr] gap-y-1 font-mono text-sm">
-        <dt className="text-faint">WAITING</dt>
-        <dd className="text-right">{n(waiting, 2)} U</dd>
-        <dt className="text-faint">SENT</dt>
-        <dd className="text-right">{n(sent, 2)} U</dd>
-        <dt className="text-gold">DUE</dt>
-        <dd className="text-right text-gold">{n(due, 2)} U</dd>
-      </dl>
+      <div className="qd-dock">
+        <button type="button" className="qd-send" disabled={due <= 0}>Send all pending</button>
+        <button type="button" className="qd-ghost">Cancel duplicates</button>
+      </div>
     </section>
   );
 }
