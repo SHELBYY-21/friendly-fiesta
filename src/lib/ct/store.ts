@@ -148,6 +148,18 @@ export async function findSlip(chatId: number, short: string, dateKey = ymdBkk()
   return anyDay ? mapRow(anyDay) : null;
 }
 
+export async function listLockedToday(chatId: number): Promise<PendingSlip[]> {
+  const { data, error } = await supabaseAdmin
+    .from('pending_slips')
+    .select('*')
+    .eq('chat_id', chatId)
+    .eq('date_key', ymdBkk())
+    .eq('status', 'LOCKED')
+    .order('created_at', { ascending: true });
+  if (error) throw new Error(`PENDING_SLIP_LIST: ${error.message}`);
+  return (data ?? []).map(mapRow);
+}
+
 export async function patchSlip(id: string, patch: Partial<PendingSlip>): Promise<PendingSlip> {
   const { data, error } = await supabaseAdmin
     .from('pending_slips')

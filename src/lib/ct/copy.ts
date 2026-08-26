@@ -253,17 +253,31 @@ export function cardLocked(d: {
   last4?: string;
   name?: string | null;
   queued?: boolean;
+  batch?: { count: number; thb: number; usdt: number; target: number; remain: number; ready: boolean };
 }): OutgoingMessage {
-  const rows: Array<Array<Record<string, unknown>>> = [
-    [btn('บันทึกส่ง', `slip:settle:${d.short}`, 'primary')],
-    [btn('แก้ไข', `slip:edit:${d.short}`), btn('พักรายการ', `slip:open:${d.short}`)],
-  ];
+  const rows: Array<Array<Record<string, unknown>>> = [];
+  if (d.batch && d.batch.count > 0) {
+    rows.push([btn('บันทึกส่งรวม', 'vault:batch', 'primary')]);
+  }
+  rows.push([btn('บันทึกส่งใบนี้', `slip:settle:${d.short}`)]);
+  rows.push([btn('แก้ไข', `slip:edit:${d.short}`), btn('พักรายการ', `slip:open:${d.short}`)]);
   if (d.canUndo) rows.push([btn('ยกเลิก', `slip:undo:${d.short}`, 'danger')]);
   else rows.push([btn('ยกเลิก', `slip:delask:${d.short}`, 'danger')]);
   rows.push([urlBtn('เปิดโต๊ะ', deskUrl())]);
+  const batchLines = d.batch && d.batch.count
+    ? [
+        '',
+        `คิววันนี้     ${d.batch.count} ใบ`,
+        `รวมเข้า      <b>${thbInt(d.batch.thb)} THB</b>`,
+        `ต้องโอนรวม   <b>${usdt(d.batch.usdt)} USDT</b>`,
+        d.batch.ready
+          ? `เป้า ${thbInt(d.batch.target)}  ครบแล้ว กรุณากดบันทึกส่งรวม`
+          : `เป้า ${thbInt(d.batch.target)}  เหลือ ${thbInt(d.batch.remain)} THB`,
+      ]
+    : [];
   return msg(
     [
-      head(d.queued ? 'รอรวมยอด' : 'รอโอน', d.queued ? 'บันทึกเข้าสมุดแล้ว ยังไม่โอน USDT' : 'รอบันทึกการส่ง USDT'),
+      head(d.queued || d.batch ? 'รอรวมยอด' : 'รอโอน', d.batch?.ready ? 'รวมถึงเป้าแล้ว รอโอนก้อนเดียว' : (d.queued ? 'บันทึกเข้าสมุดแล้ว ยังไม่โอน USDT' : 'รอบันทึกการส่ง USDT')),
       tape('wait'),
       '',
       `<code>${esc(displayLedger(d.ledger))}</code>`,
@@ -271,12 +285,34 @@ export function cardLocked(d: {
       '',
       d.bank ? `${esc(d.bank)}  ${esc(maskAcct(d.last4))}` : '',
       esc(d.name || d.adminName),
+      ...batchLines,
       '',
       d.queued
-        ? 'เก็บไว้ในคิวรอส่งแล้วครับ เมื่อรวมยอดครบค่อยกดบันทึกส่ง'
+        ? 'เก็บไว้ในคิวรอส่งแล้วครับ เมื่อรวมยอดครบค่อยกดบันทึกส่งรวม'
         : 'บันทึกยอดเข้าเรียบร้อยแล้วครับ',
     ].filter(Boolean).join('\n'),
     ik(rows),
+  );
+}
+
+export function cardSettledBatch(d: {
+  count: number;
+  thb: number;
+  usdt: number;
+  adminName: string;
+}): OutgoingMessage {
+  return msg(
+    [
+      head('โอนแล้ว', `ส่งรวม ${d.count} ใบ`),
+      tape('done'),
+      '',
+      `เงินเข้า     <b>${thbInt(d.thb)} THB</b>`,
+      `เงินออก     <b>${usdt(d.usdt)} USDT</b>`,
+      '',
+      esc(d.adminName),
+      'clear.',
+    ].join('\n'),
+    ik([[urlBtn('เปิดโต๊ะ', deskUrl())]]),
   );
 }
 
@@ -400,6 +436,7 @@ export function vaultBanner(d: {
         lines.push(`${n}     ${thbInt(r.thb ?? 0)} THB → ${usdt(r.usdt ?? 0)} U  <code>${esc(r.short)}</code>`);
       });
       lines.push('', `ยอดที่ต้องใช้  <b>${usdt(d.pendingUsdt)} USDT</b>`);
+      lines.push('กดบันทึกส่งรวมเมื่อโอน USDT ก้อนเดียวครบคิว');
     }
     return msg(lines.join('\n'), vaultButtons(d.pendingShorts));
   }
@@ -426,6 +463,7 @@ export function vaultBanner(d: {
     });
   }
   lines.push('', `ยอดที่ต้องใช้  <b>${usdt(d.pendingUsdt)} USDT</b>`);
+  if (d.pendingUsdt > 0) lines.push('กดบันทึกส่งรวมเมื่อโอน USDT ก้อนเดียวครบคิว');
   lines.push(`อัตราโต๊ะ   <code>${rateCode(d.desk)}</code>`);
   lines.push(`ตลาด        <code>${rateCode(d.mkt)}</code>`);
   if (d.desk && d.mkt) {
@@ -440,6 +478,9 @@ function vaultButtons(pendingShorts: string[]) {
     [btn('รอส่ง', 'vault:pending'), btn('อัตรา', 'vault:rateask'), btn('ตั้งค่า', 'vault:set')],
     [urlBtn('เปิดโต๊ะ', deskUrl())],
   ];
+  if (pendingShorts.length) {
+    rows.unshift([btn('บันทึกส่งรวม', 'vault:batch', 'primary')]);
+  }
   const refs = pendingShorts.slice(0, 2);
   if (refs.length) rows.unshift(refs.map((s) => btn(s, `slip:open:${s}`)));
   return ik(rows);

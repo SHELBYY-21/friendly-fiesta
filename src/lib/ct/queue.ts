@@ -1,0 +1,109 @@
+import { recordIncoming, recordOutgoing } from '../transactions';
+import { getRoom } from '../botSessions';
+import { opsRates } from './rates';
+import { shouldSend } from './format';
+import { listLockedToday, patchSlip, type PendingSlip } from './store';
+import type { Admin } from '@/types/transactions';
+
+export const BATCH_THB = 10_000;
+
+export interface DueSummary {
+  count: number;
+  thb: number;
+  usdt: number;
+  target: number;
+  remain: number;
+  ready: boolean;
+  refs: string[];
+}
+
+export function batchProgress(thb: number, target = BATCH_THB): Omit<DueSummary, 'count' | 'usdt' | 'refs'> {
+  const t = Math.max(0, Number(thb) || 0);
+  return {
+    thb: t,
+    target,
+    remain: Math.max(0, Math.round((target - t) * 100) / 100),
+    ready: t + 1e-9 >= target,
+  };
+}
+
+export async function dueSummary(chatId: number): Promise<DueSummary> {
+  const rows = await listLockedToday(chatId);
+  const thb = Math.round(rows.reduce((s, r) => s + (r.thb_in ?? 0), 0) * 100) / 100;
+  const usdt = Math.round(rows.reduce((s, r) => s + (r.should_send ?? 0), 0) * 100) / 100;
+  return {
+    count: rows.length,
+    usdt,
+    refs: rows.map((r) => r.short_ref),
+    ...batchProgress(thb),
+  };
+}
+
+export async function commitIncomingLock(
+  p: PendingSlip,
+  opts: { chatId: number; userId: number; admin: Admin; force: boolean; queued: boolean },
+): Promise<PendingSlip> {
+  if (p.status === 'LOCKED' || p.status === 'SETTLED') return p;
+  if (!opts.force && !p.pin_match) throw new Error('PIN_MISMATCH');
+  if (p.thb_in == null || p.thb_in <= 0) throw new Error('NO_AMOUNT');
+  const room = await getRoom(opts.chatId);
+  const rates = await opsRates(opts.chatId);
+  const desk = p.desk_rate || rates.desk;
+  const owed = shouldSend(p.thb_in, desk);
+  const r = await recordIncoming({
+    adminTelegramId: opts.userId,
+    chatId: opts.chatId,
+    thb: p.thb_in,
+    sellRate: desk,
+    marketRate: p.mkt_rate || rates.mkt || desk,
+    roomName: room.name,
+    ledgerRef: p.ledger_ref,
+    ocrConfidence: p.ocr_confidence,
+    slipImageUrl: p.slip_url,
+    slipFingerprint: p.slip_fingerprint,
+    bankAccountId: p.bank_account_id,
+    receiver: {
+      name: p.name,
+      bank: p.bank,
+      last4: (p.account_masked ?? '').replace(/\D/g, '').slice(-4),
+    },
+  });
+  return patchSlip(p.id, {
+    status: 'LOCKED',
+    tx_id: r.transactionId,
+    should_send: owed,
+    desk_rate: desk,
+    undo_until: new Date(Date.now() + 30_000).toISOString(),
+    pin_match: opts.force ? p.pin_match : true,
+    note: opts.queued ? 'QUEUE' : p.note,
+  });
+}
+
+export async function settleAllDue(chatId: number, userId: number): Promise<DueSummary> {
+  const rows = await listLockedToday(chatId);
+  for (const p of rows) {
+    if (!p.should_send || p.status !== 'LOCKED') continue;
+    await recordOutgoing({
+      adminTelegramId: userId,
+      chatId,
+      usdt: p.should_send,
+      ledgerRef: p.ledger_ref,
+      slipImageUrl: p.slip_url,
+    });
+    await patchSlip(p.id, { status: 'SETTLED', undo_until: null });
+  }
+  const thb = Math.round(rows.reduce((s, r) => s + (r.thb_in ?? 0), 0) * 100) / 100;
+  const usdt = Math.round(rows.reduce((s, r) => s + (r.should_send ?? 0), 0) * 100) / 100;
+  return {
+    count: rows.length,
+    usdt,
+    refs: rows.map((r) => r.short_ref),
+    ...batchProgress(thb),
+    remain: 0,
+    ready: false,
+  };
+}
+
+export function canAutoQueue(gate: string, thb: number | null, desk: number): boolean {
+  return (gate === 'IN_READY' || gate === 'IN_READY_REVIEW') && thb != null && thb > 0 && desk > 0;
+}

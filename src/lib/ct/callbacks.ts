@@ -3,16 +3,16 @@ import { parseAmounts } from '../amounts';
 import { parseDeskPin, parseDeskRate, hasRatePrefix, isBareDeskRate, parseTelegramId } from '../../bot/parse';
 import { listPinnedBanks, accountLast4, pinBankAccount, unpinBankAccount } from '../banks';
 import {
-  recordIncoming,
   recordOutgoing,
   deleteTransaction,
   listAdmins,
   upsertAdmin,
 } from '../transactions';
-import { getRoom, getSession, setSession, clearSession } from '../botSessions';
+import { getSession, setSession, clearSession } from '../botSessions';
 import { findSlip, patchSlip, type PendingSlip } from './store';
 import { renderVault, renderRecent } from './vault';
 import { opsRates, applyDeskRate } from './rates';
+import { commitIncomingLock, dueSummary, settleAllDue } from './queue';
 import { shouldSend, clockBkk, displayLedger, adminKeyboard, thbCard, usdt } from './format';
 import { renderHeroPng } from './cardImage';
 import { gateOcr } from './gate';
@@ -45,7 +45,7 @@ export const SLIP_ACTIONS = new Set([
   'open', 'copy', 'hold', 'cancel', 'retry', 'edit', 'note', 'amt', 'unit',
 ]);
 
-export const VAULT_ACTIONS = new Set(['today', 'pending', 'rateask', 'newday', 'recent', 'all', 'set']);
+export const VAULT_ACTIONS = new Set(['today', 'pending', 'rateask', 'newday', 'recent', 'all', 'set', 'batch']);
 export const PIN_ACTIONS = new Set(['view', 'unpin']);
 export const ADMIN_ACTIONS = new Set(['add']);
 
@@ -160,6 +160,23 @@ export async function handleCtCallback(opts: {
   const cb = parseCb(data);
 
   if (cb.domain === 'vault') {
+    if (cb.action === 'batch') {
+      const due = await dueSummary(chatId);
+      if (!due.count) {
+        await answerCallback(id, 'ยังไม่มีคิวรอส่ง');
+        return;
+      }
+      const done = await settleAllDue(chatId, userId);
+      await answerCallback(id, `โอนรวม ${done.count} ใบ`);
+      const card = C.cardSettledBatch({
+        count: done.count,
+        thb: done.thb,
+        usdt: done.usdt,
+        adminName: admin.name,
+      });
+      await sendHero(chatId, messageId, 'settled', card, `${usdt(done.usdt)} USDT`, `${done.count} TX`, 'CT');
+      return;
+    }
     if (cb.action === 'rateask') {
       const rates = await opsRates(chatId);
       await armRatePrompt(chatId, userId);
@@ -397,68 +414,44 @@ async function doLock(
     await answerCallback(cbId, `บันทึกแล้ว · ${p.short_ref}`);
     return;
   }
-  if (!force && !p.pin_match) {
-    await answerCallback(cbId, 'บัญชีไม่ตรงกับบัญชีรับวันนี้ครับ');
-    return;
+  try {
+    const next = await commitIncomingLock(p, { chatId, userId, admin, force, queued });
+    const batch = await dueSummary(chatId);
+    await answerCallback(cbId, queued ? `เก็บไว้แล้ว · ${p.short_ref}` : `บันทึกแล้ว · ${p.short_ref}`);
+    const card = C.cardLocked({
+      thb: next.thb_in ?? 0,
+      shouldSend: next.should_send ?? 0,
+      desk: next.desk_rate ?? 0,
+      mkt: next.mkt_rate,
+      ledger: next.ledger_ref,
+      adminName: admin.name,
+      time: clockBkk(),
+      short: next.short_ref,
+      canUndo: true,
+      queued,
+      batch,
+      bank: next.bank ?? undefined,
+      last4: (next.account_masked ?? '').replace(/\D/g, '').slice(-4),
+      name: next.name,
+    });
+    const photoId = await sendHero(
+      chatId,
+      messageId,
+      'locked',
+      card,
+      `${thbCard(next.thb_in ?? 0)} THB`,
+      queued ? `KEEP ${usdt(next.should_send ?? 0)} USDT` : `DUE ${usdt(next.should_send ?? 0)} USDT`,
+      next.ledger_ref,
+    );
+    await patchSlip(p.id, { message_id: photoId });
+  } catch (e: any) {
+    const msg = e?.message === 'PIN_MISMATCH'
+      ? 'บัญชีไม่ตรงกับบัญชีรับวันนี้ครับ'
+      : e?.message === 'NO_AMOUNT'
+        ? 'ยังไม่พบยอดเงินครับ'
+        : 'บันทึกไม่สำเร็จครับ';
+    await answerCallback(cbId, msg);
   }
-  if (p.thb_in == null || p.thb_in <= 0) {
-    await answerCallback(cbId, 'ยังไม่พบยอดเงินครับ');
-    return;
-  }
-  const room = await getRoom(chatId);
-  const rates = await opsRates(chatId);
-  const desk = p.desk_rate || rates.desk;
-  const owed = shouldSend(p.thb_in, desk);
-  const r = await recordIncoming({
-    adminTelegramId: userId,
-    chatId,
-    thb: p.thb_in,
-    sellRate: desk,
-    marketRate: p.mkt_rate || rates.mkt || desk,
-    roomName: room.name,
-    ledgerRef: p.ledger_ref,
-    ocrConfidence: p.ocr_confidence,
-    slipImageUrl: p.slip_url,
-    slipFingerprint: p.slip_fingerprint,
-    bankAccountId: p.bank_account_id,
-    receiver: {
-      name: p.name,
-      bank: p.bank,
-      last4: (p.account_masked ?? '').replace(/\D/g, '').slice(-4),
-    },
-  });
-  const next = await patchSlip(p.id, {
-    status: 'LOCKED',
-    tx_id: r.transactionId,
-    should_send: owed,
-    desk_rate: desk,
-    undo_until: new Date(Date.now() + 30_000).toISOString(),
-    pin_match: force ? p.pin_match : true,
-    note: queued ? 'QUEUE' : p.note,
-  });
-  await answerCallback(cbId, queued ? `เก็บไว้แล้ว · ${p.short_ref}` : `บันทึกแล้ว · ${p.short_ref}`);
-  const card = C.cardLocked({
-    thb: next.thb_in ?? 0,
-    shouldSend: owed,
-    desk,
-    mkt: next.mkt_rate,
-    ledger: next.ledger_ref,
-    adminName: admin.name,
-    time: clockBkk(),
-    short: next.short_ref,
-    canUndo: true,
-    queued,
-  });
-  const photoId = await sendHero(
-    chatId,
-    messageId,
-    'locked',
-    card,
-    `${thbCard(next.thb_in ?? 0)} THB`,
-    queued ? `KEEP ${usdt(owed)} USDT` : `DUE ${usdt(owed)} USDT`,
-    next.ledger_ref,
-  );
-  await patchSlip(p.id, { message_id: photoId });
 }
 
 async function doSettle(

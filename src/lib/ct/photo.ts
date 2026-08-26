@@ -9,6 +9,7 @@ import { gateOcr } from './gate';
 import { opsRates } from './rates';
 import { insertPending, findPendingByFingerprint } from './store';
 import { shouldSend, maskAcct } from './format';
+import { canAutoQueue, commitIncomingLock, dueSummary } from './queue';
 import * as C from './copy';
 import type { Admin } from '@/types/transactions';
 import type { PinnedBank } from '../banks';
@@ -115,6 +116,35 @@ export async function handleCtPhoto(opts: {
 
   const last4 = slip.receiverLast4 ?? accountLast4(bank?.account_number);
   const known = last4 ? await findReceiversByLast4(last4) : [];
+
+  if (canAutoQueue(gate, thb, rates.desk) && pinMatch) {
+    try {
+      const locked = await commitIncomingLock(pending, {
+        chatId, userId, admin, force: false, queued: true,
+      });
+      const batch = await dueSummary(chatId);
+      await editMessage(chatId, scanId, C.cardLocked({
+        thb: locked.thb_in ?? 0,
+        shouldSend: locked.should_send ?? 0,
+        desk: locked.desk_rate ?? 0,
+        mkt: locked.mkt_rate,
+        ledger: locked.ledger_ref,
+        adminName: admin.name,
+        time: new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', hour12: false }),
+        short: locked.short_ref,
+        canUndo: true,
+        queued: true,
+        batch,
+        bank: locked.bank ?? extraBank(pin0, slip.bank),
+        last4: last4 ?? '????',
+        name: locked.name,
+      }));
+      return;
+    } catch {
+      /* fall through to review card */
+    }
+  }
+
   const card = renderGateCard(pending, {
     gate,
     slipBank: slip.bank ?? '—',
@@ -126,6 +156,10 @@ export async function handleCtPhoto(opts: {
     fresh: Boolean(last4) && known.length === 0,
   });
   await editMessage(chatId, scanId, card);
+}
+
+function extraBank(pin0: PinnedBank | undefined, slipBank: string | null): string {
+  return pin0?.bank_name ?? slipBank ?? '—';
 }
 
 export function renderGateCard(
