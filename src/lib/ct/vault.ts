@@ -31,7 +31,24 @@ function fmtDate(iso: string) {
   }).toUpperCase();
 }
 
-export async function loadVault(chatId?: number | null, mode: 'today' | 'pending' | 'all' = 'today') {
+export type VaultMode = 'today' | 'pending' | 'all' | 'wait' | 'done' | 'err';
+
+function chipOf(status: string): 'WAIT' | 'DONE' | 'ERR' | 'SENT' {
+  if (status === 'DONE') return 'DONE';
+  if (status === 'ERR' || status === 'ERROR') return 'ERR';
+  if (status === 'SENT') return 'SENT';
+  return 'WAIT';
+}
+
+function matchesFilter(mode: VaultMode, status: string, pending: boolean): boolean {
+  const chip = chipOf(status);
+  if (mode === 'wait' || mode === 'pending') return chip === 'WAIT' || chip === 'SENT' || pending;
+  if (mode === 'done') return chip === 'DONE';
+  if (mode === 'err') return chip === 'ERR';
+  return true;
+}
+
+export async function loadVault(chatId?: number | null, mode: VaultMode = 'today') {
   const cut = midnightIso();
   let insQ = supabaseAdmin
       .from('transactions')
@@ -93,7 +110,35 @@ export async function loadVault(chatId?: number | null, mode: 'today' | 'pending
   const pendingUsdt = Math.max(0, Math.round((owed - outUsdt) * 100) / 100);
   const coinDelta = Math.round((outUsdt - owed) * 100) / 100;
   const pendingShorts = inRows.filter((r) => r.pending).map((r) => r.short);
-  const viewRows = mode === 'pending' ? inRows.filter((r) => r.pending) : inRows;
+  const tape = (ins ?? []).map((r) => {
+    const out = outByRef.get(String(r.ledger_ref || ''));
+    const expectedUsdt = numOrNull(r.usdt_amount);
+    const sentUsdt = out ? out.usdt : null;
+    const state = stateFromSlip({ slipStatus: r.status, expectedUsdt, sentUsdt });
+    return {
+      id: r.id,
+      ledger: r.ledger_ref ?? null,
+      short: shortOf(String(r.ledger_ref || '----')),
+      thb: numOrNull(r.thb_amount),
+      usdt: expectedUsdt ?? 0,
+      expectedUsdt,
+      dueUsdt: calcDue(expectedUsdt, sentUsdt),
+      sentUsdt,
+      createdAt: r.created_at ?? null,
+      dateStamp: r.created_at ? fmtDate(r.created_at) : '\u2014',
+      time: r.created_at ? fmtTime(r.created_at) : '\u2014',
+      pending: state !== 'DONE',
+      status: statusChip(state),
+      state,
+      bank: r.receiver_bank ?? null,
+      name: r.receiver_name ?? null,
+      last4: r.receiver_last4 ?? null,
+    };
+  });
+  const viewTape = tape.filter((r) => matchesFilter(mode, r.status, r.pending));
+  const viewRows = mode === 'today' || mode === 'all'
+    ? inRows
+    : inRows.filter((r) => viewTape.some((t) => t.short === r.short));
 
   return {
     mode,
@@ -113,35 +158,12 @@ export async function loadVault(chatId?: number | null, mode: 'today' | 'pending
     mkt: rates.mkt,
     pendingShorts,
     ymd: ymdBkk(),
-    tape: (ins ?? []).map((r) => {
-      const out = outByRef.get(String(r.ledger_ref || ''));
-      const expectedUsdt = numOrNull(r.usdt_amount);
-      const sentUsdt = out ? out.usdt : null;
-      const state = stateFromSlip({ slipStatus: r.status, expectedUsdt, sentUsdt });
-      return {
-        id: r.id,
-        ledger: r.ledger_ref ?? null,
-        short: shortOf(String(r.ledger_ref || '----')),
-        thb: numOrNull(r.thb_amount),
-        usdt: expectedUsdt ?? 0,
-        expectedUsdt,
-        dueUsdt: calcDue(expectedUsdt, sentUsdt),
-        sentUsdt,
-        createdAt: r.created_at ?? null,
-        dateStamp: r.created_at ? fmtDate(r.created_at) : '\u2014',
-        time: r.created_at ? fmtTime(r.created_at) : '\u2014',
-        pending: state !== 'DONE',
-        status: statusChip(state),
-        state,
-        bank: r.receiver_bank ?? null,
-        name: r.receiver_name ?? null,
-        last4: r.receiver_last4 ?? null,
-      };
-    }),
+    tape: viewTape,
+    tapeAll: tape,
   };
 }
 
-export async function renderVault(chatId: number, mode: 'today' | 'pending' | 'all' = 'today'): Promise<OutgoingMessage> {
+export async function renderVault(chatId: number, mode: VaultMode = 'today'): Promise<OutgoingMessage> {
   const data = await loadVault(chatId, mode);
   return vaultBanner(data);
 }
