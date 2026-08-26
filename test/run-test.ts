@@ -1,6 +1,6 @@
 import { Admin } from '@/types/transactions';
 
-const { parseSlipText, computeShouldSend, parseDeskPin, parseDeskRate, hasRatePrefix, isBareDeskRate, parseTelegramId, last4FromPayeeMask } = require('../src/bot/parse');
+const { parseSlipText, computeShouldSend, parseDeskPin, parseDeskRate, hasRatePrefix, isBareDeskRate, parseTelegramId, last4FromPayeeMask, nameFromPayee } = require('../src/bot/parse');
 const { parseAmounts, parseAmountTokens } = require('../src/lib/amounts');
 const {
   commandName,
@@ -83,7 +83,18 @@ const ktbPin = parseDeskPin(`ชื่อเต็ม: สุพัตรา อ
 ธนาคาร: กรุงไทย
 เลขบัญชี: xxx-x-x6034-x`);
 assert(ktbPin?.bank === 'KTB', `ชื่อเต็ม pin bank KTB (got ${ktbPin?.bank})`);
-assert(ktbPin?.account?.slice(-4) === '6034', `ชื่อเต็ม pin last4 6034 (got ${ktbPin?.account})`);
+assert(ktbPin?.name === 'สุพัตรา อั้นเจริญ', `pin name สุพัตรา (got ${ktbPin?.name})`);
+
+const kplusName = nameFromPayee(`โอนเงินสำเร็จ
+นาย ซอฟวัน ก
+ธ.กสิกรไทย
+xxx-x-x5521-x
+สุพัตรา อั้นเจริญ
+ธ.กรุงไทย
+xxx-x-x6034-x
+จำนวน: 1,020.00 บาท`);
+assert(kplusName === 'สุพัตรา อั้นเจริญ', `K+ payee name (got ${kplusName})`);
+assert(nameFromPayee('ไปยัง สุพัตรา อั้นเจริญ x-0343') === 'สุพัตรา อั้นเจริญ', `ไปยัง name (got ${nameFromPayee('ไปยัง สุพัตรา อั้นเจริญ x-0343')})`);
 
 const { matchPinnedBank, accountLast4 } = require('../src/lib/banks');
 const pins = [{ id: '1', bank_name: 'KTB', account_number: 'xx6034', label: 'KTB' }];

@@ -5,6 +5,7 @@
 // ============================================================
 import { analyzeSlipWithGrok, analyzeUsdtWithGrok, SlipExtract, UsdtExtract } from './grokVision';
 import { pickExplicitThbAmount } from './ocrAmount';
+import { parseSlipText } from '../bot/parse';
 
 /** อ่านสกรีนช็อตโอน USDT (Grok, 12s timeout) — null ถ้าอ่านไม่ได้/ไม่มี key */
 export async function analyzeUsdtScreenshot(imageUrl: string): Promise<UsdtExtract | null> {
@@ -21,53 +22,40 @@ export async function analyzeUsdtScreenshot(imageUrl: string): Promise<UsdtExtra
 
 /** อ่านสลิปครบชุด — คืน SlipExtract (fields อาจเป็น null) */
 export async function analyzeSlip(imageUrl: string): Promise<SlipExtract> {
-  // 1) Grok Vision (with 10s timeout)
+  let grok: SlipExtract | null = null;
   try {
-    const grok = await Promise.race([
+    grok = await Promise.race([
       analyzeSlipWithGrok(imageUrl),
-      new Promise<SlipExtract | null>((resolve) =>
-        setTimeout(() => resolve(null), 10000)
-      ),
+      new Promise<SlipExtract | null>((resolve) => setTimeout(() => resolve(null), 10000)),
     ]);
-    if (grok && grok.thbAmount !== null) return grok;
   } catch (e) {
     console.warn('Grok vision error:', e instanceof Error ? e.message : e);
   }
 
-  // 2) fallback: OCR.space (แค่ยอด, 8s timeout)
-  try {
-    const thb = await Promise.race([
-      extractThbAmountFromOcrSpace(imageUrl),
-      new Promise<number | null>((resolve) =>
-        setTimeout(() => resolve(null), 8000)
-      ),
-    ]);
-    return {
-      thbAmount: thb,
-      time: null,
-      date: null,
-      receiverLast4: null,
-      senderLast4: null,
-      bank: null,
-      receiverName: null,
-      senderName: null,
-      confidence: null,
-    };
-  } catch (e) {
-    console.warn('OCR fallback error:', e instanceof Error ? e.message : e);
+  const grokOk = Boolean(grok && (grok.thbAmount || grok.receiverLast4 || grok.receiverName));
+  let ocr: ReturnType<typeof parseSlipText> | null = null;
+  if (!grokOk || grok?.thbAmount == null) {
+    try {
+      ocr = await Promise.race([
+        extractSlipTextFromOcrSpace(imageUrl),
+        new Promise<ReturnType<typeof parseSlipText> | null>((resolve) => setTimeout(() => resolve(null), 8000)),
+      ]);
+    } catch (e) {
+      console.warn('OCR fallback error:', e instanceof Error ? e.message : e);
+    }
   }
 
-  // 3) Last resort: null values (ให้ user input เอง)
   return {
-    thbAmount: null,
-    time: null,
-    date: null,
-    receiverLast4: null,
-    senderLast4: null,
-    bank: null,
-    receiverName: null,
-    senderName: null,
-    confidence: null,
+    thbAmount: grok?.thbAmount ?? ocr?.amount ?? null,
+    time: grok?.time ?? ocr?.time ?? null,
+    date: grok?.date ?? ocr?.date ?? null,
+    receiverLast4: grok?.receiverLast4 || ocr?.last4 || null,
+    senderLast4: grok?.senderLast4 ?? null,
+    bank: grok?.bank || ocr?.bank || null,
+    receiverName: grok?.receiverName || ocr?.receiverName || null,
+    senderName: grok?.senderName ?? null,
+    confidence: grok?.confidence ?? (ocr?.amount ? 70 : null),
+    raw: grok?.raw,
   };
 }
 
@@ -77,7 +65,7 @@ export async function extractThbAmount(imageUrl: string): Promise<number | null>
   return r.thbAmount;
 }
 
-async function extractThbAmountFromOcrSpace(imageUrl: string): Promise<number | null> {
+async function extractSlipTextFromOcrSpace(imageUrl: string): Promise<ReturnType<typeof parseSlipText> | null> {
   const key = process.env.OCR_SPACE_API_KEY;
   if (!key || !imageUrl) return null;
   try {
@@ -87,7 +75,7 @@ async function extractThbAmountFromOcrSpace(imageUrl: string): Promise<number | 
       OCREngine: '2',
       scale: 'true',
       isTable: 'true',
-      language: 'eng',
+      language: 'tha',
     });
     const res = await fetch('https://api.ocr.space/parse/imageurl', {
       method: 'POST',
@@ -96,8 +84,16 @@ async function extractThbAmountFromOcrSpace(imageUrl: string): Promise<number | 
     });
     const json: any = await res.json();
     const text: string | undefined = json?.ParsedResults?.[0]?.ParsedText;
-    return text ? pickExplicitThbAmount(text) : null;
+    if (!text) return null;
+    const parsed = parseSlipText(text);
+    if (parsed.amount == null) parsed.amount = pickExplicitThbAmount(text);
+    return parsed;
   } catch {
     return null;
   }
+}
+
+async function extractThbAmountFromOcrSpace(imageUrl: string): Promise<number | null> {
+  const parsed = await extractSlipTextFromOcrSpace(imageUrl);
+  return parsed?.amount ?? null;
 }

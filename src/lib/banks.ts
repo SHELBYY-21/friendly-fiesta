@@ -38,6 +38,7 @@ export async function pinBankAccount(
   chatId: number,
   bankInput: string,
   accountInput: string,
+  holderName?: string | null,
 ): Promise<{ bank: PinnedBank; pinned: PinnedBank[] }> {
   const bankCode = normalizeBankCode(bankInput);
   const digits = accountInput.replace(/\D/g, '');
@@ -59,7 +60,13 @@ export async function pinBankAccount(
   if (!bank) {
     const { data, error } = await supabaseAdmin
       .from('bank_accounts')
-      .insert({ bank_name: bankCode, account_number: digits, label: `${bankCode} ••••${digits.slice(-4)}` })
+      .insert({
+        bank_name: bankCode,
+        account_number: digits,
+        label: holderName
+          ? `${holderName} · ${bankCode} ••••${digits.slice(-4)}`
+          : `${bankCode} ••••${digits.slice(-4)}`,
+      })
       .select('id, bank_name, account_number, label')
       .single();
     if (error || !data) throw error ?? new Error('BANK_CREATE_FAILED');

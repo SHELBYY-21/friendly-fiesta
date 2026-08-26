@@ -22,7 +22,7 @@ async function ensureTodayPins(chatId: number): Promise<PinnedBank[]> {
   const desk = pinnedText ? parseDeskPin(pinnedText) : null;
   if (!desk) return [];
   try {
-    const { pinned } = await pinBankAccount(chatId, desk.bank, desk.account);
+    const { pinned } = await pinBankAccount(chatId, desk.bank, desk.account, desk.name);
     return pinned;
   } catch {
     return [];
@@ -147,6 +147,7 @@ export function renderGateCard(
       slipLast4: extra.slipLast4,
       pinBank: extra.pinBank,
       pinLast4: extra.pinLast4,
+      name: p.name,
       confidence: p.ocr_confidence ?? 0,
       short: p.short_ref,
       lead: extra.lead,

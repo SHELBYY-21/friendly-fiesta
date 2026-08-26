@@ -585,7 +585,7 @@ export async function handleCtText(opts: {
     const pasted = parseDeskPin(t);
     if (pasted) {
       try {
-        const result = await pinBankAccount(opts.chatId, pasted.bank, pasted.account);
+        const result = await pinBankAccount(opts.chatId, pasted.bank, pasted.account, pasted.name);
         await sendMessage(opts.chatId, C.pinView(result.pinned.map((b) => ({
           bank: b.bank_name,
           last4: accountLast4(b.account_number) ?? '????',
@@ -606,7 +606,7 @@ export async function handleCtText(opts: {
   const deskPin = parseDeskPin(t);
   if (deskPin) {
     try {
-      const result = await pinBankAccount(opts.chatId, deskPin.bank, deskPin.account);
+      const result = await pinBankAccount(opts.chatId, deskPin.bank, deskPin.account, deskPin.name);
       await sendMessage(opts.chatId, C.pinView(result.pinned.map((b) => ({
         bank: b.bank_name,
         last4: accountLast4(b.account_number) ?? '????',

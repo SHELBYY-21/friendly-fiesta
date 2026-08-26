@@ -15,6 +15,38 @@ export interface DeskPin {
   name: string | null;
 }
 
+export function cleanPersonName(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const t = String(raw)
+    .replace(/["'`]/g, ' ')
+    .replace(/(?:นาย|นางสาว|น\.ส\.|นส\.|นาง|คุณ|บจก\.?|บริษัท)\s*/g, ' ')
+    .replace(/ธ\.\s*[ก-๙A-Za-z]+/g, ' ')
+    .replace(/กสิกรไทย|กรุงไทย|กรุงเทพ|ไทยพาณิชย์|ออมสิน|ทหารไทย/g, ' ')
+    .replace(/x[x.-]*\d{3,4}x?/gi, ' ')
+    .replace(/\s+ธ\.?\s*$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (t.length < 3 || /^\d+$/.test(t)) return null;
+  return t.slice(0, 48);
+}
+
+export function nameFromPayee(text: string): string | null {
+  const raw = String(text ?? '');
+  const payee = (raw.split(/ไปยัง|ผู้รับเงิน|ผู้รับ|เข้าบัญชี|บัญชีปลายทาง/)[1] || '')
+    .split(/ค่าธรรมเนียม|เลขที่รายการ|จำนวนเงิน|จำนวน\s*:|จาก\s/)[0];
+  if (payee.trim()) {
+    const company = payee.match(/บจก\.?\s*([^\n]+)/i);
+    if (company) return cleanPersonName(company[1]);
+    const person = payee.match(/(?:นาย|นางสาว|น\.ส\.|นาง|คุณ)?\s*([ก-๙]{2,}(?:\s+[ก-๙]{2,}){0,3})/);
+    const cleaned = cleanPersonName(person?.[1] ?? null);
+    if (cleaned) return cleaned;
+  }
+  const names = [...raw.matchAll(/(?:นาย|นางสาว|น\.ส\.|นาง|คุณ)?\s*([ก-๙]{2,}\s+[ก-๙]{2,}(?:\s+[ก-๙]{1,})?)/g)];
+  if (names.length >= 2) return cleanPersonName(names[names.length - 1][0]);
+  if (names.length === 1) return cleanPersonName(names[0][0]);
+  return null;
+}
+
 function last4FromMasked(text: string): string | null {
   const compact = String(text ?? '').replace(/[-.\s]/g, '');
   const masked = compact.match(/x+(\d{4})x?/i);
@@ -59,10 +91,7 @@ export function parseSlipText(text: string): ParsedSlipText {
     cleaned.match(/กสิกรไทย|กสิกร|กรุงเทพ|กรุงไทย|ไทยพาณิชย์|กรุงศรี|ออมสิน|ทหารไทย|LINE BK|KBANK|SCB|BBL|KTB|BAY|TTB|GSB|CIMB|KKP/i);
   const bank = normalizeBankCode(bankToken ? bankToken[0] : null);
 
-  const nameMatch =
-    payeeBlock.match(/บจก\.?\s*([^\nก-ฮ]*[ก-๙A-Za-z].{2,40})/) ||
-    cleaned.match(/(?:ผู้รับ|โอนให้|ถึง|ไปยัง)\s*(?:นาย|นางสาว|นาง|คุณ|บจก\.?)?\s*([ก-๙a-zA-Z]{2,}\s+[ก-๙a-zA-Z]{2,})/);
-  const receiverName = nameMatch ? nameMatch[1].replace(/\s+กสิกร.*$/i, '').trim() : null;
+  const receiverName = nameFromPayee(raw);
 
   const dateMatch = cleaned.match(/(\d{1,2}[./-]\d{1,2}[./-]\d{2,4})/) || cleaned.match(/(\d{1,2}\s*ส\.ค\.\s*\d{2})/);
   const timeMatch = cleaned.match(/(\d{1,2}:\d{2}(?::\d{2})?)/);

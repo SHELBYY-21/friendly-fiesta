@@ -201,6 +201,7 @@ export function cardPinMismatch(d: {
   slipLast4: string;
   pinBank: string;
   pinLast4: string;
+  name?: string | null;
   confidence: number;
   short: string;
   lead: boolean;
@@ -216,8 +217,9 @@ export function cardPinMismatch(d: {
       head('แจ้งเตือน', `บัญชีไม่ตรงกับบัญชีรับวันนี้  ความมั่นใจ ${Math.round(d.confidence)}%`),
       '',
       `บัญชีรับบนสลิป  ${esc(d.slipBank)}  ${esc(maskAcct(d.slipLast4))}`,
+      d.name ? `ชื่อผู้รับบนสลิป  ${esc(d.name)}` : '',
       `บัญชีรับของเรา   ${esc(d.pinBank)}  ${esc(maskAcct(d.pinLast4))}`,
-    ].join('\n'),
+    ].filter(Boolean).join('\n'),
     ik(rows),
   );
 }

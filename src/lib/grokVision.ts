@@ -1,4 +1,4 @@
-import { last4FromPayeeMask } from '../bot/parse';
+import { last4FromPayeeMask, cleanPersonName, nameFromPayee } from '../bot/parse';
 
 export interface SlipExtract {
   thbAmount: number | null;
@@ -31,6 +31,10 @@ CRITICAL — account roles:
 - senderLast4 = ผู้โอน / จาก / บัญชีต้นทาง. NEVER copy sender digits into receiverLast4.
 - Krungthai NEXT mask xxx-x-x6034-x → 6034 when that mask is the payee or the incoming account.
 - Do NOT use digits from เลขที่รายการ / COR / QR / barcode as last4.
+- receiverName = PAYEE name only (ไปยัง / ผู้รับ / ชื่อล่างในสลิป K+). Strip titles นาย นาง น.ส. คุณ.
+- senderName = จาก / ผู้โอน / ชื่อบน. NEVER copy sender name into receiverName.
+- K+ stacked layout: top person+bank is sender, bottom person+bank is receiver.
+  Example: นาย ซอฟวัน ก / กสิกรไทย = sender. สุพัตรา อั้นเจริญ / กรุงไทย = receiver.
 - bank = bank of the RECEIVER. กรุงไทย → KTB. กสิกร/LINE BK → KBANK. ไทยพาณิชย์ → SCB.
 - Incoming credit slips: the masked account on the slip is US (receiver).
 Rules: raw JSON only. Buddhist year 2569 → 26. Unreadable fields = null. Never invent.`;
@@ -162,8 +166,8 @@ export async function analyzeSlipWithGrok(imageUrl: string): Promise<SlipExtract
       receiverLast4: payee,
       senderLast4,
       bank: str(data.bank)?.toUpperCase() ?? null,
-      receiverName: str(data.receiverName),
-      senderName: str(data.senderName),
+      receiverName: cleanPersonName(str(data.receiverName)) || nameFromPayee(text),
+      senderName: cleanPersonName(str(data.senderName)),
       confidence: num(data.confidence),
       raw: text,
     };
