@@ -1,7 +1,8 @@
 import { randomBytes } from 'crypto';
 import { escapeTelegramHtml } from '../botSecurity';
+import { RULE, quote } from './tokens';
 
-export const DIV = '· · · · · · · · · · · ·';
+export const DIV = RULE;
 const BKK = 'Asia/Bangkok';
 
 export function esc(s: unknown): string {
@@ -86,13 +87,14 @@ export function pnlThb(thb: number, usdtAmt: number, desk: number, mkt: number |
 export function quoteBlock(d: { thb: number; usdt: number; desk: number; mkt: number | null }): string {
   const p = pnlThb(d.thb, d.usdt, d.desk, d.mkt);
   const pnl = p == null ? '—' : `${p >= 0 ? '+' : ''}${thbInt(p)}`;
-  return [
-    `เงินเข้า     <b>${thbCard(d.thb)}</b> THB`,
-    `ยอดที่ต้องใช้  <b>${usdt(d.usdt)}</b> USDT`,
-    `ตลาด (MKT)   <code>${rateCode(d.mkt)}</code>`,
-    `อัตราโต๊ะ    <code>${rateCode(d.desk)}</code>`,
-    `ส่วนต่าง      <b>${pnl}</b>`,
-  ].join('\n');
+  return quote(
+    [
+      `<b>${thbCard(d.thb)}</b> THB`,
+      `due  <b>${usdt(d.usdt)}</b> USDT`,
+      `ส่วนต่าง  <b>${pnl}</b>`,
+      `DESK <code>${rateCode(d.desk)}</code>  MKT <code>${rateCode(d.mkt)}</code>`,
+    ].join('\n'),
+  );
 }
 
 export function deskUrl(): string {

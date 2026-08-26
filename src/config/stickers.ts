@@ -1,42 +1,41 @@
-// Next.js loads .env.local automatically — no dotenv import needed.
+/** Sticker file_ids from env only. Never hardcode. Missing IDs are skipped. */
 export const STICKER_IDS = {
-  WELCOME:     process.env.STICKER_WELCOME_ID,
-  PROCESSING:  process.env.STICKER_PROCESSING_ID,
-  OCR_DONE:    process.env.STICKER_OCR_DONE_ID,
-  WAITING:     process.env.STICKER_WAITING_ID,
-  SUCCESS:     process.env.STICKER_SUCCESS_ID,
-  ERROR:       process.env.STICKER_ERROR_ID,
-  RETRY:       process.env.STICKER_RETRY_ID,
-  THANK_YOU:   process.env.STICKER_THANKYOU_ID,
-  VIP:         process.env.STICKER_VIP_ID,
-  QUEUE:       process.env.STICKER_QUEUE_ID,
+  WELCOME: process.env.STICKER_WELCOME_ID,
+  PROCESSING: process.env.STICKER_PROCESSING_ID,
+  OCR_DONE: process.env.STICKER_OCR_DONE_ID,
+  WAITING: process.env.STICKER_WAITING_ID,
+  SUCCESS: process.env.STICKER_SUCCESS_ID,
+  ERROR: process.env.STICKER_ERROR_ID,
+  RETRY: process.env.STICKER_RETRY_ID,
+  THANK_YOU: process.env.STICKER_THANKYOU_ID,
+  VIP: process.env.STICKER_VIP_ID,
+  QUEUE: process.env.STICKER_QUEUE_ID,
 } as const;
 
 export type StickerState = keyof typeof STICKER_IDS;
 
-/**
- * Fail fast at startup instead of during a user flow.
- */
-export function validateStickers() {
-  const missing: StickerState[] = [];
+const FLOW_MAP: Record<string, StickerState> = {
+  welcome: 'WELCOME',
+  loading: 'PROCESSING',
+  receiving: 'PROCESSING',
+  ocr: 'OCR_DONE',
+  verified: 'SUCCESS',
+  waiting: 'WAITING',
+  queue: 'QUEUE',
+  completed: 'SUCCESS',
+  error: 'ERROR',
+  warning: 'RETRY',
+  cancelled: 'RETRY',
+};
 
-  for (const [key, id] of Object.entries(STICKER_IDS)) {
-    if (!id || !id.startsWith("CAACAg")) {
-      missing.push(key as StickerState);
-    }
-  }
-
-  if (missing.length > 0) {
-    throw new Error(
-      `Missing or invalid sticker file_ids:\n` +
-      missing.map(k => `  - ${k}: ${STICKER_IDS[k] || "(empty)"}`).join("\n")
-    );
-  }
+export function validateStickers(): string[] {
+  return (Object.entries(STICKER_IDS) as Array<[StickerState, string | undefined]>)
+    .filter(([, id]) => !id)
+    .map(([key]) => key);
 }
 
-/**
- * Safe getter with optional fallback.
- */
-export function getSticker(state: StickerState): string | undefined {
-  return STICKER_IDS[state];
+export function getSticker(state: StickerState | string): string | undefined {
+  const key = (FLOW_MAP[String(state).toLowerCase()] ?? state) as StickerState;
+  const id = STICKER_IDS[key];
+  return id || undefined;
 }

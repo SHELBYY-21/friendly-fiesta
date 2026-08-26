@@ -1,13 +1,16 @@
 import { sendSticker } from './telegram';
 import { getSticker } from '@/config/stickers';
 
-export async function sendStickerFor(chatId: number, key: string): Promise<void> {
+/** Optional WebM/animated sticker. No-ops when env file_id is missing. Never extra-spams the live card. */
+export async function sendStickerFor(chatId: number, key: string): Promise<boolean> {
   try {
-    const id = getSticker(key as any);
-    if (id) await sendSticker(chatId, id);
+    const id = getSticker(key);
+    if (!id) return false;
+    await sendSticker(chatId, id);
+    return true;
   } catch (e) {
-    // swallow sticker errors — non-critical
     console.warn('sendStickerFor error', e instanceof Error ? e.message : e);
+    return false;
   }
 }
 

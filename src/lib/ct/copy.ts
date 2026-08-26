@@ -2,26 +2,19 @@ import type { OutgoingMessage } from '../telegram';
 import {
   esc, ik, btn, urlBtn, displayLedger, maskAcct, thbInt, thbCard, usdt, rateCode, quoteBlock, deskUrl,
 } from './format';
+import { head as tokenHead, progress, rule, NODE } from './tokens';
+import type { FlowStep } from './tokens';
 
 function msg(text: string, keyboard?: unknown): OutgoingMessage {
   return { text, reply_markup: keyboard };
 }
 
 function head(status: string, meta: string): string {
-  return `◈  <b>CT</b>\n<i>[ ${status} ]  ${esc(meta)}</i>`;
+  return tokenHead(status, esc(meta));
 }
 
-function tape(step: 'scan' | 'in' | 'wait' | 'sent' | 'done'): string {
-  const order = ['อ่านสลิป', 'เทียบบัญชีรับ', 'ตรวจยอด', 'รอโอน', 'เสร็จ'] as const;
-  const on =
-    step === 'scan' ? 'อ่านสลิป' :
-    step === 'in' ? 'ตรวจยอด' :
-    step === 'wait' ? 'รอโอน' :
-    step === 'sent' ? 'รอโอน' : 'เสร็จ';
-  if (step === 'scan') {
-    return order.map((s) => (s === 'อ่านสลิป' || s === 'เทียบบัญชีรับ' ? `<b>${s}</b>` : s)).join('  →  ');
-  }
-  return order.map((s) => (s === on ? `<b>${s}</b>` : s)).join('  →  ');
+function tape(step: FlowStep): string {
+  return `${progress(step)}\n${rule()}`;
 }
 
 export function skeletonScan(bank: string, last4: string): OutgoingMessage {
@@ -29,7 +22,7 @@ export function skeletonScan(bank: string, last4: string): OutgoingMessage {
 }
 
 export function skeletonRead(): OutgoingMessage {
-  return msg(`${head('AGENT', 'เทียบบัญชีรับบนสลิปกับหมุดของเรา')}\n${tape('scan')}`);
+  return msg(`${head('AGENT', 'เทียบบัญชีรับบนสลิปกับหมุดของเรา')}\n${tape('match')}`);
 }
 
 export function skeletonVault(): OutgoingMessage {
@@ -176,7 +169,7 @@ export function cardOcrWeak(d: {
   return msg(
     [
       head('แจ้งเตือน', `อ่านสลิปไม่ชัด  ความมั่นใจ ${Math.round(d.confidence)}%`),
-      '',
+      tape('scan'),
       `${esc(d.bank)}  ${esc(maskAcct(d.last4))}`,
       esc(d.name || '—'),
       '',
@@ -220,7 +213,7 @@ export function cardPinMismatch(d: {
   return msg(
     [
       head('แจ้งเตือน', `บัญชีไม่ตรงกับบัญชีรับวันนี้  ความมั่นใจ ${Math.round(d.confidence)}%`),
-      '',
+      tape('match'),
       `บัญชีรับบนสลิป  ${esc(d.slipBank)}  ${esc(maskAcct(d.slipLast4))}`,
       d.name ? `ชื่อผู้รับบนสลิป  ${esc(d.name)}` : '',
       `บัญชีรับของเรา   ${esc(d.pinBank)}  ${esc(maskAcct(d.pinLast4))}`,
@@ -339,7 +332,7 @@ export function cardSettled(d: {
   return msg(
     [
       head('โอนแล้ว', 'รายการเสร็จสมบูรณ์'),
-      '',
+      tape('done'),
       `เงินเข้า     ${thbCard(d.thb)} THB`,
       `เงินออก     <b>${usdt(d.usdtOut)} USDT</b>`,
       `อัตราโต๊ะ   <code>${rateCode(d.desk)}</code>`,
@@ -425,7 +418,8 @@ export function vaultBanner(d: {
   pendingShorts: string[];
 }): OutgoingMessage {
   const meta = d.mode === 'pending' ? `รอโอน  ${d.inRows.length} รายการ` : `${d.dateLabel}  ${d.clock}`;
-  const lines = [head('สรุปยอด', meta), ''];
+  const step = d.mode === 'pending' || d.pendingUsdt > 0 ? 'wait' : d.inCount > 0 ? 'done' : 'scan';
+  const lines = [head('สรุปยอด', meta), tape(step), ''];
 
   if (d.mode === 'pending') {
     if (!d.inRows.length) {
@@ -449,7 +443,7 @@ export function vaultBanner(d: {
     return msg(lines.join('\n'), vaultButtons(d.pendingShorts));
   }
 
-  lines.push(`เงินเข้า     <b>${thbInt(d.inThb)} THB</b>    ${d.inCount} รายการ`);
+  lines.push(`${NODE}  เงินเข้า     <b>${thbInt(d.inThb)} THB</b>    ${d.inCount} รายการ`);
   d.inRows.slice(0, 5).forEach((r, i) => {
     const n = String(i + 1).padStart(2, '0');
     const flag = r.pending ? 'รอโอน' : 'เสร็จ';

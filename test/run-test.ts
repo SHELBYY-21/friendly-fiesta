@@ -308,7 +308,10 @@ const inReady = CT.cardInReady({
 assert(inReady.text.includes('THB'), 'IN_READY amount table');
 assert(inReady.text.includes('ส่วนต่าง'), 'IN_READY pnl');
 assert(inReady.text.includes('MKT'), 'IN_READY market');
-assert(inReady.text.includes('ตรวจยอด'), 'IN_READY progress tape');
+assert(inReady.text.includes('ตรวจ'), 'IN_READY progress tape');
+assert(inReady.text.includes('●──'), 'IN_READY dots');
+assert(inReady.text.includes('┃'), 'IN_READY rail');
+assert(inReady.text.includes('<blockquote'), 'IN_READY amount quote');
 assert(inReady.text.includes('#CE-20260826-A4F2'), 'ledger id with hash');
 assert(JSON.stringify(inReady.reply_markup).includes('slip:lock:A4F2'), 'lock callback present');
 assert(hasBalancedTelegramHtml(inReady.text), 'IN_READY html balanced');
