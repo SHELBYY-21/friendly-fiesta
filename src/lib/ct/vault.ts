@@ -12,6 +12,24 @@ function midnightIso(): string {
   return new Date(bkk.getTime() + offset).toISOString();
 }
 
+function numOrNull(v: unknown): number | null {
+  if (v == null || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function fmtTime(iso: string) {
+  return new Date(iso).toLocaleTimeString('en-GB', {
+    timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', hour12: false,
+  });
+}
+
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleDateString('en-GB', {
+    timeZone: 'Asia/Bangkok', day: '2-digit', month: 'short',
+  }).toUpperCase();
+}
+
 export async function loadVault(chatId?: number | null, mode: 'today' | 'pending' | 'all' = 'today') {
   const cut = midnightIso();
   let insQ = supabaseAdmin
@@ -36,23 +54,20 @@ export async function loadVault(chatId?: number | null, mode: 'today' | 'pending
     opsRates(chatId ?? 0),
   ]);
 
-  const outByRef = new Map<string, { usdt: number; at: string }>();
+  const outByRef = new Map<string, { usdt: number | null; at: string }>();
   for (const o of outs ?? []) {
     const k = String(o.ledger_ref || '');
     if (!k || outByRef.has(k)) continue;
-    outByRef.set(k, { usdt: Number(o.usdt_amount), at: o.created_at });
+    outByRef.set(k, { usdt: numOrNull(o.usdt_amount), at: o.created_at });
   }
-
-  const fmt = (iso: string) =>
-    new Date(iso).toLocaleTimeString('en-GB', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', hour12: false });
 
   const inRows: VaultRow[] = [];
   let inThb = 0;
   let owed = 0;
   let feeUsdt = 0;
   for (const r of ins ?? []) {
-    const thb = Number(r.thb_amount);
-    const should = Number(r.usdt_amount);
+    const thb = numOrNull(r.thb_amount) ?? 0;
+    const should = numOrNull(r.usdt_amount) ?? 0;
     const settled = outByRef.has(String(r.ledger_ref || ''));
     inThb += thb;
     owed += should;
@@ -60,15 +75,15 @@ export async function loadVault(chatId?: number | null, mode: 'today' | 'pending
     inRows.push({
       thb,
       usdt: should,
-      time: fmt(r.created_at),
+      time: fmtTime(r.created_at),
       short: shortOf(String(r.ledger_ref || '----')),
       pending: !settled,
     });
   }
 
   const outRows: VaultRow[] = (outs ?? []).map((o) => ({
-    usdt: Number(o.usdt_amount),
-    time: fmt(o.created_at),
+    usdt: numOrNull(o.usdt_amount) ?? 0,
+    time: fmtTime(o.created_at),
     short: shortOf(String(o.ledger_ref || '----')),
     pending: false,
   }));
@@ -99,15 +114,23 @@ export async function loadVault(chatId?: number | null, mode: 'today' | 'pending
     pendingShorts,
     ymd: ymdBkk(),
     tape: (ins ?? []).map((r) => {
-      const settled = outByRef.has(String(r.ledger_ref || ''));
+      const out = outByRef.get(String(r.ledger_ref || ''));
+      const dueUsdt = numOrNull(r.usdt_amount);
+      const sentUsdt = out ? out.usdt : null;
+      const done = Boolean(out);
       return {
         id: r.id,
-        ledger: r.ledger_ref,
+        ledger: r.ledger_ref ?? null,
         short: shortOf(String(r.ledger_ref || '----')),
-        thb: Number(r.thb_amount),
-        usdt: Number(r.usdt_amount),
-        time: fmt(r.created_at),
-        pending: !settled,
+        thb: numOrNull(r.thb_amount),
+        usdt: dueUsdt ?? 0,
+        dueUsdt,
+        sentUsdt,
+        createdAt: r.created_at ?? null,
+        dateStamp: r.created_at ? fmtDate(r.created_at) : '—',
+        time: r.created_at ? fmtTime(r.created_at) : '—',
+        pending: !done,
+        status: done ? 'DONE' as const : 'WAIT' as const,
         bank: r.receiver_bank ?? null,
         name: r.receiver_name ?? null,
         last4: r.receiver_last4 ?? null,

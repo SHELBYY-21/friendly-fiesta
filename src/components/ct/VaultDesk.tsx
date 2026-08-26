@@ -4,29 +4,24 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import SummaryToday from '@/components/SummaryToday';
 import PinnedAccounts, { type PinnedAccount } from '@/components/PinnedAccounts';
 import { useVaultLive } from '@/lib/ct/realtime';
+import { TransactionFlowCard, VaultHistoryTable } from '@/components/ct/TransactionFlow';
 
 type TapeRow = {
   id: string;
-  ledger: string;
+  ledger: string | null;
   short: string;
-  thb: number;
-  usdt: number;
+  thb: number | null;
+  usdt?: number | null;
+  dueUsdt: number | null;
+  sentUsdt: number | null;
+  createdAt: string | null;
+  dateStamp: string;
   time: string;
   pending: boolean;
+  status: 'WAIT' | 'DONE';
   bank: string | null;
   last4: string | null;
   name?: string | null;
-};
-
-type QueueRow = {
-  short_ref: string;
-  ledger_ref?: string | null;
-  status: string;
-  thb_in: number | null;
-  should_send?: number | null;
-  bank?: string | null;
-  name?: string | null;
-  created_at?: string;
 };
 
 type VaultPayload = {
@@ -49,24 +44,11 @@ type VaultPayload = {
   rates: { desk: number; mkt: number | null };
   pins: Array<{ bank: string; last4: string; label: string | null }>;
   accounts?: Array<{ bank: string; last4: string; count: number; totalThb: number; totalUsdt: number }>;
-  queue: QueueRow[];
+  queue: Array<{ short_ref: string }>;
 };
 
 function money(n: number, d = 0) {
   return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
-}
-function clockOf(iso?: string) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleTimeString('en-GB', {
-    timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', hour12: false,
-  });
-}
-function slipStatus(s: string) {
-  if (s === 'LOCKED') return 'waiting';
-  if (s === 'IN_READY' || s === 'IN_READY_REVIEW') return 'confirm';
-  if (s === 'PIN_MISMATCH' || s === 'HOLD') return 'mismatch';
-  if (s === 'OCR_WEAK' || s === 'NEED_UNIT') return 'unclear';
-  return s.toLowerCase();
 }
 
 export default function VaultDesk() {
@@ -136,8 +118,13 @@ export default function VaultDesk() {
   };
 
   const v = data?.vault;
-  const tape = (v?.tape ?? []).filter((r) => (mode === 'pending' ? r.pending : true));
-  const queue = data?.queue ?? [];
+  const tape = (v?.tape ?? []).filter((r) => (mode === 'pending' ? r.pending : true)).map((r) => ({
+    ...r,
+    dueUsdt: r.dueUsdt ?? r.usdt ?? null,
+    sentUsdt: r.sentUsdt ?? null,
+    dateStamp: r.dateStamp || '—',
+    status: r.status ?? (r.pending ? 'WAIT' : 'DONE'),
+  }));
   const due = v?.pendingUsdt ?? 0;
   const required = v?.requiredUsdt ?? due;
   const sent = v?.outUsdt ?? 0;
@@ -223,81 +210,20 @@ export default function VaultDesk() {
         <button type="submit" disabled={saving} className="keep px-4 text-xs">ตั้งเรท</button>
       </form>
 
-      <section className="overflow-x-auto">
-        <table className="tape">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Time</th>
-              <th className="num">THB</th>
-              <th className="num">USDT</th>
-              <th>Bank</th>
-              <th>Name</th>
-              <th>Ref</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tape.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-muted">วันนี้ยังไม่มีสลิป</td></tr>
-            ) : tape.slice(0, 40).map((row, i) => (
-              <tr key={row.id} className={flash.has(row.id) ? 'flash' : undefined}>
-                <td className="text-faint">{String(i + 1).padStart(2, '0')}</td>
-                <td>{row.time}</td>
-                <td className="num">{money(row.thb)}</td>
-                <td className="num">{money(row.usdt, 2)}</td>
-                <td>{row.bank ? `${row.bank} ····${row.last4 ?? ''}` : '—'}</td>
-                <td className="max-w-[12rem] truncate">{row.name || '—'}</td>
-                <td className="font-mono text-gold">{row.short}</td>
-                <td>
-                  <span className={`pill ${row.pending ? 'pill-wait' : 'pill-done'}`}>
-                    {row.pending ? 'waiting' : 'done'}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <section className="grid gap-3 px-4 py-4 sm:grid-cols-2 xl:grid-cols-3">
+        {tape.length === 0 ? (
+          <p className="col-span-full py-8 text-center text-muted">วันนี้ยังไม่มีสลิป</p>
+        ) : tape.slice(0, 24).map((row) => (
+          <TransactionFlowCard key={row.id} row={row} flash={flash.has(row.id)} />
+        ))}
       </section>
 
-      <section className="overflow-x-auto border-t border-[var(--line)]">
-        <div className="flex items-center justify-between px-4 py-2">
-          <p className="text-xs uppercase tracking-[0.14em] text-faint">คิวรอส่ง</p>
-          <p className="font-mono text-xs text-gold">{queue.length}</p>
-        </div>
-        <table className="tape">
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Ref</th>
-              <th>Status</th>
-              <th className="num">THB</th>
-              <th className="num">USDT</th>
-              <th>Bank</th>
-              <th>Name</th>
-            </tr>
-          </thead>
-          <tbody>
-            {queue.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-6 text-muted">ไม่มีคิวรอส่ง</td></tr>
-            ) : queue.map((q) => (
-              <tr key={q.short_ref}>
-                <td>{clockOf(q.created_at)}</td>
-                <td className="font-mono text-gold">{q.short_ref}</td>
-                <td>
-                  <span className={`pill ${q.status === 'LOCKED' ? 'pill-wait' : q.status.includes('MISMATCH') ? 'pill-live' : 'pill-done'}`}>
-                    {slipStatus(q.status)}
-                  </span>
-                </td>
-                <td className="num">{q.thb_in ? money(Number(q.thb_in)) : '—'}</td>
-                <td className="num">{q.should_send ? money(Number(q.should_send), 2) : '—'}</td>
-                <td>{q.bank || '—'}</td>
-                <td className="max-w-[12rem] truncate">{q.name || '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+      <VaultHistoryTable
+        rows={tape}
+        dateLabel={v?.dateLabel ?? '—'}
+        clock={v?.clock ?? '—'}
+        flash={flash}
+      />
     </div>
   );
 }
