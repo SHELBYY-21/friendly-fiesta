@@ -23,6 +23,13 @@ npm run dev
 ## Env
 Copy `.env.local.example`. Required: `BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `ADMIN_TELEGRAM_IDS`, `API_SECRET`, Supabase URL + secret key, `APP_URL`, `GROK_API_KEY`.
 
+Test Vision without Telegram:
+
+```bash
+export GROK_API_KEY=xai-...
+python3 scripts/test_vision.py slip.jpg
+```
+
 Do not set `DEFAULT_SELL_RATE` / `DEFAULT_MARKET_RATE`.
 
 ## Ops
