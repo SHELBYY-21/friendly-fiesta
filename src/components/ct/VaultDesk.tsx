@@ -55,10 +55,6 @@ type VaultPayload = {
 function money(n: number, d = 0) {
   return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 }
-function rate(n: number | null | undefined) {
-  if (n == null || !Number.isFinite(n) || n <= 0) return '—';
-  return n.toFixed(2);
-}
 function clockOf(iso?: string) {
   if (!iso) return '—';
   return new Date(iso).toLocaleTimeString('en-GB', {
@@ -173,16 +169,16 @@ export default function VaultDesk() {
     <div className="min-h-screen">
       <header className="nav dense-nav">
         <div className="flex min-w-0 items-center gap-3">
-          <span className="mark-glow">◈</span>
+          <span className="mark-glow" aria-hidden>◈</span>
           <span className="text-xs tracking-[0.18em]">CT</span>
-          <span className={`pill hidden sm:inline-flex ${live ? 'pill-live' : 'pill-wait'}`}>
-            {live ? 'live' : 'agent'}
+          <span className={`pill hidden sm:inline-flex ${live ? 'pill-done' : 'pill-wait'}`}>
+            {live ? 'live' : 'poll'}
           </span>
+          {due > 0 && (
+            <span className="font-mono text-sm text-gold">due {money(due, 2)}</span>
+          )}
           <span className="hidden text-xs text-faint sm:inline">
             {v ? `${v.dateLabel} ${v.clock}` : '—'}
-          </span>
-          <span className="hidden font-mono text-xs text-muted lg:inline">
-            DESK {rate(desk)} · MKT {rate(mkt)}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -266,8 +262,8 @@ export default function VaultDesk() {
 
       <section className="overflow-x-auto border-t border-[var(--line)]">
         <div className="flex items-center justify-between px-4 py-2">
-          <p className="text-[11px] uppercase tracking-[0.14em] text-faint">สลิปที่ยังไม่จบ</p>
-          <p className="text-[11px] text-faint">{queue.length}</p>
+          <p className="text-xs uppercase tracking-[0.14em] text-faint">คิวรอส่ง</p>
+          <p className="font-mono text-xs text-gold">{queue.length}</p>
         </div>
         <table className="tape">
           <thead>

@@ -77,19 +77,16 @@ export default function SummaryToday({
   ];
 
   return (
-    <div className="glass glass-hover accent-top reveal overflow-x-auto p-5" style={{ animationDelay: '0ms' }}>
+    <div className="glass glass-hover accent-top reveal overflow-x-auto p-5">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold tracking-[0.14em]">SUMMARY TODAY</h2>
-          <p className="mt-1 text-xs text-[color:var(--muted)]">
+          <h2 className="text-sm font-semibold tracking-[0.14em]">สรุปวันนี้</h2>
+          <p className="mt-1 text-xs text-muted">
             {dateLabel ?? 'today'}
             {account ? `  ·  ${account.bankName} ····${account.last4}` : ''}
           </p>
         </div>
-        <div className="flex flex-col items-end gap-1.5">
-          <span className="pill pill-live">live</span>
-          <SyncBadge lastSync={lastSync} status={syncStatus} />
-        </div>
+        <SyncBadge lastSync={lastSync} status={syncStatus} />
       </div>
 
       <table className="tape">
@@ -115,9 +112,9 @@ export default function SummaryToday({
         </tbody>
       </table>
 
-      <div className="mt-4 flex flex-wrap justify-between gap-2 rounded-lg bg-white/5 px-3 py-2 font-mono text-xs">
+      <div className="mt-4 flex flex-wrap justify-between gap-2 rounded-[var(--radius-sm)] px-3 py-2 font-mono text-xs shadow-[inset_0_0_0_1px_var(--line)]">
         <span>DESK {desk ? n(desk, 2) : '—'}</span>
-        <span className="text-cyan">MKT {rates.marketRate > 0 ? n(rates.marketRate, 2) : '—'}</span>
+        <span className="text-muted">MKT {rates.marketRate > 0 ? n(rates.marketRate, 2) : '—'}</span>
         <span className="text-faint">{wait} wait · {outCount} done</span>
       </div>
     </div>
