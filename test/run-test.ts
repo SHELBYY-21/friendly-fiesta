@@ -96,11 +96,25 @@ xxx-x-x6034-x
 assert(kplusName === 'สุพัตรา อั้นเจริญ', `K+ payee name (got ${kplusName})`);
 assert(nameFromPayee('ไปยัง สุพัตรา อั้นเจริญ x-0343') === 'สุพัตรา อั้นเจริญ', `ไปยัง name (got ${nameFromPayee('ไปยัง สุพัตรา อั้นเจริญ x-0343')})`);
 
-const { matchPinnedBank, accountLast4 } = require('../src/lib/banks');
+const { matchPinnedBank, accountLast4, accountLast4Candidates } = require('../src/lib/banks');
 const pins = [{ id: '1', bank_name: 'KTB', account_number: 'xx6034', label: 'KTB' }];
 assert(matchPinnedBank('SCB', '6034', pins)?.id === '1', 'match pin by last4 even if OCR bank is wrong');
 assert(matchPinnedBank('KTB', '0343', pins) == null, 'do not match sender last4 0343');
 assert(accountLast4('xxx-x-x6034-x') === '6034', 'mask last4 6034');
+
+const livePin = parseDeskPin(`✍️ ชื่อเต็ม: สุพัตรา อั้นเจริญ 
+🏦 ธนาคาร: กรุงไทย (KTB)
+📝 บัญชี: 6661260343
+📱วงเงินธุรกรรม/วัน = 500,000฿`);
+assert(livePin?.bank === 'KTB', `live pin bank KTB (got ${livePin?.bank})`);
+assert(livePin?.account === '6661260343', `live pin account (got ${livePin?.account})`);
+assert(livePin?.name === 'สุพัตรา อั้นเจริญ', `live pin name (got ${livePin?.name})`);
+const livePins = [{ id: 's', bank_name: 'KTB', account_number: '6661260343', label: 'สุพัตรา' }];
+assert(accountLast4Candidates('6661260343').includes('0343'), 'true last4 0343');
+assert(accountLast4Candidates('6661260343').includes('6034'), 'KTB mask 6034');
+assert(matchPinnedBank('KTB', '6034', livePins)?.id === 's', 'slip 6034 matches account 6661260343');
+assert(matchPinnedBank('KTB', '0343', livePins)?.id === 's', 'slip 0343 matches account 6661260343');
+assert(matchPinnedBank('KTB', '5521', livePins) == null, 'sender 5521 does not match');
 
 const deskPin = parseDeskPin(`BBL วงเงิน 150k
 ชื่อ-สกุล :  วุฒิ บุญสุข

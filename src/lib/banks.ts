@@ -21,6 +21,17 @@ export function accountLast4(value: string | null | undefined): string | null {
   return digits.length >= 4 ? digits.slice(-4) : null;
 }
 
+/** Thai slips often mask a middle group, not the true last4.
+ *  KTB 10-digit AAA-B-CCCCC-D e.g. 666-1-26034-3 → slip shows 6034, true last4 is 0343. */
+export function accountLast4Candidates(value: string | null | undefined): string[] {
+  const digits = String(value ?? '').replace(/\D/g, '');
+  const out = new Set<string>();
+  if (digits.length >= 4) out.add(digits.slice(-4));
+  if (digits.length >= 5) out.add(digits.slice(-5, -1));
+  if (digits.length === 10) out.add(digits.slice(5, 9));
+  return [...out];
+}
+
 export async function listPinnedBanks(chatId: number, date = todayBangkok()): Promise<PinnedBank[]> {
   const { data, error } = await supabaseAdmin
     .from('pinned_bank_accounts')
@@ -110,7 +121,7 @@ export function matchPinnedBank(
 ): PinnedBank | null {
   const last4 = accountLast4(last4Input);
   if (!last4 || !pinned.length) return null;
-  const last4Hits = pinned.filter((item) => accountLast4(item.account_number) === last4);
+  const last4Hits = pinned.filter((item) => accountLast4Candidates(item.account_number).includes(last4));
   if (!last4Hits.length) return null;
   if (last4Hits.length === 1) return last4Hits[0];
   const bankCode = normalizeBankCode(bankInput);
