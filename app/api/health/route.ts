@@ -27,6 +27,10 @@ export async function GET() {
 
   const latency = Date.now() - startedAt;
   const isUp = fatal.length === 0 && db === 'ok' && latency < 5000;
+  const vision = Boolean(
+    process.env.GROK_API_KEY?.trim() || process.env.XAI_API_KEY?.trim(),
+  );
+  const ocrFallback = Boolean(process.env.OCR_SPACE_API_KEY?.trim());
 
   return NextResponse.json(
     {
@@ -34,6 +38,8 @@ export async function GET() {
       service: 'ce-vault-bot-api',
       db,
       detail,
+      vision,
+      ocrFallback,
       configuration: [...fatal, ...extra].map((issue) => `${issue.key}:${issue.code}`),
       latencyMs: latency,
       version: '2.1-optimized',

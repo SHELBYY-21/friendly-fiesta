@@ -14,6 +14,26 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+def load_env() -> None:
+    root = Path(__file__).resolve().parents[1]
+    for name in (".env.local", ".env"):
+        path = root / name
+        if not path.exists():
+            continue
+        for raw in path.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            if line.startswith("export "):
+                line = line[7:]
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip("'").strip('"')
+            if key and key not in os.environ:
+                os.environ[key] = value
+
+
+load_env()
 API = "https://api.x.ai/v1/chat/completions"
 MODEL = os.environ.get("GROK_MODEL") or "grok-4.20-non-reasoning"
 PROMPT = """You are an expert Thai bank slip parser (KPlus, SCB Easy, Krungthai NEXT, Bualuang, ttb, GSB, TrueMoney, LINE BK).
