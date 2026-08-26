@@ -3,6 +3,7 @@ import { getRoom } from '../botSessions';
 import { opsRates } from './rates';
 import { shouldSend } from './format';
 import { listLockedToday, patchSlip, type PendingSlip } from './store';
+import { dueUsdt } from './state';
 import type { Admin } from '@/types/transactions';
 
 export const BATCH_THB = 10_000;
@@ -10,14 +11,18 @@ export const BATCH_THB = 10_000;
 export interface DueSummary {
   count: number;
   thb: number;
+  expected: number;
+  sent: number;
+  due: number;
   usdt: number;
   target: number;
   remain: number;
   ready: boolean;
   refs: string[];
+  batchId: string | null;
 }
 
-export function batchProgress(thb: number, target = BATCH_THB): Omit<DueSummary, 'count' | 'usdt' | 'refs'> {
+export function batchProgress(thb: number, target = BATCH_THB) {
   const t = Math.max(0, Number(thb) || 0);
   return {
     thb: t,
@@ -27,14 +32,22 @@ export function batchProgress(thb: number, target = BATCH_THB): Omit<DueSummary,
   };
 }
 
+export function newBatchId(): string {
+  return `B-${Date.now().toString(36).toUpperCase().slice(-6)}`;
+}
+
 export async function dueSummary(chatId: number): Promise<DueSummary> {
   const rows = await listLockedToday(chatId);
   const thb = Math.round(rows.reduce((s, r) => s + (r.thb_in ?? 0), 0) * 100) / 100;
-  const usdt = Math.round(rows.reduce((s, r) => s + (r.should_send ?? 0), 0) * 100) / 100;
+  const expected = Math.round(rows.reduce((s, r) => s + (r.should_send ?? 0), 0) * 100) / 100;
   return {
     count: rows.length,
-    usdt,
+    expected,
+    sent: 0,
+    due: dueUsdt(expected, 0) ?? expected,
+    usdt: expected,
     refs: rows.map((r) => r.short_ref),
+    batchId: null,
     ...batchProgress(thb),
   };
 }
@@ -49,6 +62,7 @@ export async function commitIncomingLock(
   const desk = p.desk_rate && p.desk_rate > 0
     ? p.desk_rate
     : (await opsRates(opts.chatId)).desk;
+  if (!desk || desk <= 0) throw new Error('NO_DESK_RATE');
   const owed = shouldSend(p.thb_in, desk);
   const room = await getRoom(opts.chatId);
   const r = await recordIncoming({
@@ -82,6 +96,9 @@ export async function commitIncomingLock(
 
 export async function settleAllDue(chatId: number, userId: number): Promise<DueSummary> {
   const rows = await listLockedToday(chatId);
+  const batchId = newBatchId();
+  let sent = 0;
+  const refs: string[] = [];
   for (const p of rows) {
     if (!p.should_send || p.status !== 'LOCKED') continue;
     await recordOutgoing({
@@ -91,21 +108,31 @@ export async function settleAllDue(chatId: number, userId: number): Promise<DueS
       ledgerRef: p.ledger_ref,
       slipImageUrl: p.slip_url,
     });
-    await patchSlip(p.id, { status: 'SETTLED', undo_until: null });
+    await patchSlip(p.id, {
+      status: 'SETTLED',
+      undo_until: null,
+      note: `BATCH:${batchId}`,
+    });
+    sent += p.should_send;
+    refs.push(p.short_ref);
   }
   const thb = Math.round(rows.reduce((s, r) => s + (r.thb_in ?? 0), 0) * 100) / 100;
-  const usdt = Math.round(rows.reduce((s, r) => s + (r.should_send ?? 0), 0) * 100) / 100;
+  const expected = Math.round(rows.reduce((s, r) => s + (r.should_send ?? 0), 0) * 100) / 100;
+  sent = Math.round(sent * 100) / 100;
   return {
-    count: rows.length,
-    usdt,
-    refs: rows.map((r) => r.short_ref),
+    count: refs.length,
+    expected,
+    sent,
+    due: dueUsdt(expected, sent) ?? 0,
+    usdt: sent,
+    refs,
+    batchId,
     ...batchProgress(thb),
     remain: 0,
     ready: false,
   };
 }
 
-/** Matched slip with amount + desk rate → lock into today's send queue. */
 export function canAutoQueue(gate: string, thb: number | null, desk: number): boolean {
   return (gate === 'IN_READY' || gate === 'IN_READY_REVIEW') && thb != null && thb > 0 && desk > 0;
 }
