@@ -12,18 +12,12 @@ type TapeRow = {
 };
 
 function n(v: number | null | undefined, d = 0) {
-  if (v == null || !Number.isFinite(Number(v))) return '\u2014';
+  if (v == null || !Number.isFinite(Number(v))) return '—';
   return Number(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 
 export function QueueTape({
-  rows,
-  dateLabel,
-  clock,
-  waiting,
-  sent,
-  due,
-  flash,
+  rows, dateLabel, clock, waiting, sent, due, flash,
 }: {
   rows: TapeRow[];
   dateLabel: string;
@@ -36,7 +30,7 @@ export function QueueTape({
   return (
     <section className="px-4 pb-10">
       <div className="mb-3 flex items-baseline justify-between">
-        <p className="text-xs tracking-[0.16em]">\u25c8 CT &nbsp;|&nbsp; {dateLabel}</p>
+        <p className="text-xs tracking-[0.16em]">{'◈'} CT | {dateLabel}</p>
         <p className="font-mono text-xs text-faint">{clock}</p>
       </div>
       <p className="mb-2 text-[10px] uppercase tracking-[0.18em] text-faint">QUEUE</p>
@@ -44,7 +38,7 @@ export function QueueTape({
       <table className="tape">
         <thead>
           <tr>
-            <th>\u0e40\u0e27\u0e25\u0e32</th>
+            <th>TIME</th>
             <th className="num">THB</th>
             <th className="num">USDT</th>
             <th>REF</th>
@@ -53,13 +47,13 @@ export function QueueTape({
         </thead>
         <tbody>
           {rows.length === 0 ? (
-            <tr><td colSpan={5} className="px-4 py-8 text-muted">\u0e04\u0e34\u0e27\u0e27\u0e48\u0e32\u0e07</td></tr>
+            <tr><td colSpan={5} className="px-4 py-8 text-muted">empty</td></tr>
           ) : rows.map((row) => (
             <tr key={row.id} className={flash.has(row.id) ? 'flash' : undefined}>
-              <td>{row.time || '\u2014'}</td>
-              <td className="num">{row.thb == null ? '\u2014' : n(row.thb)}</td>
+              <td>{row.time || '—'}</td>
+              <td className="num">{row.thb == null ? '—' : n(row.thb)}</td>
               <td className="num">{n(row.expectedUsdt ?? row.usdt, 2)}</td>
-              <td className="font-mono text-gold">{row.short || '\u2014'}</td>
+              <td className="font-mono text-gold">{row.short || '—'}</td>
               <td>
                 <span className={`pill ${row.status === 'DONE' ? 'pill-done' : row.status === 'ERR' ? 'pill-live' : 'pill-wait'}`}>
                   {row.status}

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import SummaryToday from '@/components/SummaryToday';
 import PinnedAccounts, { type PinnedAccount } from '@/components/PinnedAccounts';
 import { useVaultLive } from '@/lib/ct/realtime';
-import { TransactionFlowCard, VaultHistoryTable } from '@/components/ct/TransactionFlow';
+import { QueueTape } from '@/components/ct/TransactionFlow';
 
 type TapeRow = {
   id: string;
@@ -12,13 +12,14 @@ type TapeRow = {
   short: string;
   thb: number | null;
   usdt?: number | null;
+  expectedUsdt?: number | null;
   dueUsdt: number | null;
   sentUsdt: number | null;
   createdAt: string | null;
   dateStamp: string;
   time: string;
   pending: boolean;
-  status: 'WAIT' | 'DONE';
+  status: string;
   bank: string | null;
   last4: string | null;
   name?: string | null;
@@ -44,7 +45,6 @@ type VaultPayload = {
   rates: { desk: number; mkt: number | null };
   pins: Array<{ bank: string; last4: string; label: string | null }>;
   accounts?: Array<{ bank: string; last4: string; count: number; totalThb: number; totalUsdt: number }>;
-  queue: Array<{ short_ref: string }>;
 };
 
 function money(n: number, d = 0) {
@@ -61,9 +61,7 @@ export default function VaultDesk() {
   const primed = useRef(false);
   const [flash, setFlash] = useState<Set<string>>(new Set());
   const loadRef = useRef<() => Promise<void>>(async () => {});
-  const live = useVaultLive(() => {
-    void loadRef.current();
-  });
+  const live = useVaultLive(() => { void loadRef.current(); });
 
   const load = useCallback(async () => {
     try {
@@ -120,6 +118,7 @@ export default function VaultDesk() {
   const v = data?.vault;
   const tape = (v?.tape ?? []).filter((r) => (mode === 'pending' ? r.pending : true)).map((r) => ({
     ...r,
+    expectedUsdt: r.expectedUsdt ?? r.usdt ?? null,
     dueUsdt: r.dueUsdt ?? r.usdt ?? null,
     sentUsdt: r.sentUsdt ?? null,
     dateStamp: r.dateStamp || '—',
@@ -156,7 +155,7 @@ export default function VaultDesk() {
     <div className="min-h-screen">
       <header className="nav dense-nav">
         <div className="flex min-w-0 items-center gap-3">
-          <span className="mark-glow" aria-hidden>◈</span>
+          <span className="mark-glow" aria-hidden>{'\u25C8'}</span>
           <span className="text-xs tracking-[0.18em]">CT</span>
           <span className={`pill hidden sm:inline-flex ${live ? 'pill-done' : 'pill-wait'}`}>
             {live ? 'live' : 'poll'}
@@ -170,17 +169,16 @@ export default function VaultDesk() {
         </div>
         <div className="flex items-center gap-2">
           <div className="seg">
-            <button type="button" data-on={mode === 'today'} onClick={() => setMode('today')}>วันนี้</button>
-            <button type="button" data-on={mode === 'pending'} onClick={() => setMode('pending')}>รอส่ง</button>
+            <button type="button" data-on={mode === 'today'} onClick={() => setMode('today')}>today</button>
+            <button type="button" data-on={mode === 'pending'} onClick={() => setMode('pending')}>wait</button>
           </div>
           <form onSubmit={saveDesk} className="hidden items-center gap-1 md:flex">
             <input value={deskDraft} onChange={(e) => setDeskDraft(e.target.value)} placeholder="rate" inputMode="decimal" aria-label="desk rate" className="field w-20 px-2 text-sm" />
-            <button type="submit" disabled={saving} className="keep px-3 text-xs">ตั้งเรท</button>
+            <button type="submit" disabled={saving} className="keep px-3 text-xs">set rate</button>
           </form>
         </div>
       </header>
       <div className="agent-rail" />
-
       <div className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <SummaryToday
           dateLabel={v ? `${v.dateLabel} ${v.clock}` : undefined}
@@ -202,26 +200,18 @@ export default function VaultDesk() {
         />
         <PinnedAccounts accounts={pinCards} lastSync={data ? new Date() : null} syncStatus={error ? 'error' : live ? 'live' : 'syncing'} />
       </div>
-
       {error && <p className="px-4 py-2 text-sm text-danger">{error}</p>}
-
       <form onSubmit={saveDesk} className="flex gap-2 border-b border-[var(--line)] px-4 py-3 md:hidden">
         <input value={deskDraft} onChange={(e) => setDeskDraft(e.target.value)} placeholder="36.70" inputMode="decimal" aria-label="desk rate" className="field" />
-        <button type="submit" disabled={saving} className="keep px-4 text-xs">ตั้งเรท</button>
+        <button type="submit" disabled={saving} className="keep px-4 text-xs">set rate</button>
       </form>
-
-      <section className="grid gap-3 px-4 py-4 sm:grid-cols-2 xl:grid-cols-3">
-        {tape.length === 0 ? (
-          <p className="col-span-full py-8 text-center text-muted">วันนี้ยังไม่มีสลิป</p>
-        ) : tape.slice(0, 24).map((row) => (
-          <TransactionFlowCard key={row.id} row={row} flash={flash.has(row.id)} />
-        ))}
-      </section>
-
-      <VaultHistoryTable
+      <QueueTape
         rows={tape}
         dateLabel={v?.dateLabel ?? '—'}
         clock={v?.clock ?? '—'}
+        waiting={tape.filter((r) => r.status !== 'DONE').reduce((s, r) => s + (r.expectedUsdt ?? r.usdt ?? 0), 0)}
+        sent={sent}
+        due={Math.max(0, Math.round(((v?.requiredUsdt ?? 0) - sent) * 100) / 100)}
         flash={flash}
       />
     </div>
