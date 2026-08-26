@@ -1,18 +1,11 @@
-// ============================================================
 // PIN gate สำหรับหน้า dashboard
-// - ตั้ง DASHBOARD_PIN (6 หลัก) + DASHBOARD_SESSION_SECRET ใน ENV
-// - session = cookie httpOnly ที่เซ็นด้วย HMAC-SHA256 (stateless)
-// - กัน brute force: ผิดเกินโควตา → ล็อก IP ชั่วคราว (นับใน DB)
-//
-// ใช้ Web Crypto ล้วน เพื่อให้ import ได้ทั้ง Edge middleware และ Node route
-// ============================================================
+import { NextRequest, NextResponse } from 'next/server';
 
 export const SESSION_COOKIE = 'ce_vault_session';
-export const SESSION_TTL_SECONDS = 60 * 60 * 12; // 12 ชั่วโมง
+export const SESSION_TTL_SECONDS = 60 * 60 * 12;
 export const MAX_ATTEMPTS = 5;
 export const LOCK_MINUTES = 15;
 
-/** เทียบสตริงแบบเวลาคงที่ กัน timing attack */
 function constantTimeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let diff = 0;
@@ -40,7 +33,6 @@ function getSessionSecret(): string | null {
   return secret;
 }
 
-/** PIN ต้องเป็นตัวเลข 6 หลักเท่านั้น */
 export function getConfiguredPin(): string | null {
   const pin = process.env.DASHBOARD_PIN;
   if (!pin || !/^\d{6}$/.test(pin)) return null;
@@ -64,13 +56,12 @@ async function sign(payload: string, secret: string): Promise<string> {
     new TextEncoder().encode(secret),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
-    ['sign']
+    ['sign'],
   );
   const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payload));
   return toBase64Url(new Uint8Array(sig));
 }
 
-/** สร้าง session token: base64url(payload).signature */
 export async function createSessionToken(): Promise<string | null> {
   const secret = getSessionSecret();
   if (!secret) return null;
@@ -80,7 +71,6 @@ export async function createSessionToken(): Promise<string | null> {
   return `${payload}.${await sign(payload, secret)}`;
 }
 
-/** ตรวจ session token — true ถ้า signature ถูกและยังไม่หมดอายุ */
 export async function verifySessionToken(token: string | undefined | null): Promise<boolean> {
   if (!token) return false;
   const secret = getSessionSecret();
@@ -104,9 +94,17 @@ export async function verifySessionToken(token: string | undefined | null): Prom
   }
 }
 
-/** ดึง client IP จาก header ที่ Vercel/proxy ส่งมา */
 export function getClientIp(headers: Headers): string {
   const forwarded = headers.get('x-forwarded-for');
   if (forwarded) return forwarded.split(',')[0].trim();
   return headers.get('x-real-ip') || 'unknown';
+}
+
+export async function requireDashboardSession(req: NextRequest): Promise<NextResponse | null> {
+  if (!isAuthConfigured()) return null;
+  const token = req.cookies.get(SESSION_COOKIE)?.value;
+  if (!(await verifySessionToken(token))) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  }
+  return null;
 }

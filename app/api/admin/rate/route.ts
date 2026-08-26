@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { fetchMktRate } from '@/lib/mkt';
+import { requireDashboardSession } from '@/lib/dashboardAuth';
 
 export const runtime = 'nodejs';
 export const revalidate = 0;
@@ -35,6 +36,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const denied = await requireDashboardSession(req);
+  if (denied) return denied;
   let body: any;
   try {
     body = await req.json();

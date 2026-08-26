@@ -1,11 +1,8 @@
 'use client';
 
-// หน้าสถานะดีลสำหรับลูกค้า (public) — realtime ผ่าน Supabase
-// อ่านด้วย anon client (RLS: anon อ่าน transactions ได้) + subscribe การเปลี่ยนแปลง
-// แสดงเฉพาะสถานะ + ยอดของออเดอร์ตัวเอง ไม่เปิดเผยกำไร/ค่าธรรมเนียม
+// หน้าสถานะลูกค้า — อ่านผ่าน API เท่านั้น ไม่ดึงสมุดทั้งก้อนจากเบราว์เซอร์
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { supabase } from '@/lib/supabaseClient';
 import type { TransactionStatus } from '@/types/transactions';
 import OCRSuccessCard from '@/components/status/OCRSuccessCard';
 import WaitingAdminCard from '@/components/status/WaitingAdminCard';
@@ -39,43 +36,41 @@ export default function StatusPage() {
     let alive = true;
 
     (async () => {
-      // select เฉพาะคอลัมน์ที่ลูกค้าเห็นได้ (ไม่มีกำไร/ค่าธรรมเนียม)
-      // ถ้ายังไม่ได้รัน patch-v8 คอลัมน์ status จะไม่มี → fallback ไม่ให้ query พัง
-      let data: Tx | null = null;
-      const withStatus = await supabase
-        .from('transactions')
-        .select('id, status, usdt_amount')
-        .eq('id', id)
-        .maybeSingle();
-      if (withStatus.error) {
-        const safe = await supabase
-          .from('transactions')
-          .select('id, usdt_amount')
-          .eq('id', id)
-          .maybeSingle();
-        data = safe.data ? ({ ...(safe.data as Tx), status: null }) : null;
-      } else {
-        data = (withStatus.data as Tx | null) ?? null;
+      const res = await fetch(`/api/public/status/${id}`, { cache: 'no-store' });
+      if (!res.ok) {
+        if (alive) {
+          setRow(null);
+          setLoading(false);
+        }
+        return;
       }
+      const json = await res.json();
       if (!alive) return;
-      setRow(data);
+      setRow({
+        id: json.id,
+        status: json.status,
+        usdt_amount: Number(json.usdtAmount),
+      });
       setLoading(false);
     })();
 
-    const channel = supabase
-      .channel(`tx-status-${id}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'transactions', filter: `id=eq.${id}` },
-        (payload) => {
-          if (payload.new) setRow((prev) => ({ ...(prev ?? {}), ...(payload.new as Tx) }));
-        },
-      )
-      .subscribe();
+    const poll = setInterval(() => {
+      void fetch(`/api/public/status/${id}`, { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((json) => {
+          if (!alive || !json) return;
+          setRow({
+            id: json.id,
+            status: json.status,
+            usdt_amount: Number(json.usdtAmount),
+          });
+        })
+        .catch(() => undefined);
+    }, 8_000);
 
     return () => {
       alive = false;
-      supabase.removeChannel(channel);
+      clearInterval(poll);
     };
   }, [id]);
 

@@ -1,7 +1,10 @@
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { NextRequest, NextResponse } from 'next/server';
+import { requireDashboardSession } from '@/lib/dashboardAuth';
 
 export async function GET(req: NextRequest) {
+  const denied = await requireDashboardSession(req);
+  if (denied) return denied;
   const searchParams = req.nextUrl.searchParams;
   const accountId = searchParams.get('accountId');
   const date = searchParams.get('date') || new Date().toISOString().split('T')[0];

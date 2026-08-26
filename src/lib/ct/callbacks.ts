@@ -481,7 +481,7 @@ async function doSettle(
     slipImageUrl: p.slip_url,
   });
   const next = await patchSlip(p.id, { status: 'SETTLED', undo_until: null });
-  await answerCallback(cbId, `Settled · ${p.short_ref}`);
+  await answerCallback(cbId, `โอนครบแล้ว · ${p.short_ref}`);
   const card = C.cardSettled({
     thb: next.thb_in ?? 0,
     usdtOut: next.should_send ?? 0,

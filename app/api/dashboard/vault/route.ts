@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { loadVault } from '@/lib/ct/vault';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { opsRates } from '@/lib/ct/rates';
+import { requireDashboardSession } from '@/lib/dashboardAuth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
+  const denied = await requireDashboardSession(req);
+  if (denied) return denied;
   const chatParam = req.nextUrl.searchParams.get('chatId');
   const chatId = chatParam ? Number(chatParam) : null;
   const mode = (req.nextUrl.searchParams.get('mode') as 'today' | 'pending' | 'all') || 'today';
