@@ -101,20 +101,24 @@ export async function settleAllDue(chatId: number, userId: number): Promise<DueS
   const refs: string[] = [];
   for (const p of rows) {
     if (!p.should_send || p.status !== 'LOCKED') continue;
-    await recordOutgoing({
-      adminTelegramId: userId,
-      chatId,
-      usdt: p.should_send,
-      ledgerRef: p.ledger_ref,
-      slipImageUrl: p.slip_url,
-    });
-    await patchSlip(p.id, {
-      status: 'SETTLED',
-      undo_until: null,
-      note: `BATCH:${batchId}`,
-    });
-    sent += p.should_send;
-    refs.push(p.short_ref);
+    try {
+      await recordOutgoing({
+        adminTelegramId: userId,
+        chatId,
+        usdt: p.should_send,
+        ledgerRef: p.ledger_ref,
+        slipImageUrl: p.slip_url,
+      });
+      await patchSlip(p.id, {
+        status: 'SETTLED',
+        undo_until: null,
+        note: `BATCH:${batchId}`,
+      });
+      sent += p.should_send;
+      refs.push(p.short_ref);
+    } catch (e) {
+      console.warn('settle row failed', p.short_ref, e);
+    }
   }
   const thb = Math.round(rows.reduce((s, r) => s + (r.thb_in ?? 0), 0) * 100) / 100;
   const expected = Math.round(rows.reduce((s, r) => s + (r.should_send ?? 0), 0) * 100) / 100;
