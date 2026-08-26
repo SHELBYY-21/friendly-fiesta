@@ -1,4 +1,4 @@
-import { sendMessage, editMessage, downloadTelegramFile, uploadSlipBuffer, getChatPinnedText } from '../telegram';
+import { sendMessage, editMessage, sendChatAction, downloadTelegramFile, uploadSlipBuffer, getChatPinnedText } from '../telegram';
 import { analyzeSlipFast, type SlipExtract } from '../ocr';
 import { listPinnedBanks, matchPinnedBank, accountLast4, pinBankAccount } from '../banks';
 import { findSlipByFingerprint } from '../transactions';
@@ -11,6 +11,7 @@ import { insertPending, findPendingByFingerprint, type PendingSlip } from './sto
 import { shouldSend, maskAcct, clockBkk } from './format';
 import { canAutoQueue, commitIncomingLock, dueSummary } from './queue';
 import * as C from './copy';
+import { AiTransition, aiReceived } from './aiTransition';
 import type { Admin } from '@/types/transactions';
 import type { PinnedBank } from '../banks';
 
@@ -88,20 +89,26 @@ export async function handleCtPhoto(opts: {
 
   const [pins, rates] = await Promise.all([pinsForToday(chatId), opsRates(chatId)]);
   const todayPin = pins[0];
-  const cardIdP = sendMessage(
-    chatId,
-    C.skeletonScan(todayPin?.bank_name ?? 'ยังไม่หมุด', accountLast4(todayPin?.account_number) ?? '----'),
-  );
+  await sendChatAction(chatId, 'typing');
+  const cardIdP = sendMessage(chatId, aiReceived());
 
   const read = await readSlip(chatId, fileId, cardIdP);
   if (!read) return;
 
   const { cardId, url, slip } = read;
-  editMessage(chatId, cardId, C.skeletonRead()).catch(() => undefined);
+  const ai = new AiTransition(chatId, cardId);
+  await ai.step('init');
+  await ai.step('ocr');
 
   const matchedPin = matchPinnedBank(slip.bank, slip.receiverLast4, pins);
   const pinMatch = Boolean(matchedPin);
   const thb = slip.thbAmount && slip.thbAmount > 0 ? slip.thbAmount : null;
+  const last4Early = slip.receiverLast4 ?? accountLast4(matchedPin?.account_number);
+  await ai.step('extract', { thb });
+  await ai.step('match', {
+    bank: slip.bank ?? todayPin?.bank_name,
+    last4: last4Early,
+  });
   const gate = gateOcr({
     thb,
     confidence: slip.confidence,
@@ -109,6 +116,9 @@ export async function handleCtPhoto(opts: {
     hasCurrency: thb != null,
   });
   const usdtDue = thb && rates.desk ? shouldSend(thb, rates.desk) : null;
+  await ai.step('security');
+  await ai.step('calc', { thb, usdt: usdtDue });
+  await ai.step('ledger');
 
   const pending = await insertPending({
     chat_id: chatId,
