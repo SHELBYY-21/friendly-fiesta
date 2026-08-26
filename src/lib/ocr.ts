@@ -47,10 +47,11 @@ export async function analyzeSlip(imageUrl: string): Promise<SlipExtract> {
       time: null,
       date: null,
       receiverLast4: null,
+      senderLast4: null,
       bank: null,
       receiverName: null,
       senderName: null,
-      confidence: null, // OCR.space ไม่มี confidence ที่เชื่อถือได้ — ห้ามสร้างค่าประมาณ
+      confidence: null,
     };
   } catch (e) {
     console.warn('OCR fallback error:', e instanceof Error ? e.message : e);
@@ -62,6 +63,7 @@ export async function analyzeSlip(imageUrl: string): Promise<SlipExtract> {
     time: null,
     date: null,
     receiverLast4: null,
+    senderLast4: null,
     bank: null,
     receiverName: null,
     senderName: null,

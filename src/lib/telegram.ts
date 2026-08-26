@@ -179,3 +179,16 @@ export async function deleteMessage(chatId: number, messageId: number): Promise<
     await tg('deleteMessage', { chat_id: chatId, message_id: messageId });
   } catch { /* ignore */ }
 }
+
+export async function getChatPinnedText(chatId: number): Promise<string | null> {
+  try {
+    const chat = await tg<{ pinned_message?: { text?: string; caption?: string } }>('getChat', {
+      chat_id: chatId,
+    });
+    const text = chat.pinned_message?.text || chat.pinned_message?.caption || null;
+    return text?.trim() || null;
+  } catch (e) {
+    console.warn(`getChatPinnedText failed (chat=${chatId}):`, e instanceof Error ? e.message : e);
+    return null;
+  }
+}

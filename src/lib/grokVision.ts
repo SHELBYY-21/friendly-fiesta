@@ -1,44 +1,45 @@
-// ============================================================
-// Grok Vision — วิเคราะห์สลิปไทยแบบละเอียด (แม่นกว่า OCR.space มาก)
-// ต้องตั้ง GROK_API_KEY ใน .env  (ค่า model แก้ผ่าน GROK_MODEL, default grok-2-vision-1212)
-// ถ้าไม่ตั้ง key → fallback ไปที่ OCR.space
-// ============================================================
+import { last4FromPayeeMask } from '../bot/parse';
+
 export interface SlipExtract {
-  thbAmount: number | null;   // ยอดโอน (บาท)
-  time: string | null;        // "HH:MM"
-  date: string | null;        // "DD/MM/YY"
-  receiverLast4: string | null; // เลข 4 ตัวท้ายเลขบัญชีปลายทาง
-  bank: string | null;        // ธนาคารปลายทาง เช่น "KBANK"
-  receiverName: string | null; // ชื่อผู้รับเงิน
-  senderName: string | null;  // ชื่อผู้โอน (best-effort)
-  confidence: number | null;  // ความมั่นใจในการอ่าน 0-100
-  raw?: string;               // ข้อความดิบ (debug)
+  thbAmount: number | null;
+  time: string | null;
+  date: string | null;
+  receiverLast4: string | null;
+  senderLast4: string | null;
+  bank: string | null;
+  receiverName: string | null;
+  senderName: string | null;
+  confidence: number | null;
+  raw?: string;
 }
 
-const PROMPT = `You are an expert Thai bank slip parser specializing in mobile banking apps (KPlus, SCB Easy, Krungthai NEXT, Bualuang, ttb touch, GSB, TrueMoney, LINE BK powered by KBank).
-Analyze this slip image carefully and reply with ONLY a JSON object (no prose, no markdown fence) with keys:
+const PROMPT = `You are an expert Thai bank slip parser (KPlus, SCB Easy, Krungthai NEXT, Bualuang, ttb, GSB, TrueMoney, LINE BK).
+Reply with ONLY a JSON object:
 {
-  "thbAmount": number,           // exact net transfer amount in THB (the large ฿ figure under โอนเงินสำเร็จ). Ignore ค่าธรรมเนียม ฿0.00 and QR numbers.
-  "time": "HH:MM",               // 24-hour transfer time (e.g. "08:45")
-  "date": "DD/MM/YY",            // transfer date. Convert Buddhist year (B.E. e.g. 2569) to 2-digit Gregorian year (A.D. e.g. 26). Output format DD/MM/YY
-  "receiverLast4": "XXXX",       // last 4 digits of RECEIVER (ไปยัง / payee) account. LINE BK masks as xxx-x-x5012-x → 5012. NEVER use the sender (จาก) last4.
-  "bank": "KBANK|SCB|BBL|KTB|BAY|TTB|GSB|KKP|CIMB|LH|UOB|TISCO|TRUEMONEY|PROMPTPAY|other-uppercase",
-  "receiverName": "name or null",// RECEIVER (ไปยัง) name. LINE BK = the name next to ไปยัง, not จาก.
-  "senderName": "name or null",  // sender (จาก) if visible
-  "confidence": number|null      // 0-100 only when evidence is readable; otherwise null
+  "thbAmount": number,
+  "time": "HH:MM",
+  "date": "DD/MM/YY",
+  "receiverLast4": "XXXX",
+  "senderLast4": "XXXX or null",
+  "bank": "KBANK|SCB|BBL|KTB|BAY|TTB|GSB|KKP|CIMB|LH|UOB|TISCO|TRUEMONEY|PROMPTPAY",
+  "receiverName": "name or null",
+  "senderName": "name or null",
+  "confidence": number|null
 }
-Rules:
-- LINE BK / Powered by KBank / กสิกรไทย → bank KBANK.
-- Output raw JSON only.
-- Convert 2567 -> 24, 2568 -> 25, 2569 -> 26 for 2-digit Gregorian year.
-- If a field is unreadable, use null. Never infer an amount from unrelated numbers.`;
+CRITICAL — account roles:
+- receiverLast4 = PAYEE / บัญชีรับเงิน / ไปยัง / ผู้รับ / เข้าบัญชี. This is the desk account we match.
+- senderLast4 = ผู้โอน / จาก / บัญชีต้นทาง. NEVER copy sender digits into receiverLast4.
+- Krungthai NEXT mask xxx-x-x6034-x → 6034 when that mask is the payee or the incoming account.
+- Do NOT use digits from เลขที่รายการ / COR / QR / barcode as last4.
+- bank = bank of the RECEIVER. กรุงไทย → KTB. กสิกร/LINE BK → KBANK. ไทยพาณิชย์ → SCB.
+- Incoming credit slips: the masked account on the slip is US (receiver).
+Rules: raw JSON only. Buddhist year 2569 → 26. Unreadable fields = null. Never invent.`;
 
-// ─── USDT transfer screenshot (Binance/OKX/Bitkub/Bybit/TronScan ฯลฯ) ───
 export interface UsdtExtract {
-  amount: number | null;   // จำนวน USDT ที่โอน
-  network: string | null;  // TRC20 | ERC20 | BEP20 | SOL | ...
-  txid: string | null;     // transaction hash
-  time: string | null;     // "HH:MM"
+  amount: number | null;
+  network: string | null;
+  txid: string | null;
+  time: string | null;
   confidence: number | null;
   raw?: string;
 }
@@ -46,16 +47,14 @@ export interface UsdtExtract {
 const USDT_PROMPT = `You are an expert crypto transfer screenshot parser for exchanges and wallets (Binance, OKX, Bitkub, Bybit, HTX, Gate.io, TronScan, Trust Wallet, MetaMask).
 Analyze this screenshot and reply with ONLY a JSON object (no prose, no markdown fence):
 {
-  "amount": number,              // net USDT amount transferred (main figure)
-  "network": "TRC20|ERC20|BEP20|SOL|POLYGON|null",  // blockchain network if displayed
+  "amount": number,
+  "network": "TRC20|ERC20|BEP20|SOL|POLYGON|null",
   "txid": "transaction hash or null",
-  "time": "HH:MM or null",       // 24-hour transfer time
-  "confidence": number|null      // 0-100 only when supported by the image
+  "time": "HH:MM or null",
+  "confidence": number|null
 }
 Rules: Output raw JSON only. Do not invent values. If unreadable use null. Never infer currency.`;
 
-// เลือก model: default = grok-4.20-non-reasoning (เร็วสุดสำหรับ OCR ~1.2s)
-// self-heal: รุ่นที่ถูกถอด (grok-2-vision) หรือรุ่น reasoning ที่ช้า (4.3/4.5) → ใช้รุ่นเร็วแทน
 const FAST_MODEL = 'grok-4.20-non-reasoning';
 function pickModel(): string {
   const m = process.env.GROK_MODEL;
@@ -134,26 +133,34 @@ export async function analyzeSlipWithGrok(imageUrl: string): Promise<SlipExtract
     }
     const json: any = await res.json();
     const text: string = json?.choices?.[0]?.message?.content ?? '';
-
-    // ตัด markdown fence ออก (บางทีโมเดลใส่ ```json ...)
-    const cleaned = text
-      .replace(/^```(?:json)?\s*/i, '')
-      .replace(/```\s*$/i, '')
-      .trim();
+    const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
     const first = cleaned.indexOf('{');
     const last = cleaned.lastIndexOf('}');
-    if (first < 0 || last < 0) return { raw: text, thbAmount: null, time: null, date: null, receiverLast4: null, bank: null, receiverName: null, senderName: null, confidence: null };
-    const jsonStr = cleaned.slice(first, last + 1);
-    const data = JSON.parse(jsonStr);
-
+    if (first < 0 || last < 0) {
+      return {
+        raw: text, thbAmount: null, time: null, date: null,
+        receiverLast4: null, senderLast4: null, bank: null,
+        receiverName: null, senderName: null, confidence: null,
+      };
+    }
+    const data = JSON.parse(cleaned.slice(first, last + 1));
     const num = (v: any) => (typeof v === 'number' && Number.isFinite(v) ? v : Number.isFinite(parseFloat(v)) ? parseFloat(v) : null);
     const str = (v: any) => (typeof v === 'string' && v.trim() ? v.trim() : null);
+    const last4 = (v: any) => str(v)?.replace(/\D/g, '').slice(-4) || null;
+    const receiverLast4 = last4(data.receiverLast4);
+    const senderLast4 = last4(data.senderLast4);
+    const fromMask = last4FromPayeeMask(text);
+    let payee = fromMask || receiverLast4;
+    if (senderLast4 && payee === senderLast4 && receiverLast4 && receiverLast4 !== senderLast4) {
+      payee = receiverLast4;
+    }
 
     return {
       thbAmount: num(data.thbAmount),
       time: str(data.time),
       date: str(data.date),
-      receiverLast4: str(data.receiverLast4)?.replace(/\D/g, '').slice(-4) || null,
+      receiverLast4: payee,
+      senderLast4,
       bank: str(data.bank)?.toUpperCase() ?? null,
       receiverName: str(data.receiverName),
       senderName: str(data.senderName),

@@ -101,10 +101,12 @@ export function matchPinnedBank(
   last4Input: string | null | undefined,
   pinned: PinnedBank[],
 ): PinnedBank | null {
-  const bankCode = normalizeBankCode(bankInput);
   const last4 = accountLast4(last4Input);
-  if (!bankCode || !last4) return null;
-  return pinned.find(
-    (item) => normalizeBankCode(item.bank_name) === bankCode && accountLast4(item.account_number) === last4,
-  ) ?? null;
+  if (!last4 || !pinned.length) return null;
+  const last4Hits = pinned.filter((item) => accountLast4(item.account_number) === last4);
+  if (!last4Hits.length) return null;
+  if (last4Hits.length === 1) return last4Hits[0];
+  const bankCode = normalizeBankCode(bankInput);
+  if (!bankCode) return null;
+  return last4Hits.find((item) => normalizeBankCode(item.bank_name) === bankCode) ?? null;
 }

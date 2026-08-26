@@ -22,6 +22,23 @@ function last4FromMasked(text: string): string | null {
   return null;
 }
 
+/** Last 4 of the PAYEE / receiving account. Never the sender, never the slip reference. */
+export function last4FromPayeeMask(text: string): string | null {
+  const raw = String(text ?? '');
+  const payee = (raw.split(/ไปยัง|ผู้รับเงิน|ผู้รับ|เข้าบัญชี|บัญชีปลายทาง/)[1] || '')
+    .split(/ค่าธรรมเนียม|เลขที่รายการ|จาก\s|ผู้โอน/)[0];
+  const fromPayee = last4FromMasked(payee);
+  if (fromPayee) return fromPayee;
+  const noRef = raw
+    .replace(/เลขที่รายการ[^\n]*/gi, '')
+    .replace(/COR\d+/gi, '')
+    .replace(/จาก[\s\S]*?(?=ไปยัง|ผู้รับ|จำนวน|$)/, '');
+  const masks = [...noRef.matchAll(/x{2,}[-x.]*?(\d{4})x?/gi)];
+  if (masks.length === 1) return masks[0][1];
+  if (masks.length > 1) return masks[masks.length - 1][1];
+  return null;
+}
+
 export function parseSlipText(text: string): ParsedSlipText {
   const raw = text || '';
   const cleaned = raw.replace(/\s+/g, ' ');
@@ -32,7 +49,7 @@ export function parseSlipText(text: string): ParsedSlipText {
   if (amount === 0) amount = null;
 
   const payeeBlock = (raw.split(/ไปยัง/)[1] || raw.split(/ผู้รับ/)[1] || raw).split(/ค่าธรรมเนียม|เลขที่รายการ|LINE BK/)[0];
-  const last4 = last4FromMasked(payeeBlock) || (() => {
+  const last4 = last4FromPayeeMask(raw) || last4FromMasked(payeeBlock) || (() => {
     const last4Match = cleaned.match(/(?:x{2,}|•{2,}|[*]{2,}|บัญชี|\b)(\d{4})\b/i);
     return last4Match ? last4Match[1] : null;
   })();
@@ -63,25 +80,27 @@ export function parseSlipText(text: string): ParsedSlipText {
 export function parseDeskPin(text: string): DeskPin | null {
   const rawFull = text || '';
   const hadPinCmd = /^\/pin(?:@[a-z0-9_]+)?/i.test(rawFull.trim());
-  const labeled = /เลขบัญชี|วงเงิน|ชื่อ(?:\s*-?\s*สกุล)/.test(rawFull);
+  const labeled = /เลขบัญชี|วงเงิน|ชื่อเต็ม|ชื่อ(?:\s*-?\s*สกุล)|ธนาคาร\s*[:：]/.test(rawFull);
   if (!hadPinCmd && !labeled) return null;
 
   const raw = rawFull.replace(/^\/pin(?:@[a-z0-9_]+)?/i, '').trim();
   if (!raw) return null;
 
   const acc =
-    raw.match(/เลขบัญชี\s*[:：]?\s*(\d{6,15})/i) ||
-    raw.match(/\b(\d{10,15})\b/);
+    raw.match(/เลขบัญชี\s*[:：]?\s*([0-9Xxх*][\dXxх*\s-]{3,22})/i) ||
+    raw.match(/\b(\d{10,15})\b/) ||
+    raw.match(/(x{2,}[-x.]*\d{4}x?)/i);
   if (!acc) {
     const parts = raw.split(/\s+/);
-    if (parts.length >= 2 && /^\d{6,15}$/.test(parts[1].replace(/\D/g, ''))) {
+    if (parts.length >= 2 && /^\d{4,15}$/.test(parts[1].replace(/\D/g, ''))) {
       const bank = normalizeBankCode(parts[0]);
       const account = parts[1].replace(/\D/g, '');
-      if (bank && account.length >= 6) return { bank, account, name: null };
+      if (bank && account.length >= 4) return { bank, account, name: null };
     }
     return null;
   }
-  const account = acc[1];
+  const account = acc[1].replace(/\D/g, '') || last4FromMasked(acc[1]) || '';
+  if (account.length < 4) return null;
 
   const bankLine = raw.match(/(?:bank|ธนาคาร)\s*[:：]\s*([^\n]+)/i);
   const headTok = raw.split('\n')[0].match(/BBL|KBANK|SCB|KTB|BAY|TTB|GSB|CIMB|กรุงเทพ|กสิกร|กรุงไทย|ไทยพาณิชย์/i);
@@ -89,12 +108,12 @@ export function parseDeskPin(text: string): DeskPin | null {
     (bankLine ? normalizeBankCode(bankLine[1]) : null) ||
     (headTok ? normalizeBankCode(headTok[0]) : null) ||
     (() => {
-      const tok = raw.match(/กรุงเทพ|กสิกรไทย|กสิกร|BBL|KBANK|SCB|KTB|BAY/i);
+      const tok = raw.match(/กรุงเทพ|กสิกรไทย|กสิกร|กรุงไทย|BBL|KBANK|SCB|KTB|BAY/i);
       return tok ? normalizeBankCode(tok[0]) : null;
     })();
   if (!bank) return null;
 
-  const nameM = raw.match(/ชื่อ(?:\s*-?\s*สกุล)?\s*[:：]\s*([^\n]+)/i);
+  const nameM = raw.match(/ชื่อ(?:เต็ม|\s*-?\s*สกุล)?\s*[:：]\s*([^\n]+)/i);
   const name = nameM ? nameM[1].replace(/^[^\u0E00-\u0E7Fa-zA-Z]+/, '').trim() : null;
   return { bank, account, name: name || null };
 }

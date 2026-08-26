@@ -1,6 +1,6 @@
 import { Admin } from '@/types/transactions';
 
-const { parseSlipText, computeShouldSend, parseDeskPin, parseDeskRate, hasRatePrefix, isBareDeskRate, parseTelegramId } = require('../src/bot/parse');
+const { parseSlipText, computeShouldSend, parseDeskPin, parseDeskRate, hasRatePrefix, isBareDeskRate, parseTelegramId, last4FromPayeeMask } = require('../src/bot/parse');
 const { parseAmounts, parseAmountTokens } = require('../src/lib/amounts');
 const {
   commandName,
@@ -71,6 +71,25 @@ LINE BK Powered by KBank`);
 assert(lineBk.amount === 365, `LINE BK amount 365 (got ${lineBk.amount})`);
 assert(lineBk.last4 === '5012', `LINE BK last4 is payee 5012 not sender 9434 (got ${lineBk.last4})`);
 assert(lineBk.bank === 'KBANK', `LINE BK bank KBANK (got ${lineBk.bank})`);
+
+assert(last4FromPayeeMask(`จาก น.ส. มาลัย กสิกรไทย xxx-x-x9434-x
+ไปยัง บจก. พิมพ์ใจ กสิกรไทย xxx-x-x5012-x`) === '5012', 'payee mask ignores sender');
+assert(last4FromPayeeMask(`กรุงไทย
+xxx-x-x6034-x
+เลขที่รายการ: 016238120625COR004437
+จำนวน: 1,020.00 บาท`) === '6034', 'Krungthai incoming last4 is 6034 not COR ref');
+
+const ktbPin = parseDeskPin(`ชื่อเต็ม: สุพัตรา อั้นเจริญ
+ธนาคาร: กรุงไทย
+เลขบัญชี: xxx-x-x6034-x`);
+assert(ktbPin?.bank === 'KTB', `ชื่อเต็ม pin bank KTB (got ${ktbPin?.bank})`);
+assert(ktbPin?.account?.slice(-4) === '6034', `ชื่อเต็ม pin last4 6034 (got ${ktbPin?.account})`);
+
+const { matchPinnedBank, accountLast4 } = require('../src/lib/banks');
+const pins = [{ id: '1', bank_name: 'KTB', account_number: 'xx6034', label: 'KTB' }];
+assert(matchPinnedBank('SCB', '6034', pins)?.id === '1', 'match pin by last4 even if OCR bank is wrong');
+assert(matchPinnedBank('KTB', '0343', pins) == null, 'do not match sender last4 0343');
+assert(accountLast4('xxx-x-x6034-x') === '6034', 'mask last4 6034');
 
 const deskPin = parseDeskPin(`BBL วงเงิน 150k
 ชื่อ-สกุล :  วุฒิ บุญสุข

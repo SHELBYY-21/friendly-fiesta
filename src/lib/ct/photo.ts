@@ -1,17 +1,33 @@
-import { sendMessage, editMessage, uploadSlipFromTelegram } from '../telegram';
+import { sendMessage, editMessage, uploadSlipFromTelegram, getChatPinnedText } from '../telegram';
 import { analyzeSlip } from '../ocr';
-import { listPinnedBanks, matchPinnedBank, accountLast4 } from '../banks';
+import { listPinnedBanks, matchPinnedBank, accountLast4, pinBankAccount } from '../banks';
 import { findSlipByFingerprint } from '../transactions';
 import { findReceiversByLast4 } from '../receivers';
 import { slipFingerprint } from '../botSecurity';
+import { parseDeskPin } from '../../bot/parse';
 import { gateOcr } from './gate';
 import { opsRates } from './rates';
 import { insertPending } from './store';
 import { shouldSend, maskAcct } from './format';
 import * as C from './copy';
 import type { Admin } from '@/types/transactions';
+import type { PinnedBank } from '../banks';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function ensureTodayPins(chatId: number): Promise<PinnedBank[]> {
+  const existing = await listPinnedBanks(chatId);
+  if (existing.length) return existing;
+  const pinnedText = await getChatPinnedText(chatId);
+  const desk = pinnedText ? parseDeskPin(pinnedText) : null;
+  if (!desk) return [];
+  try {
+    const { pinned } = await pinBankAccount(chatId, desk.bank, desk.account);
+    return pinned;
+  } catch {
+    return [];
+  }
+}
 
 export async function handleCtPhoto(opts: {
   chatId: number;
@@ -30,11 +46,11 @@ export async function handleCtPhoto(opts: {
     return;
   }
 
-  const pinned = await listPinnedBanks(chatId);
+  const pinned = await ensureTodayPins(chatId);
   const pin0 = pinned[0];
   const scanId = await sendMessage(
     chatId,
-    C.skeletonScan(pin0?.bank_name ?? '—', accountLast4(pin0?.account_number) ?? '????'),
+    C.skeletonScan(pin0?.bank_name ?? 'ยังไม่หมุด', accountLast4(pin0?.account_number) ?? '----'),
   );
   await sleep(350);
 
@@ -97,7 +113,7 @@ export async function handleCtPhoto(opts: {
     slipBank: slip.bank ?? '—',
     slipLast4: slip.receiverLast4 ?? '????',
     pinBank: pin0?.bank_name ?? '—',
-    pinLast4: accountLast4(pin0?.account_number) ?? '????',
+    pinLast4: accountLast4(pin0?.account_number) ?? 'ยังไม่หมุด',
     lead: admin.role === 'SuperAdmin' || admin.role === 'Admin',
     chips: thb ? [thb] : [500, 1000],
     fresh: Boolean(last4) && known.length === 0,

@@ -212,8 +212,8 @@ export function cardPinMismatch(d: {
     [
       head('แจ้งเตือน', `บัญชีไม่ตรงกับบัญชีรับวันนี้  ความมั่นใจ ${Math.round(d.confidence)}%`),
       '',
-      `จากสลิป     ${esc(d.slipBank)}  ${esc(maskAcct(d.slipLast4))}`,
-      `บัญชีรับวันนี้  ${esc(d.pinBank)}  ${esc(maskAcct(d.pinLast4))}`,
+      `บัญชีรับบนสลิป  ${esc(d.slipBank)}  ${esc(maskAcct(d.slipLast4))}`,
+      `บัญชีรับของเรา   ${esc(d.pinBank)}  ${esc(maskAcct(d.pinLast4))}`,
     ].join('\n'),
     ik(rows),
   );
