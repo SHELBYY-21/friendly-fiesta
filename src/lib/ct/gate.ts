@@ -5,6 +5,7 @@ export type OcrGate =
   | 'PIN_MISMATCH'
   | 'NEED_UNIT';
 
+/** Block first, then review, then auto. Do not reorder. */
 export function gateOcr(input: {
   thb: number | null | undefined;
   confidence: number | null | undefined;

@@ -7,6 +7,8 @@ import { analyzeSlipWithGrok, analyzeUsdtWithGrok, SlipExtract, UsdtExtract } fr
 import { pickExplicitThbAmount } from './ocrAmount';
 import { parseSlipText } from '../bot/parse';
 
+export type { SlipExtract, UsdtExtract };
+
 /** อ่านสกรีนช็อตโอน USDT (Grok, 12s timeout) — null ถ้าอ่านไม่ได้/ไม่มี key */
 export async function analyzeUsdtScreenshot(imageUrl: string): Promise<UsdtExtract | null> {
   try {
@@ -25,6 +27,10 @@ function raceMs<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
     p,
     new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
   ]);
+}
+
+function visionReady(s: SlipExtract | null): s is SlipExtract {
+  return s != null && s.thbAmount != null && Boolean(s.receiverLast4);
 }
 
 function mergeSlip(grok: SlipExtract | null, ocr: ReturnType<typeof parseSlipText> | null): SlipExtract {
@@ -53,7 +59,7 @@ export async function analyzeSlipFast(
     .catch(async () => ({ url: await publicUrlP, ocr: null }));
 
   const grok = await grokP;
-  if (grok?.thbAmount != null && grok.receiverLast4) {
+  if (visionReady(grok)) {
     const url = await publicUrlP;
     return { url, slip: grok };
   }
@@ -65,7 +71,7 @@ export async function analyzeSlip(imageUrl: string): Promise<SlipExtract> {
   const grokP = raceMs(analyzeSlipWithGrok(imageUrl), 7000, null).catch(() => null);
   const ocrP = raceMs(extractSlipTextFromOcrSpace(imageUrl), 6000, null).catch(() => null);
   const grok = await grokP;
-  if (grok?.thbAmount != null && grok.receiverLast4) return grok;
+  if (visionReady(grok)) return grok;
   return mergeSlip(grok, await ocrP);
 }
 
