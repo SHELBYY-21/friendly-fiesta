@@ -139,11 +139,9 @@ async function sendHero(
   meta?: string,
 ): Promise<number> {
   const png = renderHeroPng(kind, { hero, sub, meta });
-  if (messageId && kind !== 'locked') {
-    try {
-      await editPhoto(chatId, messageId, png, card);
-      return messageId;
-    } catch { /* send new */ }
+  if (messageId) {
+    const ok = await editPhoto(chatId, messageId, png, card);
+    if (ok) return messageId;
   }
   const id = await sendPhoto(chatId, png, card);
   if (messageId) await deleteMessage(chatId, messageId);
@@ -472,7 +470,6 @@ async function doSettle(
     await answerCallback(cbId, 'รายการนี้ยังไม่ได้ยืนยันครับ');
     return;
   }
-  if (messageId) await editMessage(chatId, messageId, C.skeletonSettle(p.ledger_ref, p.should_send));
   await recordOutgoing({
     adminTelegramId: userId,
     chatId,

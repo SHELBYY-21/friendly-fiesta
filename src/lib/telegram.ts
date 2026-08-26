@@ -143,7 +143,7 @@ export async function editPhoto(
   messageId: number,
   png: Buffer,
   caption: OutgoingMessage,
-): Promise<void> {
+): Promise<boolean> {
   if (!TOKEN) throw new Error('BOT_TOKEN_NOT_CONFIGURED');
   try {
     const form = new FormData();
@@ -160,17 +160,10 @@ export async function editPhoto(
     const response = await fetch(`${API}/editMessageMedia`, { method: 'POST', body: form });
     const json = await response.json().catch(() => null);
     if (!response.ok || !json?.ok) throw new Error(json?.description ?? `HTTP ${response.status}`);
+    return true;
   } catch (e) {
     console.warn('editPhoto failed', e instanceof Error ? e.message : e);
-    try {
-      await tg('editMessageCaption', {
-        chat_id: chatId,
-        message_id: messageId,
-        caption: caption.text,
-        parse_mode: 'HTML',
-        reply_markup: caption.reply_markup,
-      });
-    } catch { /* keep original */ }
+    return false;
   }
 }
 

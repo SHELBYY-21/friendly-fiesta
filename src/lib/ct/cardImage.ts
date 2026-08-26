@@ -2,11 +2,11 @@ import { deflateSync } from 'zlib';
 
 const W = 1080;
 const H = 560;
-const BG = [11, 15, 12];
-const GOLD = [201, 168, 76];
-const EMERALD = [26, 107, 74];
-const INK = [237, 230, 214];
-const MUTED = [138, 143, 134];
+const BG = [8, 10, 14];
+const GOLD = [232, 199, 106];
+const CYAN = [77, 232, 212];
+const INK = [245, 245, 247];
+const MUTED = [134, 140, 148];
 
 function crc32(buf: Buffer): number {
   let c = ~0;
@@ -61,6 +61,27 @@ function fill(buf: Buffer, x: number, y: number, w: number, h: number, rgb: numb
   }
 }
 
+function blend(buf: Buffer, x: number, y: number, rgb: number[], a: number) {
+  if (x < 0 || y < 0 || x >= W || y >= H || a <= 0) return;
+  const i = (y * W + x) * 3;
+  const t = Math.min(1, a);
+  buf[i] = Math.round(buf[i] * (1 - t) + rgb[0] * t);
+  buf[i + 1] = Math.round(buf[i + 1] * (1 - t) + rgb[1] * t);
+  buf[i + 2] = Math.round(buf[i + 2] * (1 - t) + rgb[2] * t);
+}
+
+function glow(buf: Buffer, cx: number, cy: number, r: number, rgb: number[], strength: number) {
+  const r2 = r * r;
+  for (let y = -r; y <= r; y++) {
+    for (let x = -r; x <= r; x++) {
+      const d2 = x * x + y * y;
+      if (d2 > r2) continue;
+      const fall = 1 - Math.sqrt(d2) / r;
+      blend(buf, cx + x, cy + y, rgb, fall * fall * strength);
+    }
+  }
+}
+
 function diamond(buf: Buffer, cx: number, cy: number, r: number, rgb: number[]) {
   for (let y = -r; y <= r; y++) {
     const span = r - Math.abs(y);
@@ -86,6 +107,12 @@ const G: Record<string, number[]> = {
   D: [30, 17, 17, 17, 17, 17, 30],
   E: [31, 16, 16, 30, 16, 16, 31],
   K: [17, 18, 20, 24, 20, 18, 17],
+  L: [16, 16, 16, 16, 16, 16, 31],
+  P: [30, 17, 17, 30, 16, 16, 16],
+  R: [30, 17, 17, 30, 20, 18, 17],
+  W: [17, 17, 17, 21, 21, 27, 17],
+  Y: [17, 17, 10, 4, 4, 4, 4],
+  '+': [0, 4, 4, 31, 4, 4, 0],
   M: [17, 27, 21, 21, 17, 17, 17],
   N: [17, 25, 21, 19, 17, 17, 17],
   O: [14, 17, 17, 17, 17, 17, 14],
@@ -127,14 +154,19 @@ export function renderHeroPng(kind: 'vault' | 'locked' | 'settled', d: {
   for (let i = 0; i < buf.length; i += 3) {
     buf[i] = BG[0]; buf[i + 1] = BG[1]; buf[i + 2] = BG[2];
   }
-  fill(buf, 0, 0, 8, H, EMERALD);
-  diamond(buf, 72, 72, 22, GOLD);
-  text(buf, 'CT', 110, 50, 5, INK);
+  glow(buf, 540, -20, 420, CYAN, 0.18);
+  glow(buf, 980, 80, 280, GOLD, 0.12);
+  glow(buf, 72, 72, 70, GOLD, 0.55);
+  fill(buf, 0, 0, W, 2, CYAN);
+  fill(buf, 0, 0, 6, H, GOLD);
+  diamond(buf, 72, 72, 18, GOLD);
+  text(buf, 'CT', 108, 48, 5, INK);
   const tag = kind === 'vault' ? 'VAULT' : kind === 'locked' ? 'LOCKED' : 'SETTLED';
-  text(buf, tag, 110, 92, 2, MUTED);
-  fill(buf, 48, 140, W - 96, 2, EMERALD);
-  text(buf, d.hero.replace(/,/g, ''), 48, 200, 10, GOLD);
-  if (d.sub) text(buf, d.sub.replace(/,/g, ''), 48, 310, 4, INK);
+  text(buf, tag, 108, 92, 2, kind === 'settled' ? CYAN : MUTED);
+  fill(buf, 48, 138, W - 96, 1, kind === 'settled' ? CYAN : GOLD);
+  glow(buf, 220, 250, 220, GOLD, 0.22);
+  text(buf, d.hero.replace(/,/g, ''), 48, 188, 10, GOLD);
+  if (d.sub) text(buf, d.sub.replace(/,/g, ''), 48, 318, 4, INK);
   if (d.meta) text(buf, d.meta.replace(/,/g, ''), 48, 460, 3, MUTED);
   return encodePng(buf, W, H);
 }
