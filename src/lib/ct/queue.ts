@@ -148,5 +148,5 @@ export async function settleAllDue(chatId: number, userId: number): Promise<DueS
 }
 
 export function canAutoQueue(gate: string, thb: number | null, desk: number): boolean {
-  return (gate === 'IN_READY' || gate === 'IN_READY_REVIEW') && thb != null && thb > 0 && desk > 0;
+  return gate === 'IN_READY' && thb != null && thb > 0 && desk > 0;
 }
