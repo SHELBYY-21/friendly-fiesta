@@ -110,11 +110,28 @@ export async function loadVault(chatId?: number | null, mode: VaultMode = 'today
   const pendingUsdt = Math.max(0, Math.round((owed - outUsdt) * 100) / 100);
   const coinDelta = Math.round((outUsdt - owed) * 100) / 100;
   const pendingShorts = inRows.filter((r) => r.pending).map((r) => r.short);
+  const refs = (ins ?? []).map((r: any) => r.ledger_ref).filter(Boolean);
+  const extraBy = new Map<string, { bank: string | null; name: string | null; last4: string | null }>();
+  if (refs.length) {
+    const { data: extras } = await supabaseAdmin
+      .from('pending_slips')
+      .select('ledger_ref, bank, name, account_masked')
+      .in('ledger_ref', refs);
+    for (const e of extras ?? []) {
+      const d = String(e.account_masked ?? '').replace(/\D/g, '');
+      extraBy.set(String(e.ledger_ref), {
+        bank: e.bank ?? null,
+        name: e.name ?? null,
+        last4: d.length >= 4 ? d.slice(-4) : d || null,
+      });
+    }
+  }
   const tape = (ins ?? []).map((r) => {
     const out = outByRef.get(String(r.ledger_ref || ''));
     const expectedUsdt = numOrNull(r.usdt_amount);
     const sentUsdt = out ? out.usdt : null;
     const state = stateFromSlip({ slipStatus: r.status, expectedUsdt, sentUsdt });
+    const extra = extraBy.get(String(r.ledger_ref || ''));
     return {
       id: r.id,
       ledger: r.ledger_ref ?? null,
@@ -130,9 +147,9 @@ export async function loadVault(chatId?: number | null, mode: VaultMode = 'today
       pending: state !== 'DONE',
       status: statusChip(state),
       state,
-      bank: r.receiver_bank ?? null,
-      name: r.receiver_name ?? null,
-      last4: r.receiver_last4 ?? null,
+      bank: r.receiver_bank ?? extra?.bank ?? null,
+      name: r.receiver_name ?? extra?.name ?? null,
+      last4: r.receiver_last4 ?? extra?.last4 ?? null,
     };
   });
   const viewTape = tape.filter((r) => matchesFilter(mode, r.status, r.pending));
