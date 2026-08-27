@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import CountUp from './CountUp';
 import SyncBadge, { type SyncStatus } from './SyncBadge';
 
@@ -29,10 +30,32 @@ export interface SummaryTodayProps {
   };
   lastSync?: Date | null;
   syncStatus?: SyncStatus;
+  owner?: { name: string; count: number };
 }
 
 function n(v: number, d: number) {
   return v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+
+function Row({
+  label, en, value, tone, mark,
+}: {
+  label: string;
+  en: string;
+  value: ReactNode;
+  tone?: 'in' | 'out' | 'net' | 'due' | 'muted';
+  mark?: 'in' | 'out';
+}) {
+  return (
+    <div className={'sum-row' + (tone ? ' is-' + tone : '')}>
+      <span className="sum-k">
+        {mark ? <i className={'sum-dot ' + mark} /> : null}
+        {label}
+        <em>{en}</em>
+      </span>
+      <span className="sum-v">{value}</span>
+    </div>
+  );
 }
 
 export default function SummaryToday({
@@ -42,81 +65,48 @@ export default function SummaryToday({
   rates,
   lastSync,
   syncStatus,
+  owner,
 }: SummaryTodayProps) {
   const inCount = daily.inCount ?? daily.transactionCount;
   const outCount = daily.outCount ?? 0;
-  const wait = daily.waitCount ?? Math.max(0, inCount - outCount);
   const required = daily.requiredUsdt ?? 0;
   const pending = daily.pendingUsdt ?? Math.max(0, required - daily.totalUsdtSent);
-  const coin = daily.coinDelta ?? daily.totalUsdtSent - required;
-  const fee = daily.feeUsdt ?? 0;
-  const avg = inCount > 0 ? daily.totalThbReceived / inCount : 0;
-  const spread = rates.sellRate > 0 && rates.marketRate > 0 ? rates.sellRate - rates.marketRate : 0;
   const desk = rates.sellRate > 0 ? rates.sellRate : 0;
-  const implied = desk > 0 ? daily.totalThbReceived / desk : 0;
-
-  const rows: Array<{
-    k: string;
-    qty: string;
-    value: number;
-    decimals: 0 | 2;
-    unit: string;
-    note: string;
-    tone?: 'gold' | 'cyan' | 'danger' | 'muted';
-  }> = [
-    { k: 'IN', qty: String(inCount), value: daily.totalThbReceived, decimals: 0, unit: 'THB', note: 'deposit locked' },
-    { k: 'OUT', qty: String(outCount), value: daily.totalUsdtSent, decimals: 2, unit: 'USDT', note: 'settled' },
-    { k: 'Required', qty: String(inCount), value: required, decimals: 2, unit: 'USDT', note: 'THB ÷ DESK', tone: 'gold' },
-    { k: 'Sent', qty: String(outCount), value: daily.totalUsdtSent, decimals: 2, unit: 'USDT', note: 'actual out' },
-    { k: 'Pending', qty: String(wait), value: pending, decimals: 2, unit: 'USDT', note: 'required − sent', tone: 'gold' },
-    { k: 'Coin +/-', qty: coin >= 0 ? '+' : '−', value: coin, decimals: 2, unit: 'USDT', note: 'sent − required', tone: coin < 0 ? 'danger' : 'cyan' },
-    { k: 'Fee', qty: '—', value: fee, decimals: 2, unit: 'USDT', note: fee ? 'ledger' : 'not stored', tone: 'muted' },
-    { k: 'Avg ticket', qty: String(inCount), value: avg, decimals: 0, unit: 'THB', note: 'IN ÷ count', tone: 'muted' },
-    { k: 'Spread', qty: desk ? n(desk, 2) : '—', value: spread, decimals: 2, unit: 'THB', note: 'DESK − MKT', tone: spread >= 0 ? 'cyan' : 'danger' },
-    { k: 'Check', qty: desk ? n(desk, 2) : '—', value: implied, decimals: 2, unit: 'USDT', note: 'IN THB ÷ DESK now', tone: 'muted' },
-  ];
+  const netThb = daily.totalThbReceived - daily.totalUsdtSent * desk;
+  const clock = lastSync
+    ? lastSync.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', hour12: false })
+    : null;
 
   return (
-    <div className="glass glass-hover accent-top reveal overflow-x-auto p-5">
-      <div className="mb-3 flex items-center justify-between gap-3">
+    <section className="sum-desk">
+      <header className="sum-head">
         <div>
-          <h2 className="text-sm font-semibold tracking-[0.14em]">สรุปวันนี้</h2>
-          <p className="mt-1 text-xs text-muted">
+          <p className="sum-title">สรุปวันนี้</p>
+          <p className="sum-meta">
             {dateLabel ?? 'today'}
-            {account ? `  ·  ${account.bankName} ····${account.last4}` : ''}
+            {account ? ' \u00B7 ' + account.bankName + ' \u00B7\u00B7\u00B7\u00B7' + account.last4 : ''}
           </p>
         </div>
         <SyncBadge lastSync={lastSync} status={syncStatus} />
-      </div>
+      </header>
 
-      <table className="tape">
-        <thead>
-          <tr>
-            <th>Line</th>
-            <th className="num">Qty</th>
-            <th className="num">Amount</th>
-            <th>Note</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.k}>
-              <td className="uppercase tracking-[0.08em] text-faint">{r.k}</td>
-              <td className="num text-muted">{r.qty}</td>
-              <td className={`num ${r.tone === 'gold' ? 'text-gold' : r.tone === 'cyan' ? 'text-cyan' : r.tone === 'danger' ? 'text-danger' : ''}`}>
-                <CountUp value={r.value} decimals={r.decimals} suffix={` ${r.unit}`} />
-              </td>
-              <td className="text-faint">{r.note}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      <div className="mt-4 flex flex-wrap justify-between gap-2 rounded-[var(--radius-sm)] px-3 py-2 font-mono text-xs shadow-[inset_0_0_0_1px_var(--line)]">
-        <span>DESK {desk ? n(desk, 2) : '—'}</span>
-        <span className="text-muted">MKT {rates.marketRate > 0 ? n(rates.marketRate, 2) : '—'}</span>
-        <span className="text-faint">{wait} wait · {outCount} done</span>
+      <div className="sum-block">
+        <Row mark="in" label="รับทั้งหมด" en="IN" tone="in" value={<><CountUp value={daily.totalThbReceived} decimals={0} /> THB<span className="sum-qty">{inCount}</span></>} />
+        <Row mark="out" label="ส่งทั้งหมด" en="OUT" tone="out" value={<><CountUp value={daily.totalUsdtSent} decimals={2} /> U<span className="sum-qty">{outCount}</span></>} />
+        <Row label="คงเหลือเทียบโต๊ะ" en="NET" tone="net" value={<><CountUp value={netThb} decimals={2} /> THB</>} />
       </div>
-    </div>
+      <div className="sum-rule" />
+      <div className="sum-block">
+        <Row label="เรทขาย" en="DESK" value={desk ? n(desk, 2) + ' THB / U' : '\u2014'} />
+        <Row label="ตลาด" en="MKT" tone="muted" value={rates.marketRate > 0 ? n(rates.marketRate, 2) : '\u2014'} />
+        <Row label="ยอดคงเหลือ" en="DUE" tone="due" value={<><CountUp value={pending} decimals={2} /> U</>} />
+      </div>
+      <div className="sum-rule" />
+      <div className="sum-block">
+        <Row label="รายการรวม" en="TX" tone="muted" value={String(daily.transactionCount)} />
+        {owner ? <Row label="ผู้รับผิดชอบล่าสุด" en="OPS" value={owner.name + ' \u00B7 ' + owner.count} /> : null}
+        <Row label="อัปเดตล่าสุด" en="SYNC" tone="muted" value={clock ?? '\u2014'} />
+      </div>
+    </section>
   );
 }
