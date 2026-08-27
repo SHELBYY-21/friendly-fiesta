@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+
 type Slip = {
   id: string;
   short: string;
@@ -30,6 +32,7 @@ function onSteps(status: string, pending: boolean): number {
 }
 
 export function SlipCard({ slip, onClose }: { slip: Slip; onClose: () => void }) {
+  const [copied, setCopied] = useState(false);
   const expected = slip.expectedUsdt ?? slip.usdt ?? null;
   const sent = slip.sentUsdt ?? (slip.status === 'DONE' ? expected : 0);
   const due = slip.dueUsdt ?? (
@@ -38,6 +41,13 @@ export function SlipCard({ slip, onClose }: { slip: Slip; onClose: () => void })
   const settled = slip.status === 'DONE';
   const active = onSteps(slip.status, slip.pending);
   const ref = slip.id.startsWith('#CE') || slip.id.startsWith('CE-') ? slip.id : slip.short;
+
+  async function copyRef() {
+    if (!ref) return;
+    await navigator.clipboard.writeText(ref);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1200);
+  }
 
   return (
     <article className="slip">
@@ -51,15 +61,18 @@ export function SlipCard({ slip, onClose }: { slip: Slip; onClose: () => void })
       <p className="slip-big">{n(settled ? sent : due ?? expected, 2)} <small>USDT</small></p>
       <div className="slip-strip">
         {STEPS.map((s, i) => (
-          <span key={s} className={'slip-step' + (i < active ? ' on' : '')}>{s}</span>
+          <span key={s} className={'slip-step' + (i < active ? ' on' : '') + (i === active - 1 && !settled ? ' wait' : '')}>{s}</span>
         ))}
       </div>
-      <div className="slip-row"><span>เงินเข้า IN</span><span className="in">{slip.thb == null ? '\u2014' : '+' + n(slip.thb) + ' THB'}</span></div>
-      <div className="slip-row"><span>เงินออก OUT</span><span className="out">{sent ? '-' + n(sent, 2) + ' U' : '0.00 U'}</span></div>
-      <div className="slip-row"><span>ต้องส่ง DUE</span><span className="due">{n(due ?? expected, 2)} U</span></div>
-      <div className="slip-row">
+      <div className="slip-row" style={{ ['--i' as string]: 0 }}><span>เงินเข้า IN</span><span className="in">{slip.thb == null ? '\u2014' : '+' + n(slip.thb) + ' THB'}</span></div>
+      <div className="slip-row" style={{ ['--i' as string]: 1 }}><span>เงินออก OUT</span><span className="out">{sent ? '-' + n(sent, 2) + ' U' : '0.00 U'}</span></div>
+      <div className="slip-row" style={{ ['--i' as string]: 2 }}><span>ต้องส่ง DUE</span><span className="due">{n(due ?? expected, 2)} U</span></div>
+      <div className="slip-row" style={{ ['--i' as string]: 3 }}>
         <span>อ้างอิง REF</span>
-        <button type="button" className="slip-copy" onClick={() => navigator.clipboard.writeText(ref)}>{ref || '\u2014'}</button>
+        <button type="button" className={'slip-copy' + (copied ? ' is-on' : '')} onClick={copyRef}>{copied ? 'copied' : (ref || '\u2014')}</button>
+      </div>
+      <div className="copy-ref">
+        <button type="button" onClick={copyRef}>{copied ? 'copied' : 'copy ref'}</button>
       </div>
       <p className="slip-foot">{slip.time || '\u2014'}</p>
     </article>
