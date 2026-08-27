@@ -56,10 +56,11 @@ export default function VaultDesk() {
   const [error, setError] = useState<string | null>(null);
   const [deskDraft, setDeskDraft] = useState('');
   const [saving, setSaving] = useState(false);
+  const [settling, setSettling] = useState(false);
   const [mode, setMode] = useState<'today' | 'pending'>('today');
+  const [flash, setFlash] = useState<Set<string>>(new Set());
   const seen = useRef<Set<string>>(new Set());
   const primed = useRef(false);
-  const [flash, setFlash] = useState<Set<string>>(new Set());
   const loadRef = useRef<() => Promise<void>>(async () => {});
   const live = useVaultLive(() => { void loadRef.current(); });
 
@@ -93,6 +94,22 @@ export default function VaultDesk() {
     const t = setInterval(() => void load(), live ? 30_000 : 8_000);
     return () => clearInterval(t);
   }, [load, live]);
+
+  const settleQueue = async () => {
+    if (settling) return;
+    setSettling(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/dashboard/settle', { method: 'POST' });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json.ok === false) throw new Error(json.error || 'settle failed');
+      await load();
+    } catch (err: any) {
+      setError(err?.message ?? 'settle failed');
+    } finally {
+      setSettling(false);
+    }
+  };
 
   const saveDesk = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -207,6 +224,8 @@ export default function VaultDesk() {
         sent={sent}
         due={Math.max(0, Math.round(((v?.requiredUsdt ?? 0) - sent) * 100) / 100)}
         flash={flash}
+        onSettle={settleQueue}
+        settling={settling}
       />
     </div>
   );
