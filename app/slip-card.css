@@ -11,10 +11,17 @@
 .slip-strip{display:flex;gap:4px;margin:14px 0 8px}
 .slip-step{flex:1;text-align:center;font-size:11px;font-weight:600;color:#94A3B8;border-top:3px solid #1E293B;padding-top:8px}
 .slip-step.on{color:#22D3EE;border-color:#22D3EE}
-.slip-row{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #1E293B;font-size:14px}
+.slip-step.wait{color:#FBBF24;border-top-color:#FBBF24;animation:slip-pulse 1.4s ease-in-out infinite}
+.slip-row{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #1E293B;font-size:14px;opacity:0;transform:translateY(6px);animation:slip-fade .28s ease forwards;animation-delay:calc(var(--i,0)*70ms)}
 .slip-row .in{color:#22C55E;font-weight:700}
 .slip-row .out{color:#EF4444;font-weight:700}
 .slip-row .due{color:#FBBF24;font-weight:700}
-.slip-copy{font-family:var(--font-mono);font-weight:700;color:#E2E8F0}
+.slip-copy{font-family:var(--font-mono);font-weight:700;color:#22D3EE;font-size:12px;background:none;border:0}
+.slip-copy.is-on{color:#94A3B8}
+.copy-ref{margin-top:10px;text-align:right}
+.copy-ref button{background:none;border:1px solid #1E293B;color:#22D3EE;font-size:11px;padding:4px 8px;border-radius:8px}
 .slip-foot{margin-top:12px;font-size:11px;color:#94A3B8}
 .qd-row{cursor:pointer}
+@keyframes slip-fade{to{opacity:1;transform:none}}
+@keyframes slip-pulse{50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.slip-row,.slip-step.wait{animation:none;opacity:1;transform:none}}
