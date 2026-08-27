@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono, Noto_Sans_Thai } from 'next/font/google';
 import './globals.css';
 import './queue-desk.css';
+import './sum-desk.css';
 
 const sans = Geist({
   subsets: ['latin'],

@@ -1,0 +1,19 @@
+.sum-desk{background:#0F1420;border-radius:12px;padding:18px 16px;color:#E5E7EB;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+.sum-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:16px}
+.sum-title{font-size:13px;letter-spacing:.14em;font-weight:600}
+.sum-meta{margin-top:4px;font-size:11px;color:#94A3B8}
+.sum-block{display:flex;flex-direction:column;gap:10px}
+.sum-rule{height:1px;background:rgba(255,255,255,.08);margin:14px 0}
+.sum-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;min-height:22px}
+.sum-k{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:#CBD5E1}
+.sum-k em{font-style:normal;font-size:10px;letter-spacing:.12em;color:#64748B;margin-left:6px}
+.sum-v{font-family:var(--font-mono);font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.sum-qty{margin-left:8px;font-size:11px;font-weight:500;color:#64748B}
+.sum-dot{width:7px;height:7px;border-radius:99px;display:inline-block}
+.sum-dot.in{background:#22D3EE}
+.sum-dot.out{background:#F87171}
+.sum-row.is-in .sum-v{color:#67E8F9}
+.sum-row.is-out .sum-v{color:#FCA5A5}
+.sum-row.is-net .sum-v{color:#F8FAFC}
+.sum-row.is-due .sum-v{color:#FBBF24}
+.sum-row.is-muted .sum-v{color:#94A3B8;font-weight:500}
