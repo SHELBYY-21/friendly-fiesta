@@ -1,0 +1,12 @@
+.desk-board{min-height:100vh;background:radial-gradient(1100px 600px at 20% -10%,#16233c 0%,#0B1220 55%);color:#F1F5F9}
+.desk-board .sum-desk,.desk-board .queue-desk,.desk-board .slip{
+  background:linear-gradient(180deg,rgba(255,255,255,.05),transparent),rgba(16,24,39,.72);
+  backdrop-filter:saturate(.9) blur(12px);
+  border:1px solid rgba(148,163,184,.14);
+  box-shadow:none;
+}
+.desk-board .queue-desk{margin-top:4px}
+@media (max-width:767px){
+  .desk-board .desk-pin{display:none}
+  .desk-board .seg{display:none}
+}

@@ -4,6 +4,7 @@ import './globals.css';
 import './queue-desk.css';
 import './sum-desk.css';
 import './slip-card.css';
+import './desk-board.css';
 
 const sans = Geist({
   subsets: ['latin'],
