@@ -184,6 +184,7 @@ export default function VaultDesk() {
             inCount: v?.inCount ?? 0,
             outCount: v?.outCount ?? 0,
             waitCount: tape.filter((r) => r.pending).length,
+            errCount: tape.filter((r) => r.status === 'ERR' || r.status === 'ERROR').length,
           }}
           rates={{ sellRate: desk, marketRate: mkt ?? 0 }}
           lastSync={data ? new Date() : null}
