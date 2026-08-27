@@ -71,13 +71,10 @@ export default function SummaryToday({
   const inCount = daily.inCount ?? daily.transactionCount;
   const outCount = daily.outCount ?? 0;
   const wait = daily.waitCount ?? Math.max(0, inCount - outCount);
-  const err = daily.errCount ?? 0;
   const required = daily.requiredUsdt ?? 0;
   const pending = daily.pendingUsdt ?? Math.max(0, required - daily.totalUsdtSent);
   const desk = rates.sellRate > 0 ? rates.sellRate : 0;
   const mkt = rates.marketRate > 0 ? rates.marketRate : 0;
-  const spread = desk && mkt ? desk - mkt : 0;
-  const netThb = daily.totalThbReceived - daily.totalUsdtSent * desk;
   const clock = lastSync
     ? lastSync.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', hour12: false })
     : null;
@@ -86,59 +83,41 @@ export default function SummaryToday({
     <section className="sum-desk">
       <header className="sum-head">
         <div>
-          <p className="sum-title">สรุปวันนี้</p>
-          <p className="sum-meta">
-            {dateLabel ?? 'today'}
-            {account ? ' \u00B7 ' + account.bankName + ' \u00B7\u00B7\u00B7\u00B7' + account.last4 : ''}
-          </p>
+          <p className="sum-title">โต๊ะวันนี้</p>
+          <p className="sum-meta">{dateLabel ?? 'today'}</p>
         </div>
         <SyncBadge lastSync={lastSync} status={syncStatus} />
       </header>
 
       <div className="kpi-strip">
-        <article className="kpi is-due">
-          <p>DUE</p>
-          <strong><CountUp value={pending} decimals={2} /></strong>
-          <span>USDT must send</span>
+        <article className="kpi">
+          <p>QUEUE</p>
+          <strong>{wait}</strong>
+          <span>รอรวมยอด</span>
         </article>
         <article className="kpi is-in">
           <p>IN</p>
           <strong><CountUp value={daily.totalThbReceived} decimals={0} /></strong>
-          <span>THB \u00B7 {inCount} tx</span>
+          <span>THB เข้า</span>
         </article>
-        <article className="kpi">
-          <p>WAIT</p>
-          <strong>{wait}</strong>
-          <span>in queue</span>
-        </article>
-        <article className={'kpi' + (err > 0 ? ' is-err' : '')}>
-          <p>ERR</p>
-          <strong>{err}</strong>
-          <span>blocked today</span>
-        </article>
-        <article className="kpi">
-          <p>SPREAD</p>
-          <strong>{desk && mkt ? (spread >= 0 ? '+' : '') + n(spread, 2) : '\u2014'}</strong>
-          <span>DESK \u2212 MKT</span>
+        <article className="kpi is-due">
+          <p>DUE</p>
+          <strong><CountUp value={pending} decimals={2} /></strong>
+          <span>U ต้องโอนรวม</span>
         </article>
       </div>
 
       <div className="sum-block">
-        <Row mark="in" label="รับทั้งหมด" en="IN" tone="in" value={<><CountUp value={daily.totalThbReceived} decimals={0} /> THB<span className="sum-qty">{inCount}</span></>} />
-        <Row mark="out" label="ส่งทั้งหมด" en="OUT" tone="out" value={<><CountUp value={daily.totalUsdtSent} decimals={2} /> U<span className="sum-qty">{outCount}</span></>} />
-        <Row label="คงเหลือเทียบโต๊ะ" en="NET" tone="net" value={<><CountUp value={netThb} decimals={2} /> THB</>} />
+        <Row mark="in" label="เงินเข้า" en="IN" tone="in" value={<><CountUp value={daily.totalThbReceived} decimals={0} /> THB<span className="sum-qty">{inCount}</span></>} />
+        <Row label="ต้องโอน" en="DUE" tone="due" value={<><CountUp value={pending} decimals={2} /> U</>} />
+        <Row mark="out" label="โอนแล้ว" en="OUT" tone="out" value={<><CountUp value={daily.totalUsdtSent} decimals={2} /> U<span className="sum-qty">{outCount}</span></>} />
       </div>
       <div className="sum-rule" />
       <div className="sum-block">
-        <Row label="เรทขาย" en="DESK" value={desk ? n(desk, 2) + ' THB / U' : '\u2014'} />
+        <Row label="เรทโต๊ะ" en="DESK" value={desk ? n(desk, 2) + ' THB / U' : '\u2014'} />
         <Row label="ตลาด" en="MKT" tone="muted" value={mkt ? n(mkt, 2) : '\u2014'} />
-        <Row label="ยอดคงเหลือ" en="DUE" tone="due" value={<><CountUp value={pending} decimals={2} /> U</>} />
-      </div>
-      <div className="sum-rule" />
-      <div className="sum-block">
-        <Row label="รายการรวม" en="TX" tone="muted" value={String(daily.transactionCount)} />
-        {owner ? <Row label="ผู้รับผิดชอบล่าสุด" en="OPS" value={owner.name + ' \u00B7 ' + owner.count} /> : null}
-        <Row label="อัปเดตล่าสุด" en="SYNC" tone="muted" value={clock ?? '\u2014'} />
+        <Row label="อัปเดต" en="SYNC" tone="muted" value={clock ?? '\u2014'} />
+        {owner ? <Row label="ผู้รับผิดชอบ" en="OPS" value={owner.name + ' \u00B7 ' + owner.count} /> : null}
       </div>
     </section>
   );
