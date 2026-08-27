@@ -48,6 +48,12 @@ function matchesFilter(mode: VaultMode, status: string, pending: boolean): boole
   return true;
 }
 
+function bannerModeOf(mode: VaultMode): 'today' | 'pending' | 'all' {
+  if (mode === 'wait' || mode === 'pending') return 'pending';
+  if (mode === 'all') return 'all';
+  return 'today';
+}
+
 export async function loadVault(chatId?: number | null, mode: VaultMode = 'today') {
   const cut = midnightIso();
   let insQ = supabaseAdmin
@@ -182,7 +188,7 @@ export async function loadVault(chatId?: number | null, mode: VaultMode = 'today
 
 export async function renderVault(chatId: number, mode: VaultMode = 'today'): Promise<OutgoingMessage> {
   const data = await loadVault(chatId, mode);
-  return vaultBanner(data);
+  return vaultBanner({ ...data, mode: bannerModeOf(mode) });
 }
 
 export async function renderRecent(chatId: number, adminLabel: string): Promise<OutgoingMessage> {
