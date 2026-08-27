@@ -43,7 +43,7 @@ Thumbs.db
 # Session-continuity notes from the "remember" skill (tooling state, not code)
 .remember/
 
-# TypeScript build cache
+# Local tsc incremental cache only. Not Vercel cache. Do not commit.
 tsconfig.tsbuildinfo
 *.tsbuildinfo
 
