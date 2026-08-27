@@ -121,7 +121,7 @@ export default function VaultDesk() {
     expectedUsdt: r.expectedUsdt ?? r.usdt ?? null,
     dueUsdt: r.dueUsdt ?? r.usdt ?? null,
     sentUsdt: r.sentUsdt ?? null,
-    dateStamp: r.dateStamp || '—',
+    dateStamp: r.dateStamp || '\u2014',
     status: r.status ?? (r.pending ? 'WAIT' : 'DONE'),
   }));
   const due = v?.pendingUsdt ?? 0;
@@ -152,31 +152,22 @@ export default function VaultDesk() {
   }));
 
   return (
-    <div className="min-h-screen">
+    <div className="desk-board">
       <header className="nav dense-nav">
         <div className="flex min-w-0 items-center gap-3">
-          <span className="mark-glow" aria-hidden>{'\u25C8'}</span>
-          <span className="text-xs tracking-[0.18em]">CT</span>
+          <span className="mark-glow" aria-hidden>CT</span>
+          <span className="text-xs tracking-[0.18em]">DESK</span>
           <span className={`pill hidden sm:inline-flex ${live ? 'pill-done' : 'pill-wait'}`}>
             {live ? 'live' : 'poll'}
           </span>
           {due > 0 && (
             <span className="font-mono text-sm text-gold">due {money(due, 2)}</span>
           )}
-          <span className="hidden text-xs text-faint sm:inline">
-            {v ? `${v.dateLabel} ${v.clock}` : '—'}
-          </span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="seg">
-            <button type="button" data-on={mode === 'today'} onClick={() => setMode('today')}>today</button>
-            <button type="button" data-on={mode === 'pending'} onClick={() => setMode('pending')}>wait</button>
-          </div>
-          <form onSubmit={saveDesk} className="hidden items-center gap-1 md:flex">
-            <input value={deskDraft} onChange={(e) => setDeskDraft(e.target.value)} placeholder="rate" inputMode="decimal" aria-label="desk rate" className="field w-20 px-2 text-sm" />
-            <button type="submit" disabled={saving} className="keep px-3 text-xs">set rate</button>
-          </form>
-        </div>
+        <form onSubmit={saveDesk} className="hidden items-center gap-1 md:flex">
+          <input value={deskDraft} onChange={(e) => setDeskDraft(e.target.value)} placeholder="rate" inputMode="decimal" aria-label="desk rate" className="field w-20 px-2 text-sm" />
+          <button type="submit" disabled={saving} className="keep px-3 text-xs">set rate</button>
+        </form>
       </header>
       <div className="agent-rail" />
       <div className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
@@ -198,7 +189,9 @@ export default function VaultDesk() {
           lastSync={data ? new Date() : null}
           syncStatus={error ? 'error' : live ? 'live' : data ? 'syncing' : 'syncing'}
         />
-        <PinnedAccounts accounts={pinCards} lastSync={data ? new Date() : null} syncStatus={error ? 'error' : live ? 'live' : 'syncing'} />
+        <div className="desk-pin">
+          <PinnedAccounts accounts={pinCards} lastSync={data ? new Date() : null} syncStatus={error ? 'error' : live ? 'live' : 'syncing'} />
+        </div>
       </div>
       {error && <p className="px-4 py-2 text-sm text-danger">{error}</p>}
       <form onSubmit={saveDesk} className="flex gap-2 border-b border-[var(--line)] px-4 py-3 md:hidden">
@@ -207,8 +200,8 @@ export default function VaultDesk() {
       </form>
       <QueueTape
         rows={tape}
-        dateLabel={v?.dateLabel ?? '—'}
-        clock={v?.clock ?? '—'}
+        dateLabel={v?.dateLabel ?? '\u2014'}
+        clock={v?.clock ?? '\u2014'}
         waiting={tape.filter((r) => r.status !== 'DONE').reduce((s, r) => s + (r.expectedUsdt ?? r.usdt ?? 0), 0)}
         sent={sent}
         due={Math.max(0, Math.round(((v?.requiredUsdt ?? 0) - sent) * 100) / 100)}
