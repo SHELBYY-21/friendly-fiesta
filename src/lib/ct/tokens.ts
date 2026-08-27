@@ -7,7 +7,7 @@ export const RULE = '\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501';
 export const DOT_ON = '\u25CF';
 export const DOT_OFF = '\u25CB';
 
-export const STEPS = ['อ่าน (OCR)', 'เทียบ (MATCH)', 'ตรวจ (IN)', 'รอโอน (WAIT)', 'เสร็จ (DONE)'] as const;
+export const STEPS = ['OCR', 'MATCH', 'IN', 'WAIT', 'DONE'] as const;
 export type FlowStep = 'scan' | 'match' | 'in' | 'wait' | 'done';
 
 const STEP_INDEX: Record<FlowStep, number> = {
@@ -34,15 +34,17 @@ const STATUS_EN: Record<string, string> = {
 
 export function progress(step: FlowStep): string {
   const idx = STEP_INDEX[step];
-  const dots = STEPS.map((_, i) => (i <= idx ? DOT_ON : DOT_OFF)).join('\u2500\u2500');
-  const labels = STEPS.map((s, i) => (i === idx ? `<b>${s}</b>` : s)).join('  ');
-  return `${dots}\n${RAIL} ${labels}`;
+  return STEPS.map((s, i) => {
+    const dot = i <= idx ? DOT_ON : DOT_OFF;
+    const label = i === idx ? `<b>${s}</b>` : s;
+    return `${dot} ${label}`;
+  }).join(' \u2500\u2500 ');
 }
 
 export function head(status: string, meta: string): string {
   const en = STATUS_EN[status];
-  const chip = en && !status.includes('(') ? `${status} (${en})` : status;
-  return `${MARK}  <b>CT</b>\n<i>[ ${chip} ]  ${meta}</i>`;
+  const chip = en || status;
+  return `${MARK}  <b>CT</b>  \u00B7  <b>${chip}</b>\n${meta}`;
 }
 
 export function rule(): string {
