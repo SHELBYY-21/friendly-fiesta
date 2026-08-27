@@ -12,6 +12,7 @@ export interface PinnedAccount {
   transactionCount: number;
   totalThb: number;
   totalUsdt: number;
+  dailyLimitThb?: number | null;
   status: 'active' | 'depleted' | 'inactive';
 }
 
@@ -33,7 +34,6 @@ export default function PinnedAccounts({
   syncStatus,
 }: PinnedAccountsProps) {
   const nf = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
-  const uf = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   if (accounts.length === 0) {
     return (
@@ -49,7 +49,7 @@ export default function PinnedAccounts({
   return (
     <div className="glass accent-top reveal overflow-hidden">
       <div className="flex items-center justify-between border-b border-[color:var(--border)] px-5 py-3">
-        <h2 className="text-sm font-semibold tracking-[0.14em]">บัญชีรับ</h2>
+        <h2 className="text-sm font-semibold tracking-[0.14em]">วงเงินวันนี้</h2>
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted">{accounts.length}</span>
           <SyncBadge lastSync={lastSync} status={syncStatus} />
@@ -59,6 +59,8 @@ export default function PinnedAccounts({
       <div className="divide-y divide-[color:var(--border)]">
         {accounts.map((acc) => {
           const on = selectedAccountId === acc.bankAccountId;
+          const cap = acc.dailyLimitThb;
+          const left = cap != null ? Math.max(0, cap - acc.totalThb) : null;
           return (
             <button
               key={acc.id}
@@ -71,12 +73,11 @@ export default function PinnedAccounts({
                 <p className="min-w-0 truncate text-sm">
                   {acc.bankName} <span className="font-mono text-gold">····{acc.last4}</span>
                 </p>
-                <span className={`pill ${acc.status === 'active' ? 'pill-wait' : 'pill-done'}`}>
-                  {acc.status === 'active' ? 'pin' : acc.status}
-                </span>
+                <span className={`pill ${acc.status === 'active' ? 'pill-wait' : 'pill-done'}`}>pin</span>
               </div>
               <p className="mt-1 font-mono text-xs text-muted">
-                {acc.transactionCount}  {nf.format(acc.totalThb)} THB  {uf.format(acc.totalUsdt)} USDT
+                ใช้ไป {nf.format(acc.totalThb)} THB
+                {cap != null ? ` \u00B7 วงเงิน ${nf.format(cap)} \u00B7 เหลือ ${nf.format(left ?? 0)}` : ' \u00B7 วงเงินยังไม่ตั้ง'}
               </p>
             </button>
           );
