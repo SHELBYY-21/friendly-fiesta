@@ -3,13 +3,14 @@
 .sum-title{font-size:13px;letter-spacing:.14em;font-weight:600}
 .sum-meta{margin-top:4px;font-size:11px;color:#94A3B8}
 .kpi-strip{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
-@media (min-width:720px){.kpi-strip{grid-template-columns:repeat(4,1fr)}}
+@media (min-width:900px){.kpi-strip{grid-template-columns:repeat(5,1fr)}}
 .kpi{padding:10px 10px 8px;border-radius:10px;background:rgba(255,255,255,.03);box-shadow:inset 0 0 0 1px rgba(148,163,184,.14)}
 .kpi p{font-size:10px;letter-spacing:.14em;color:#94A3B8}
 .kpi strong{display:block;margin-top:4px;font-family:var(--font-mono),ui-monospace,monospace;font-size:20px;font-variant-numeric:tabular-nums;letter-spacing:-.03em;line-height:1.15}
 .kpi span{display:block;margin-top:4px;font-size:10px;color:#64748B}
 .kpi.is-due strong{color:#FBBF24}
 .kpi.is-in strong{color:#67E8F9}
+.kpi.is-err strong{color:#F87171}
 .sum-block{display:flex;flex-direction:column;gap:10px}
 .sum-rule{height:1px;background:rgba(148,163,184,.14);margin:14px 0}
 .sum-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;min-height:22px}
