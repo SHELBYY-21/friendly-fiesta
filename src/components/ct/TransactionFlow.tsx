@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { SlipCard } from './SlipCard';
 
 type TapeRow = {
   id: string;
@@ -87,6 +88,7 @@ export function QueueTape({
 }) {
   const [filter, setFilter] = useState<QueueFilter>('WAIT');
   const [focus, setFocus] = useState<string | null>(null);
+  const [open, setOpen] = useState<TapeRow | null>(null);
   const dueText = useCountUp(due, 2);
   const shown = useMemo(() => {
     const base = rows.filter((r) => matches(filter, r.status, r.pending));
@@ -133,7 +135,7 @@ export function QueueTape({
               const idx = gi * 5 + i;
               const usdtAmt = row.expectedUsdt ?? row.usdt;
               return (
-                <div key={row.id} className={'qd-row' + (flash.has(row.id) ? ' is-flash' : '')} style={{ ['--i' as string]: Math.min(idx, 12) }}>
+                <div key={row.id} role="button" tabIndex={0} onClick={() => setOpen(row)} onKeyDown={(e) => { if (e.key === 'Enter') setOpen(row); }} className={'qd-row' + (flash.has(row.id) ? ' is-flash' : '')} style={{ ['--i' as string]: Math.min(idx, 12) }}>
                   <span className={'st ' + badge.cls}>
                     {badge.label === 'WAIT' ? <i className="st-dot" /> : null}
                     {badge.label === 'DONE' ? <i className="st-check">OK</i> : null}
@@ -151,6 +153,7 @@ export function QueueTape({
           </div>
         ))}
       </div>
+      {open ? <SlipCard slip={open} onClose={() => setOpen(null)} /> : null}
       <div className="qd-dock">
         <button type="button" className="qd-send" disabled={due <= 0}>Send all pending</button>
         <button type="button" className="qd-ghost">Cancel duplicates</button>
