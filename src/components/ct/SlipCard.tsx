@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 type Slip = {
   id: string;
+  ledger?: string | null;
   short: string;
   thb: number | null;
   expectedUsdt?: number | null;
@@ -34,6 +35,12 @@ function onSteps(status: string, pending: boolean): number {
   return 1;
 }
 
+function refOf(slip: Slip) {
+  const raw = String(slip.ledger || slip.id || '');
+  if (raw.startsWith('#CE') || raw.startsWith('CE-')) return raw.startsWith('#') ? raw : '#' + raw;
+  return slip.short ? '#CE-' + slip.short : '';
+}
+
 export function SlipCard({ slip, onClose, queue }: {
   slip: Slip;
   onClose: () => void;
@@ -41,18 +48,19 @@ export function SlipCard({ slip, onClose, queue }: {
 }) {
   const [copied, setCopied] = useState(false);
   const expected = slip.expectedUsdt ?? slip.usdt ?? null;
-  const sent = slip.sentUsdt ?? (slip.status === 'DONE' ? expected : 0);
+  const sent = slip.sentUsdt ?? (slip.status === 'DONE' ? expected : null);
   const due = slip.dueUsdt ?? (
     expected == null ? null : Math.max(0, Number((expected - (sent ?? 0)).toFixed(2)))
   );
   const settled = slip.status === 'DONE';
   const queued = !settled && slip.status !== 'ERR' && slip.status !== 'ERROR';
   const active = onSteps(slip.status, slip.pending);
-  const ref = slip.id.startsWith('#CE') || slip.id.startsWith('CE-') ? slip.id : (slip.short ? '#CE-' + slip.short : '');
+  const ref = refOf(slip);
   const target = queue?.target ?? 10000;
-  const used = queue?.thb ?? slip.thb ?? 0;
+  const used = queue?.thb ?? 0;
   const left = Math.max(0, target - used);
-  const dueAll = queue?.usdt ?? due ?? expected ?? 0;
+  const dueAll = queue?.usdt ?? 0;
+  const payee = [slip.bank, slip.last4 ? '\u00b7\u00b7\u00b7\u00b7 ' + slip.last4 : null].filter(Boolean).join(' ');
 
   async function copyRef() {
     if (!ref) return;
@@ -64,28 +72,33 @@ export function SlipCard({ slip, onClose, queue }: {
   return (
     <article className="slip term">
       <div className="slip-head">
-        <span className="slip-tag">CT \u00B7 QUEUE</span>
+        <span className="slip-tag">CT \u00b7 {slip.status || 'QUEUE'}</span>
         <button type="button" className="slip-x" onClick={onClose} aria-label="close">close</button>
       </div>
-      <p className="slip-note">บันทึกแล้ว รอรวมยอดเพื่อโอน USDT</p>
       <p className="slip-rail">
         {STEPS.map((s, i) => (
-          <span key={s} className={i < active ? 'on' : ''}>{(i < active ? '\u25CF' : '\u25CB') + ' ' + s}</span>
+          <span key={s} className={i < active ? 'on' : ''}>{(i < active ? '\u25cf' : '\u25cb') + ' ' + s}</span>
         ))}
       </p>
       <div className="slip-rule" />
+      <div className="slip-row"><span>TIME</span><span>{slip.time || '\u2014'}</span></div>
       <div className="slip-row"><span>REF</span><button type="button" className={'slip-copy' + (copied ? ' is-on' : '')} onClick={copyRef}>{copied ? 'copied' : ref || '\u2014'}</button></div>
-      <p className="slip-payee">{[slip.bank, slip.last4 ? '\u00B7\u00B7\u00B7\u00B7 ' + slip.last4 : '', slip.name].filter(Boolean).join(' ') || '\u2014'}</p>
+      <div className="slip-row"><span>PAYEE</span><span>{payee || '\u2014'}</span></div>
+      <div className="slip-row"><span>NAME</span><span>{slip.name || '\u2014'}</span></div>
+      <div className="slip-rule" />
+      <div className="slip-row"><span>IN</span><span className="in">{n(slip.thb)} THB</span></div>
+      <div className="slip-row"><span>DUE</span><span className="due">{n(due ?? expected, 2)} USDT</span></div>
+      <div className="slip-row"><span>SENT</span><span>{n(sent, 2)} USDT</span></div>
       <div className="slip-rule" />
       <div className="slip-row"><span>QUEUE</span><span>{queue?.count ?? 1} รายการ</span></div>
-      <div className="slip-row"><span>IN</span><span className="in">{n(queue?.thb ?? slip.thb)} THB</span></div>
-      <div className="slip-row"><span>DUE</span><span className="due">{n(dueAll, 2)} USDT</span></div>
+      <div className="slip-row"><span>IN ALL</span><span className="in">{n(queue?.thb)} THB</span></div>
+      <div className="slip-row"><span>DUE ALL</span><span className="due">{n(dueAll, 2)} USDT</span></div>
       <div className="slip-row"><span>TARGET</span><span>{n(target)} THB</span></div>
       <div className="slip-row"><span>LEFT</span><span>{n(left)} THB</span></div>
       <div className="slip-rule" />
       <p className="slip-note">
         {queued
-          ? `บันทึกเข้าคิวแล้ว ตอนนี้ต้องโอนรวม ${n(dueAll, 2)} USDT`
+          ? `บันทึกเข้าคิวแล้ว ตอนนี้ต้องโอนรวม ${n(dueAll || due, 2)} USDT`
           : 'รายการนี้ปิดแล้ว'}
       </p>
       {queued ? <p className="slip-note">กด บันทึกส่งรวม เมื่อต้องการโอน</p> : null}
