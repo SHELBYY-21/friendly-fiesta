@@ -76,7 +76,7 @@ function useCountUp(value: number, digits = 2) {
 }
 
 export function QueueTape({
-  rows, dateLabel, clock, waiting, sent, due, flash,
+  rows, dateLabel, clock, waiting, sent, due, flash, onSettle, settling,
 }: {
   rows: TapeRow[];
   dateLabel: string;
@@ -86,6 +86,8 @@ export function QueueTape({
   due: number;
   flash: Set<string>;
   coinDelta?: number;
+  onSettle?: () => Promise<void> | void;
+  settling?: boolean;
 }) {
   const [filter, setFilter] = useState<QueueFilter>('WAIT');
   const [open, setOpen] = useState<TapeRow | null>(null);
@@ -135,8 +137,8 @@ export function QueueTape({
       </div>
       {open ? <SlipCard slip={open} onClose={() => setOpen(null)} queue={batch} /> : null}
       <div className="qd-dock">
-        <button type="button" className="qd-send" disabled={due <= 0}>บันทึกส่งรวม</button>
-        <button type="button" className="qd-ghost">ยกเลิกซ้ำ</button>
+        <button type="button" className="qd-send" disabled={due <= 0 || settling || !onSettle} onClick={() => void onSettle?.()}>{settling ? 'กำลังบันทึก' : 'บันทึกส่งรวม'}</button>
+        <button type="button" className="qd-ghost" disabled>ยกเลิกซ้ำ</button>
       </div>
     </section>
   );
