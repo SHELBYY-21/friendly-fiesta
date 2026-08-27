@@ -138,7 +138,6 @@ export function QueueTape({
       {open ? <SlipCard slip={open} onClose={() => setOpen(null)} queue={batch} /> : null}
       <div className="qd-dock">
         <button type="button" className="qd-send" disabled={due <= 0 || settling || !onSettle} onClick={() => void onSettle?.()}>{settling ? 'กำลังบันทึก' : 'บันทึกส่งรวม'}</button>
-        <button type="button" className="qd-ghost" disabled>ยกเลิกซ้ำ</button>
       </div>
     </section>
   );
