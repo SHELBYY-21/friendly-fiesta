@@ -1,4 +1,5 @@
 import { recordIncoming, recordOutgoing } from '../transactions';
+import { supabaseAdmin } from '../supabaseAdmin';
 import { getRoom } from '../botSessions';
 import { opsRates } from './rates';
 import { shouldSend } from './format';
@@ -20,6 +21,11 @@ export interface DueSummary {
   ready: boolean;
   refs: string[];
   batchId: string | null;
+}
+
+function payeeLast4(mask?: string | null) {
+  const d = String(mask ?? '').replace(/\D/g, '');
+  return d.length >= 4 ? d.slice(-4) : d || null;
 }
 
 export function batchProgress(thb: number, target = BATCH_THB) {
@@ -65,6 +71,7 @@ export async function commitIncomingLock(
   if (!desk || desk <= 0) throw new Error('NO_DESK_RATE');
   const owed = shouldSend(p.thb_in, desk);
   const room = await getRoom(opts.chatId);
+  const last4 = payeeLast4(p.account_masked);
   const r = await recordIncoming({
     adminTelegramId: opts.userId,
     chatId: opts.chatId,
@@ -77,12 +84,15 @@ export async function commitIncomingLock(
     slipImageUrl: p.slip_url,
     slipFingerprint: p.slip_fingerprint,
     bankAccountId: p.bank_account_id,
-    receiver: {
-      name: p.name,
-      bank: p.bank,
-      last4: (p.account_masked ?? '').replace(/\D/g, '').slice(-4),
-    },
+    receiver: { name: p.name, bank: p.bank, last4 },
   });
+  if (r.transactionId && (p.name || p.bank || last4)) {
+    await supabaseAdmin.from('transactions').update({
+      receiver_name: p.name,
+      receiver_bank: p.bank,
+      receiver_last4: last4,
+    }).eq('id', r.transactionId);
+  }
   return patchSlip(p.id, {
     status: 'LOCKED',
     tx_id: r.transactionId,
