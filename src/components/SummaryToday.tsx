@@ -69,9 +69,12 @@ export default function SummaryToday({
 }: SummaryTodayProps) {
   const inCount = daily.inCount ?? daily.transactionCount;
   const outCount = daily.outCount ?? 0;
+  const wait = daily.waitCount ?? Math.max(0, inCount - outCount);
   const required = daily.requiredUsdt ?? 0;
   const pending = daily.pendingUsdt ?? Math.max(0, required - daily.totalUsdtSent);
   const desk = rates.sellRate > 0 ? rates.sellRate : 0;
+  const mkt = rates.marketRate > 0 ? rates.marketRate : 0;
+  const spread = desk && mkt ? desk - mkt : 0;
   const netThb = daily.totalThbReceived - daily.totalUsdtSent * desk;
   const clock = lastSync
     ? lastSync.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', hour12: false })
@@ -90,6 +93,29 @@ export default function SummaryToday({
         <SyncBadge lastSync={lastSync} status={syncStatus} />
       </header>
 
+      <div className="kpi-strip">
+        <article className="kpi is-due">
+          <p>DUE</p>
+          <strong><CountUp value={pending} decimals={2} /></strong>
+          <span>USDT must send</span>
+        </article>
+        <article className="kpi is-in">
+          <p>IN</p>
+          <strong><CountUp value={daily.totalThbReceived} decimals={0} /></strong>
+          <span>THB \u00B7 {inCount} tx</span>
+        </article>
+        <article className="kpi">
+          <p>WAIT</p>
+          <strong>{wait}</strong>
+          <span>in queue</span>
+        </article>
+        <article className="kpi">
+          <p>SPREAD</p>
+          <strong>{desk && mkt ? (spread >= 0 ? '+' : '') + n(spread, 2) : '\u2014'}</strong>
+          <span>DESK \u2212 MKT</span>
+        </article>
+      </div>
+
       <div className="sum-block">
         <Row mark="in" label="รับทั้งหมด" en="IN" tone="in" value={<><CountUp value={daily.totalThbReceived} decimals={0} /> THB<span className="sum-qty">{inCount}</span></>} />
         <Row mark="out" label="ส่งทั้งหมด" en="OUT" tone="out" value={<><CountUp value={daily.totalUsdtSent} decimals={2} /> U<span className="sum-qty">{outCount}</span></>} />
@@ -98,7 +124,7 @@ export default function SummaryToday({
       <div className="sum-rule" />
       <div className="sum-block">
         <Row label="เรทขาย" en="DESK" value={desk ? n(desk, 2) + ' THB / U' : '\u2014'} />
-        <Row label="ตลาด" en="MKT" tone="muted" value={rates.marketRate > 0 ? n(rates.marketRate, 2) : '\u2014'} />
+        <Row label="ตลาด" en="MKT" tone="muted" value={mkt ? n(mkt, 2) : '\u2014'} />
         <Row label="ยอดคงเหลือ" en="DUE" tone="due" value={<><CountUp value={pending} decimals={2} /> U</>} />
       </div>
       <div className="sum-rule" />
