@@ -23,6 +23,7 @@ export interface SummaryTodayProps {
     inCount?: number;
     outCount?: number;
     waitCount?: number;
+    errCount?: number;
   };
   rates: {
     sellRate: number;
@@ -70,6 +71,7 @@ export default function SummaryToday({
   const inCount = daily.inCount ?? daily.transactionCount;
   const outCount = daily.outCount ?? 0;
   const wait = daily.waitCount ?? Math.max(0, inCount - outCount);
+  const err = daily.errCount ?? 0;
   const required = daily.requiredUsdt ?? 0;
   const pending = daily.pendingUsdt ?? Math.max(0, required - daily.totalUsdtSent);
   const desk = rates.sellRate > 0 ? rates.sellRate : 0;
@@ -108,6 +110,11 @@ export default function SummaryToday({
           <p>WAIT</p>
           <strong>{wait}</strong>
           <span>in queue</span>
+        </article>
+        <article className={'kpi' + (err > 0 ? ' is-err' : '')}>
+          <p>ERR</p>
+          <strong>{err}</strong>
+          <span>blocked today</span>
         </article>
         <article className="kpi">
           <p>SPREAD</p>
