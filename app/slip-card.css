@@ -2,8 +2,8 @@
   margin:16px 0 8px;
   padding:18px 16px;
   border-radius:14px;
-  background:#131A2B;
-  box-shadow:inset 0 0 0 1px #1E293B;
+  background:#0B1220;
+  box-shadow:inset 0 0 0 1px rgba(34,211,238,.22);
   color:#E2E8F0;
   font-family:var(--font-thai-next),var(--font-sans-next),system-ui,sans-serif;
   line-height:1.5;
@@ -11,36 +11,17 @@
   text-rendering:geometricPrecision;
 }
 .slip-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-.slip-tag{font-weight:800;letter-spacing:.08em;color:#22D3EE;font-family:var(--font-sans-next),system-ui,sans-serif}
-.slip-badge{margin-left:auto;font-size:11px;font-weight:700;letter-spacing:.08em;border-radius:99px;padding:2px 10px;font-family:var(--font-sans-next),system-ui,sans-serif}
-.slip-badge.is-done{color:#22C55E;box-shadow:inset 0 0 0 1px #22C55E}
-.slip-badge.is-wait{color:#FBBF24;box-shadow:inset 0 0 0 1px #FBBF24}
-.slip-badge.is-err{color:#EF4444;box-shadow:inset 0 0 0 1px #EF4444}
-.slip-x{font-size:11px;color:#94A3B8}
-.slip-note{font-size:12px;color:#94A3B8;margin:0 0 8px;letter-spacing:0;line-height:1.5}
-.slip-big{font-size:26px;font-weight:800;letter-spacing:-.3px;line-height:1.2;font-family:var(--font-mono-next),ui-monospace,monospace;font-variant-numeric:tabular-nums lining-nums}
-.slip-big small{font-size:13px;color:#94A3B8;font-weight:400;letter-spacing:0}
-.slip-strip{display:flex;gap:4px;margin:14px 0 8px}
-.slip-step{flex:1;text-align:center;font-size:11px;font-weight:600;color:#94A3B8;border-top:3px solid #1E293B;padding-top:8px;font-family:var(--font-sans-next),system-ui,sans-serif}
-.slip-step.on{color:#22D3EE;border-color:#22D3EE}
-.slip-step.wait{color:#FBBF24;border-top-color:#FBBF24;animation:slip-pulse 1.4s ease-in-out infinite}
-.slip-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:12px 0;border-bottom:1px solid #1E293B;font-size:14px;line-height:1.5;letter-spacing:0;opacity:0;animation:slip-fade .28s ease forwards;animation-delay:calc(var(--i,0)*70ms)}
-.slip-row span:first-child{min-width:0}
-.slip-row .in,.slip-row .out,.slip-row .due,.slip-copy{
-  font-family:var(--font-mono-next),ui-monospace,monospace;
-  font-variant-numeric:tabular-nums lining-nums;
-  font-weight:700;
-  white-space:nowrap;
-}
-.slip-row .in{color:#22C55E}
-.slip-row .out{color:#EF4444}
-.slip-row .due{color:#FBBF24}
-.slip-copy{color:#22D3EE;font-size:12px;background:none;border:0}
+.slip-tag{font-weight:800;letter-spacing:.12em;color:#22D3EE;font-family:var(--font-mono-next),ui-monospace,monospace}
+.slip-x{margin-left:auto;font-size:11px;color:#94A3B8}
+.slip-note{font-size:13px;color:#CBD5E1;margin:0 0 10px;letter-spacing:0;line-height:1.55}
+.slip-rail{display:flex;flex-wrap:wrap;gap:8px;font-size:11px;font-family:var(--font-mono-next),ui-monospace,monospace;color:#64748B;margin:0 0 12px}
+.slip-rail .on{color:#22D3EE}
+.slip-rule{height:1px;background:linear-gradient(90deg,transparent,rgba(34,211,238,.35),transparent);margin:10px 0}
+.slip-payee{font-size:13px;color:#F1F5F9;margin:4px 0 8px}
+.slip-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:8px 0;font-size:14px;line-height:1.5;opacity:1}
+.slip-row span:first-child{color:#94A3B8;font-family:var(--font-mono-next),ui-monospace,monospace;font-size:12px;letter-spacing:.08em}
+.slip-row .in{color:#34D399;font-weight:700;font-variant-numeric:tabular-nums}
+.slip-row .due{color:#FBBF24;font-weight:700;font-variant-numeric:tabular-nums}
+.slip-copy{color:#67E8F9;font-size:12px;background:none;border:0;font-family:var(--font-mono-next),ui-monospace,monospace;font-weight:700}
 .slip-copy.is-on{color:#94A3B8}
-.copy-ref{margin-top:10px;text-align:right}
-.copy-ref button{background:none;border:1px solid #1E293B;color:#22D3EE;font-size:11px;padding:4px 8px;border-radius:8px;font-family:var(--font-sans-next),system-ui,sans-serif}
-.slip-foot{margin-top:12px;font-size:11px;color:#94A3B8;letter-spacing:0}
 .qd-row{cursor:pointer}
-@keyframes slip-fade{from{opacity:0}to{opacity:1}}
-@keyframes slip-pulse{50%{opacity:.45}}
-@media (prefers-reduced-motion:reduce){.slip-row,.slip-step.wait{animation:none;opacity:1}}
