@@ -22,7 +22,7 @@ type TapeRow = {
 type QueueFilter = 'ALL' | 'WAIT' | 'DONE' | 'ERR';
 
 function n(v: number | null | undefined, d = 0) {
-  if (v == null || !Number.isFinite(Number(v))) return '\u2014';
+  if (v == null || !Number.isFinite(Number(v))) return '—';
   return Number(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 
@@ -42,8 +42,8 @@ function badgeOf(status: string, pending: boolean) {
 }
 
 function acct(row: TapeRow) {
-  if (row.last4) return (row.bank ? row.bank + ' ' : '') + '\u00B7\u00B7\u00B7\u00B7' + row.last4;
-  return row.short || '\u2014';
+  if (row.last4) return (row.bank ? `${row.bank} ` : '') + `····${row.last4}`;
+  return row.short || '—';
 }
 
 function useCountUp(value: number, digits = 2) {
@@ -104,7 +104,7 @@ export function QueueTape({
   return (
     <section className="queue-desk">
       <div className="qd-head">
-        <p className="qd-mark">CT \u00B7 LEDGER</p>
+        <p className="qd-mark">{'CT \u00b7 LEDGER'}</p>
         <p className="qd-clock">{dateLabel} {clock}</p>
       </div>
       <div className="qd-pills" role="tablist">
@@ -115,20 +115,20 @@ export function QueueTape({
       <article className="qd-balance">
         <p className="qd-k">USDT DUE</p>
         <p className="qd-amt">{dueText}</p>
-        <p className="qd-sub">QUEUE {batch.count} \u00B7 IN {n(batch.thb)} THB \u00B7 SENT {n(sent, 2)}</p>
+        <p className="qd-sub">{`QUEUE ${batch.count} \u00b7 IN ${n(batch.thb)} THB \u00b7 SENT ${n(sent, 2)}`}</p>
       </article>
       <div className="qd-cols">
         <span>TIME</span><span>ACCT</span><span>THB</span><span>DUE</span><span>STATUS</span>
       </div>
       <div className="qd-list">
-        {shown.length === 0 ? <p className="qd-empty">queue is quiet</p> : shown.map((row, i) => {
+        {shown.length === 0 ? <p className="qd-empty">วันนี้ยังไม่มีสลิป</p> : shown.map((row, i) => {
           const badge = badgeOf(row.status, row.pending);
           const dueU = row.dueUsdt ?? row.expectedUsdt ?? row.usdt;
           return (
             <div key={row.id} role="button" tabIndex={0} onClick={() => setOpen(row)} onKeyDown={(e) => { if (e.key === 'Enter') setOpen(row); }} className={'qd-row' + (flash.has(row.id) ? ' is-flash' : '')} style={{ ['--i' as string]: Math.min(i, 12) }}>
-              <span className="qd-time">{row.time || '\u2014'}</span>
+              <span className="qd-time">{row.time || '—'}</span>
               <span className="qd-acct">{acct(row)}</span>
-              <span className="qd-thb">{row.thb == null ? '\u2014' : n(row.thb)}</span>
+              <span className="qd-thb">{row.thb == null ? '—' : n(row.thb)}</span>
               <span className="qd-usdt">{n(dueU, 2)}</span>
               <span className={'st ' + badge.cls}>{badge.label}</span>
             </div>
