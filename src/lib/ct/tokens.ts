@@ -18,33 +18,40 @@ const STEP_INDEX: Record<FlowStep, number> = {
   done: 4,
 };
 
-const STATUS_EN: Record<string, string> = {
-  AGENT: 'AGENT',
-  'สรุปยอด': 'VAULT',
-  'เงินเข้า': 'IN',
-  'รอโอน': 'WAIT',
-  'รอรวมยอด': 'QUEUE',
-  'โอนแล้ว': 'SETTLED',
-  'แจ้งเตือน': 'ALERT',
-  'ตั้งค่า': 'SETUP',
-  'บัญชีรับ': 'PIN',
-  'อัตราแลกเปลี่ยน': 'RATE',
-  'รายการ': 'SLIP',
+const NOW: Record<FlowStep, string> = {
+  scan: 'กำลังอ่านสลิป',
+  match: 'กำลังเทียบบัญชี',
+  in: 'อ่านครบแล้ว → รอคนยืนยัน',
+  wait: 'รับเงินแล้ว → รอโอน USDT',
+  done: 'โอนครบแล้ว',
+};
+
+const CHIP: Record<string, string> = {
+  AGENT: 'อ่านสลิป (OCR)',
+  สรุปยอด: 'VAULT',
+  เงินเข้า: 'เงินเข้า (IN)',
+  รอโอน: 'รอโอน (WAIT)',
+  รอรวมยอด: 'รอโอน (WAIT)',
+  โอนแล้ว: 'โอนแล้ว (DONE)',
+  แจ้งเตือน: 'แจ้งเตือน',
+  ตั้งค่า: 'ตั้งค่า',
+  บัญชีรับ: 'บัญชีรับ',
+  อัตราแลกเปลี่ยน: 'อัตรา',
+  รายการ: 'รายการ',
 };
 
 export function progress(step: FlowStep): string {
   const idx = STEP_INDEX[step];
-  return STEPS.map((s, i) => {
-    const dot = i <= idx ? DOT_ON : DOT_OFF;
-    const label = i === idx ? `<b>${s}</b>` : s;
-    return `${dot} ${label}`;
-  }).join(' \u2500\u2500 ');
+  const dots = STEPS.map((_, i) => (i <= idx ? DOT_ON : DOT_OFF)).join('\u2500\u2500');
+  const labels = STEPS.map((s, i) => (i === idx ? `<b>${s}</b>` : s)).join('   ');
+  return `${NOW[step]}\n${dots}\n${labels}`;
 }
 
-export function head(status: string, meta: string): string {
-  const en = STATUS_EN[status];
-  const chip = en || status;
-  return `${MARK}  <b>CT</b>  \u00B7  <b>${chip}</b>\n${meta}`;
+export function head(status: string, meta?: string): string {
+  const chip = CHIP[status] ?? status;
+  return meta
+    ? `${MARK}  <b>CT</b>\n[ ${chip} ]  ${meta}`
+    : `${MARK}  <b>CT</b>\n[ ${chip} ]`;
 }
 
 export function rule(): string {

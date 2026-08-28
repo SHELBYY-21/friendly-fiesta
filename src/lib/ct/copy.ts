@@ -128,23 +128,20 @@ export function cardInReady(d: {
   fresh?: boolean;
   time?: string;
 }): OutgoingMessage {
-  const meta = d.review
-    ? `กรุณาตรวจสอบ  ความมั่นใจ ${Math.round(d.confidence)}%`
-    : `พร้อมบันทึก  ความมั่นใจ ${Math.round(d.confidence)}%`;
   const hasDesk = d.desk > 0;
   const lines = [
-    head('เงินเข้า', meta),
-    tape('in'),
-    '',
-    `<code>${esc(displayLedger(d.ledger))}</code>`,
+    head('เงินเข้า', `<code>${esc(displayLedger(d.ledger))}</code>`),
     quoteBlock({ thb: d.thb, usdt: hasDesk ? d.shouldSend : 0, desk: d.desk, mkt: d.mkt ?? null }),
-    '',
-    kv('ผู้รับ', 'PAYEE', `${esc(d.bank)}  ${esc(maskAcct(d.last4))}`),
-    kv('ชื่อ', 'NAME', esc(d.name || '—')),
+    tape('in'),
+    d.time ? `เวลา  ${esc(d.time)}` : '',
+    'บัญชีปลายทาง (PAYEE)',
+    `${esc(d.bank)}  ${esc(maskAcct(d.last4))}`,
+    esc(d.name || '—'),
+    d.review ? 'CAUSE  ยอดหรือบัญชียังไม่มั่นใจ' : 'CAUSE  สลิปตรงบัญชีแล้ว',
+    'ACTION กด ยืนยัน เพื่อเข้าคิว',
   ];
-  if (d.time) lines.push(esc(d.time));
   if (d.fresh) lines.push(`บัญชีใหม่  ${esc(d.bank)}  ${esc(maskAcct(d.last4))}`);
-  if (!hasDesk) lines.push('', 'กรุณาตั้งอัตราห้องก่อน เช่น <code>36.65</code>');
+  if (!hasDesk) lines.push('กรุณาตั้งอัตราห้องก่อน เช่น <code>36.65</code>');
   const rows: Array<Array<Record<string, unknown>>> = [];
   if (hasDesk) {
     rows.push([
@@ -256,37 +253,35 @@ export function cardLocked(d: {
   if (d.batch && d.batch.count > 0) {
     rows.push([btn('บันทึกส่งรวม', 'vault:batch', 'primary')]);
   }
-  rows.push([btn('บันทึกส่งใบนี้', `slip:settle:${d.short}`)]);
-  rows.push([btn('แก้ไข', `slip:edit:${d.short}`), btn('พักรายการ', `slip:open:${d.short}`)]);
+  rows.push([btn('บันทึกส่ง', `slip:settle:${d.short}`)]);
+  rows.push([btn('แก้ไข', `slip:edit:${d.short}`), btn('พัก', `slip:open:${d.short}`)]);
   if (d.canUndo) rows.push([btn('ยกเลิก', `slip:undo:${d.short}`, 'danger')]);
-  else rows.push([btn('ยกเลิก', `slip:delask:${d.short}`, 'danger')]);
+  else rows.push([btn('ลบ', `slip:delask:${d.short}`, 'danger')]);
   rows.push([urlBtn('เปิดโต๊ะ', deskUrl())]);
+  const queued = Boolean(d.queued || d.batch);
+  const ready = Boolean(d.batch?.ready);
   const batchLines = d.batch && d.batch.count
     ? [
-        '',
-        `คิววันนี้ (QUEUE)     ${d.batch.count} ใบ`,
-        `รวมเข้า (IN)         <b>${thbInt(d.batch.thb)} THB</b>`,
-        `ต้องโอน (DUE)        <b>${usdt(d.batch.usdt)} USDT</b>`,
-        d.batch.ready
-          ? `เป้า ${thbInt(d.batch.target)}  ครบแล้ว กรุณากดบันทึกส่งรวม`
-          : `เป้า ${thbInt(d.batch.target)}  เหลือ ${thbInt(d.batch.remain)} THB`,
+        `วันนี้ (TODAY)      ${d.batch.count} รายการ`,
+        `ยอดรวม (TOTAL)     ${thbInt(d.batch.thb)} THB`,
+        `ต้องส่ง (DUE)       ${usdt(d.batch.usdt)} USDT`,
+        ready ? 'ครบยอดแล้ว' : `คงเหลือ (BALANCE)   ${thbInt(d.batch.remain)} THB`,
       ]
     : [];
   return msg(
     [
-      head(d.queued || d.batch ? 'รอรวมยอด' : 'รอโอน', d.batch?.ready ? 'รวมถึงเป้าแล้ว รอโอนก้อนเดียว' : (d.queued ? 'บันทึกเข้าสมุดแล้ว ยังไม่โอน USDT' : 'รอบันทึกการส่ง USDT')),
-      tape('wait'),
-      '',
-      `<code>${esc(displayLedger(d.ledger))}</code>`,
+      head(queued ? 'รอรวมยอด' : 'รอโอน', `<code>${esc(displayLedger(d.ledger))}</code>`),
       quoteBlock({ thb: d.thb, usdt: d.shouldSend, desk: d.desk, mkt: d.mkt ?? null }),
-      '',
-      d.bank ? kv('ผู้รับ', 'PAYEE', `${esc(d.bank)}  ${esc(maskAcct(d.last4))}`) : '',
-      kv('ชื่อ', 'NAME', esc(d.name || d.adminName)),
+      tape('wait'),
+      `เวลา  ${esc(d.time)}`,
+      rule(),
+      'บัญชีปลายทาง (PAYEE)',
+      [d.bank, d.last4 ? maskAcct(d.last4) : ''].filter(Boolean).join('  '),
+      esc(d.name || d.adminName),
       ...batchLines,
-      '',
-      d.queued
-        ? 'เก็บไว้ในคิวรอส่งแล้วครับ เมื่อรวมยอดครบค่อยกดบันทึกส่งรวม'
-        : 'บันทึกยอดเข้าเรียบร้อยแล้วครับ',
+      rule(),
+      'CAUSE  ยังไม่บันทึกยอดส่ง USDT',
+      ready ? 'ACTION กด บันทึกส่งรวม' : 'ACTION โอน USDT แล้วกด บันทึกส่งรวม',
     ].filter(Boolean).join('\n'),
     ik(rows),
   );
@@ -440,7 +435,7 @@ export function vaultBanner(d: {
   }
 
   if (d.inCount === 0 && d.outCount === 0) {
-    lines.push('วันนี้ยังไม่มีสลิปครับ');
+    lines.push('quiet.');
     lines.push('', `ยอดที่ต้องใช้ (DUE)  <b>0 USDT</b>`);
     lines.push(`อัตราโต๊ะ (DESK)   <code>${rateCode(d.desk)}</code>`);
     lines.push(`ตลาด (MKT)         <code>${rateCode(d.mkt)}</code>`);

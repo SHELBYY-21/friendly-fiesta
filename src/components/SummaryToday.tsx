@@ -61,7 +61,6 @@ function Row({
 
 export default function SummaryToday({
   dateLabel,
-  account,
   daily,
   rates,
   lastSync,
@@ -73,6 +72,8 @@ export default function SummaryToday({
   const wait = daily.waitCount ?? Math.max(0, inCount - outCount);
   const required = daily.requiredUsdt ?? 0;
   const pending = daily.pendingUsdt ?? Math.max(0, required - daily.totalUsdtSent);
+  const coin = daily.coinDelta ?? daily.totalUsdtSent - required;
+  const over = coin < 0;
   const desk = rates.sellRate > 0 ? rates.sellRate : 0;
   const mkt = rates.marketRate > 0 ? rates.marketRate : 0;
   const clock = lastSync
@@ -90,27 +91,33 @@ export default function SummaryToday({
       </header>
 
       <div className="kpi-strip">
-        <article className="kpi">
-          <p>QUEUE</p>
-          <strong>{wait}</strong>
-          <span>รอรวมยอด</span>
-        </article>
         <article className="kpi is-in">
           <p>IN</p>
           <strong><CountUp value={daily.totalThbReceived} decimals={0} /></strong>
-          <span>THB เข้า</span>
+          <span>THB · {inCount}</span>
         </article>
         <article className="kpi is-due">
           <p>DUE</p>
-          <strong><CountUp value={pending} decimals={2} /></strong>
-          <span>U ต้องโอนรวม</span>
+          <strong><CountUp value={required} decimals={2} /></strong>
+          <span>USDT ต้องโอน</span>
+        </article>
+        <article className="kpi">
+          <p>SENT</p>
+          <strong><CountUp value={daily.totalUsdtSent} decimals={2} /></strong>
+          <span>USDT · {outCount}</span>
+        </article>
+        <article className={over ? 'kpi is-out' : 'kpi'}>
+          <p>{over ? 'OVER' : 'OPEN'}</p>
+          <strong><CountUp value={over ? Math.abs(coin) : pending} decimals={2} /></strong>
+          <span>{over ? 'ส่งเกิน' : `ค้าง ${wait}`}</span>
         </article>
       </div>
 
       <div className="sum-block">
         <Row mark="in" label="เงินเข้า" en="IN" tone="in" value={<><CountUp value={daily.totalThbReceived} decimals={0} /> THB<span className="sum-qty">{inCount}</span></>} />
-        <Row label="ต้องโอน" en="DUE" tone="due" value={<><CountUp value={pending} decimals={2} /> U</>} />
-        <Row mark="out" label="โอนแล้ว" en="OUT" tone="out" value={<><CountUp value={daily.totalUsdtSent} decimals={2} /> U<span className="sum-qty">{outCount}</span></>} />
+        <Row label="ต้องโอน" en="DUE" tone="due" value={<><CountUp value={required} decimals={2} /> U</>} />
+        <Row mark="out" label="โอนแล้ว" en="SENT" tone="out" value={<><CountUp value={daily.totalUsdtSent} decimals={2} /> U<span className="sum-qty">{outCount}</span></>} />
+        <Row label={over ? 'ส่งเกิน' : 'ค้างส่ง'} en={over ? 'OVER' : 'OPEN'} tone={over ? 'net' : 'due'} value={<><CountUp value={over ? Math.abs(coin) : pending} decimals={2} /> U</>} />
       </div>
       <div className="sum-rule" />
       <div className="sum-block">

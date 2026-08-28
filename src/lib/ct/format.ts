@@ -86,18 +86,16 @@ export function pnlThb(thb: number, usdtAmt: number, desk: number, mkt: number |
 
 export function quoteBlock(d: { thb: number; usdt: number; desk: number; mkt: number | null }): string {
   const p = pnlThb(d.thb, d.usdt, d.desk, d.mkt);
-  const pnl = p == null ? '—' : `${p >= 0 ? '+' : ''}${thbInt(p)}`;
+  const pnl = p == null ? '—' : `${p >= 0 ? '+' : ''}${thbInt(p)} THB`;
   return quote(
     [
-      `ยอดเข้า (IN)`,
+      'รับเข้า (IN)',
       `<b>${thbCard(d.thb)}</b> THB`,
-      '',
-      `ต้องส่ง (DUE)`,
-      `due  <b>${usdt(d.usdt)}</b> USDT`,
-      '',
-      `ส่วนต่าง (PNL)  <b>${pnl}</b>`,
-      `DESK (โต๊ะ) <code>${rateCode(d.desk)}</code>`,
-      `MKT (ตลาด)  <code>${rateCode(d.mkt)}</code>`,
+      'ต้องโอน (DUE)',
+      `<b>${usdt(d.usdt)}</b> USDT`,
+      'กำไรสุทธิ (PNL)',
+      `<b>${pnl}</b>`,
+      `เรทโต๊ะ  <code>${rateCode(d.desk)}</code>   เรทตลาด  <code>${rateCode(d.mkt)}</code>`,
     ].join('\n'),
   );
 }

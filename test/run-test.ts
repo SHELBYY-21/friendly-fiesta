@@ -305,12 +305,12 @@ const inReady = CT.cardInReady({
   bank: 'SCB', last4: '3303', name: 'อัญญา ระดาบุตร', confidence: 95,
   ledger: 'CE-20260826-A4F2', adminName: 'Admin A', short: 'A4F2',
 });
-assert(inReady.text.includes('THB'), 'IN_READY amount table');
-assert(inReady.text.includes('ส่วนต่าง'), 'IN_READY pnl');
-assert(inReady.text.includes('MKT'), 'IN_READY market');
-assert(inReady.text.includes('ตรวจ'), 'IN_READY progress tape');
+assert(inReady.text.includes('THB') || inReady.text.includes('บาท'), 'IN_READY amount table');
+assert(inReady.text.includes('กำไร'), 'IN_READY pnl');
+assert(inReady.text.includes('เรทตลาด'), 'IN_READY market');
+assert(inReady.text.includes('IN'), 'IN_READY progress tape');
 assert(inReady.text.includes('●──'), 'IN_READY dots');
-assert(inReady.text.includes('┃'), 'IN_READY rail');
+assert(inReady.text.includes('OCR') || inReady.text.includes('MATCH'), 'IN_READY rail');
 assert(inReady.text.includes('<blockquote'), 'IN_READY amount quote');
 assert(inReady.text.includes('#CE-20260826-A4F2'), 'ledger id with hash');
 assert(JSON.stringify(inReady.reply_markup).includes('slip:lock:A4F2'), 'lock callback present');
@@ -321,8 +321,8 @@ const vault = CT.vaultBanner({
   inThb: 0, inCount: 0, inRows: [], outUsdt: 0, outCount: 0, outRows: [],
   pendingUsdt: 0, desk: 36.7, mkt: 36.52, pendingShorts: [],
 });
-assert(vault.text.includes('◈') && vault.text.includes('[ สรุปยอด (VAULT) ]'), 'empty vault density');
-assert(vault.text.includes('วันนี้ยังไม่มีสลิป'), 'empty vault microcopy');
+assert(vault.text.includes('◈') && vault.text.includes('VAULT'), 'empty vault density');
+assert(vault.text.includes('quiet.'), 'empty vault microcopy');
 assert(hasBalancedTelegramHtml(vault.text), 'vault html balanced');
 assert(!/[👑✨🌿💎🤍🟢🔴💰📈🎯💵🏦👤⚠❤🔥⚡]/.test(vault.text), 'vault has no public emoji');
 
@@ -386,6 +386,14 @@ for (const data of cbs) {
 assert(collectCbs(CT.cardInReady(sample)).includes('slip:lock:A4F2'), 'keep → lock');
 assert(collectCbs(CT.cardInReady(sample)).includes('slip:queue:A4F2'), 'queue later');
 assert(collectCbs(CT.cardLocked({ ...sample, time: '06:20', canUndo: true })).includes('slip:settle:A4F2'), 'sent → settle');
+const queued = CT.cardLocked({
+  ...sample, time: '17:26', canUndo: true, queued: true,
+  batch: { count: 5, thb: 34150, usdt: 830.52, target: 200000, remain: 165850, ready: false },
+});
+assert(queued.text.includes('คงเหลือ') || queued.text.includes('วงเงินเหลือ'), 'queue leftover is a number not a formula');
+assert(!queued.text.includes('ครับ'), 'queue copy has no polite suffix');
+assert(!queued.text.includes('need sent'), 'queue copy has no english stub');
+assert(!queued.text.includes('200,000-'), 'queue copy does not dump arithmetic');
 assert(collectCbs(CT.pinView([{ bank: 'BBL', last4: '7823' }])).includes('pin:unpin:1'), 'unpin 1');
 assert(matchReplyCommand('36.70') === null, 'bare rate number is not a pad command');
 assert(hasRatePrefix('36.70') === false, 'bare number is not an explicit rate command');
