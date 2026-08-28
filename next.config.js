@@ -31,6 +31,7 @@ validateRequiredEnv();
 const nextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: path.join(__dirname),
+  serverExternalPackages: ['slipverify', 'promptparse', 'jpeg-js', 'jsqr'],
   allowedDevOrigins: ['127.0.0.1', 'localhost', '0.0.0.0'],
   images: imageHosts.length ? { remotePatterns: imageHosts } : undefined,
 };

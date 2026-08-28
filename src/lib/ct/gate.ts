@@ -14,6 +14,7 @@ export function gateOcr(input: {
   confidence: number | null | undefined;
   pinMatch: boolean;
   hasCurrency?: boolean;
+  qrVerified?: boolean;
 }): OcrGate {
   if (input.hasCurrency === false) return 'NEED_UNIT';
   const thb = input.thb;
@@ -21,6 +22,7 @@ export function gateOcr(input: {
   if (!input.pinMatch) return 'PIN_MISMATCH';
   const conf = input.confidence;
   if (thb == null || !Number.isFinite(thb) || thb <= 0) return 'NEED_UNIT';
+  if (input.qrVerified) return 'IN_READY';
   if (conf == null || !Number.isFinite(conf) || conf < 80) return 'OCR_WEAK';
   if (conf < 95) return 'IN_READY_REVIEW';
   return 'IN_READY';

@@ -3,7 +3,7 @@ import { analyzeSlipFast, type SlipExtract } from '../ocr';
 import { listPinnedBanks, matchSlipPins, accountLast4, pinBankAccount, ensureTodayPins } from '../banks';
 import { findSlipByFingerprint } from '../transactions';
 import { findReceiversByLast4 } from '../receivers';
-import { slipFingerprint } from '../botSecurity';
+import { slipFingerprint, qrSlipFingerprint } from '../botSecurity';
 import { parseDeskPin } from '../../bot/parse';
 import { gateOcr, type OcrGate } from './gate';
 import { opsRates } from './rates';
@@ -11,6 +11,8 @@ import { insertPending, findPendingByFingerprint, type PendingSlip } from './sto
 import { shouldSend, maskAcct, clockBkk } from './format';
 import { canAutoQueue, commitIncomingLock, dueSummary } from './queue';
 import { isOcrJunkAmount } from './settleGuard';
+import { applyQrToOcr, type SlipQrResult } from './slipQr';
+import { inspectSlipImage } from './slipInquiry';
 import * as C from './copy';
 import { cardDuplicate, cardAlreadyQueued } from './notice';
 import { AiTransition, aiReceived } from './aiTransition';
@@ -53,15 +55,23 @@ async function rejectDuplicate(chatId: number, fingerprint: string): Promise<boo
   return false;
 }
 
-async function readSlip(chatId: number, fileId: string, cardIdP: Promise<number>): Promise<{ cardId: number; url: string; slip: SlipExtract } | null> {
+async function readSlip(chatId: number, fileId: string, cardIdP: Promise<number>): Promise<{
+  cardId: number;
+  url: string;
+  slip: SlipExtract;
+  qr: SlipQrResult | null;
+} | null> {
   try {
     const buffer = await downloadTelegramFile(fileId);
     const dataUrl = `data:image/jpeg;base64,${buffer.toString('base64')}`;
-    const [cardId, analyzed] = await Promise.all([
+    const qrP = inspectSlipImage(buffer).catch(() => null);
+    const [cardId, analyzed, qr] = await Promise.all([
       cardIdP,
       analyzeSlipFast(dataUrl, uploadSlipBuffer(buffer, fileId)),
+      qrP,
     ]);
-    return { cardId, url: analyzed.url, slip: analyzed.slip };
+    const slip = qr ? applyQrToOcr(analyzed.slip, qr) : analyzed.slip;
+    return { cardId, url: analyzed.url, slip, qr };
   } catch (e: any) {
     const cardId = await cardIdP.catch(() => 0);
     if (cardId) await editMessage(chatId, cardId, { text: `อ่านสลิปไม่สำเร็จ — ${e?.message ?? 'ลองส่งใหม่'}` });
@@ -71,15 +81,23 @@ async function readSlip(chatId: number, fileId: string, cardIdP: Promise<number>
 
 export async function handleCtPhoto(opts: { chatId: number; userId: number; admin: Admin; fileId: string; fileUniqueId: string; }): Promise<void> {
   const { chatId, userId, admin, fileId, fileUniqueId } = opts;
-  const fingerprint = slipFingerprint(fileUniqueId);
-  if (await rejectDuplicate(chatId, fingerprint)) return;
   const [pins, rates] = await Promise.all([pinsForToday(chatId), opsRates(chatId)]);
   const todayPin = pins[0];
   await sendChatAction(chatId, 'typing');
   const cardIdP = sendMessage(chatId, aiReceived());
   const read = await readSlip(chatId, fileId, cardIdP);
   if (!read) return;
-  const { cardId, url, slip } = read;
+  const { cardId, url, slip, qr } = read;
+
+  const fileFp = slipFingerprint(fileUniqueId);
+  const fingerprints = qr?.transRef
+    ? [qrSlipFingerprint(qr.transRef, qr.sendingBankCode), fileFp]
+    : [fileFp];
+  for (const fp of fingerprints) {
+    if (await rejectDuplicate(chatId, fp)) return;
+  }
+  const fingerprint = fingerprints[0];
+
   const ai = new AiTransition(chatId, cardId);
   await ai.step('ocr');
   const matchedPin = matchSlipPins(slip.bank, slip.receiverLast4, slip.senderLast4, pins);
@@ -87,9 +105,17 @@ export async function handleCtPhoto(opts: { chatId: number; userId: number; admi
   const thb = slip.thbAmount && slip.thbAmount > 0 ? slip.thbAmount : null;
   const last4Early = accountLast4(matchedPin?.account_number) ?? slip.receiverLast4 ?? slip.senderLast4;
   await ai.step('match', { bank: slip.bank ?? todayPin?.bank_name, last4: last4Early, thb });
-  const gate = gateOcr({ thb, confidence: slip.confidence, pinMatch, hasCurrency: thb != null });
+  const qrVerified = Boolean(qr?.inquiry?.valid);
+  let gate = gateOcr({ thb, confidence: slip.confidence, pinMatch, hasCurrency: thb != null, qrVerified });
+  if (qr?.inquiry && qr.inquiry.valid === false) gate = 'OCR_WEAK';
   const usdtDue = thb && rates.desk ? shouldSend(thb, rates.desk) : null;
   await ai.step('calc', { thb, usdt: usdtDue, bank: slip.bank ?? todayPin?.bank_name, last4: last4Early });
+  const notes = [
+    isOcrJunkAmount(thb) ? 'OCR_JUNK:AMOUNT_TOO_LARGE' : null,
+    qr?.transRef ? `QR:${qr.transRef}` : null,
+    qrVerified ? `QR_OK:${qr?.inquiry?.provider ?? 'ok'}` : null,
+    qr?.inquiry && qr.inquiry.valid === false ? 'QR_INVALID' : null,
+  ].filter(Boolean).join('|') || null;
   const pending = await insertPending({
     chat_id: chatId, admin_tg_id: userId, admin_name: admin.name,
     status: gate === 'IN_READY_REVIEW' ? 'IN_READY_REVIEW' : gate,
@@ -99,7 +125,7 @@ export async function handleCtPhoto(opts: { chatId: number; userId: number; admi
     name: slip.receiverName ?? slip.senderName ?? null, pin_match: pinMatch, ocr_confidence: slip.confidence ?? null,
     source_file_id: fileId, slip_url: url, slip_fingerprint: fingerprint, message_id: cardId,
     undo_until: null, tx_id: null,
-    note: isOcrJunkAmount(thb) ? 'OCR_JUNK:AMOUNT_TOO_LARGE' : null,
+    note: notes,
     bank_account_id: matchedPin?.id ?? null,
   });
   const last4 = last4Early;

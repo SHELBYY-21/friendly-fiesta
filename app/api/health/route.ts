@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { validateProductionEnvironment, validateWebhookEnvironment } from '@/lib/runtimeEnv';
+import { configuredSlipProvider } from '@/lib/ct/slipInquiry';
 
 export const runtime = 'nodejs';
 export const revalidate = 0;
@@ -31,6 +32,7 @@ export async function GET() {
     process.env.GROK_API_KEY?.trim() || process.env.XAI_API_KEY?.trim(),
   );
   const ocrFallback = Boolean(process.env.OCR_SPACE_API_KEY?.trim());
+  const slipVerify = configuredSlipProvider()?.name ?? false;
 
   return NextResponse.json(
     {
@@ -40,6 +42,7 @@ export async function GET() {
       detail,
       vision,
       ocrFallback,
+      slipVerify,
       configuration: [...fatal, ...extra].map((issue) => `${issue.key}:${issue.code}`),
       latencyMs: latency,
       version: '2.1-optimized',

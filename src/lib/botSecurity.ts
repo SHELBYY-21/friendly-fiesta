@@ -75,6 +75,12 @@ export function slipFingerprint(fileUniqueId: string): string {
   return createHash('sha256').update(`telegram:${fileUniqueId}`).digest('hex');
 }
 
+export function qrSlipFingerprint(transRef: string, sendingBank?: string | null): string {
+  const ref = String(transRef || '').trim();
+  if (!ref) throw new Error('MISSING_TRANS_REF');
+  return createHash('sha256').update(`slipqr:${sendingBank || ''}:${ref}`).digest('hex');
+}
+
 export function isLowConfidence(value: number | null | undefined, threshold = 90): boolean {
   return value == null || !Number.isFinite(value) || value < threshold;
 }

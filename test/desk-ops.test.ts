@@ -82,4 +82,46 @@ assert(
   outgoingIndexKeys('CE-20260827-C416-OUT').includes('CE-20260827-C416'),
   'tape can join incoming deposit to -OUT send',
 );
+
+const { botBank, parseSlipPayload, extractInquiryFields, applyQrToOcr } = require('../src/lib/ct/slipQr');
+const { qrSlipFingerprint } = require('../src/lib/botSecurity');
+const { slipVerify: makeSlipQr } = require('promptparse/generate');
+assert(botBank('006') === 'KTB', 'BOT 006 is Krungthai');
+assert(botBank('014') === 'SCB', 'BOT 014 is SCB');
+assert(botBank('004') === 'KBANK', 'BOT 004 is Kasikorn');
+const qrPayload = makeSlipQr({ sendingBank: '006', transRef: 'REFTEST123456' });
+const parsedQr = parseSlipPayload(qrPayload);
+assert(parsedQr?.transRef === 'REFTEST123456', 'slip-verify mini QR yields transRef');
+assert(parsedQr?.sendingBank === 'KTB', 'slip-verify mini QR maps sending bank');
+assert(parseSlipPayload('short') == null, 'garbage payload is not a slip QR');
+const easy = extractInquiryFields({
+  success: true,
+  data: {
+    transRef: 'REFTEST123456',
+    amount: { amount: 1020 },
+    receiver: { bank: { id: '006', short: 'KTB' }, account: { name: 'สุพัตรา อั้นเจริญ', bank: '6661260343' } },
+    sender: { bank: { id: '014', short: 'SCB' }, account: { name: 'ลูกค้า', bank: 'xxx7573' } },
+  },
+}, 'easyslip', true);
+assert(easy.valid === true, 'easyslip valid');
+assert(easy.thb === 1020, 'easyslip amount');
+assert(easy.receiverLast4 === '0343', 'easyslip receiver last4');
+assert(easy.receiverBank === 'KTB', 'easyslip receiver bank');
+assert(easy.receiverName?.includes('สุพัตรา') === true, 'easyslip payee name');
+const merged = applyQrToOcr(
+  { thbAmount: 10_000_000, time: null, date: null, receiverLast4: '9999', senderLast4: null, bank: 'SCB', receiverName: null, senderName: null, confidence: 99 },
+  { payload: qrPayload, transRef: 'REFTEST123456', sendingBankCode: '006', sendingBank: 'KTB', inquiry: easy },
+);
+assert(merged.thbAmount === 1020, 'QR inquiry amount beats OCR 10M');
+assert(merged.receiverLast4 === '0343', 'QR inquiry last4 beats OCR');
+assert(merged.confidence === 99, 'verified QR is high confidence');
+const junkDropped = applyQrToOcr(
+  { thbAmount: 10_000_000, time: null, date: null, receiverLast4: '6034', senderLast4: null, bank: 'KTB', receiverName: null, senderName: null, confidence: 99 },
+  { payload: qrPayload, transRef: 'REFTEST123456', sendingBankCode: '006', sendingBank: 'KTB', inquiry: null },
+);
+assert(junkDropped.thbAmount == null, 'valid slip QR drops barcode 10M when inquiry is off');
+assert(gateOcr({ thb: 1020, confidence: 70, pinMatch: true, qrVerified: true }) === 'IN_READY', 'bank-verified QR is ready even if OCR is weak');
+assert(qrSlipFingerprint('REFTEST123456', '006') !== qrSlipFingerprint('OTHER', '006'), 'transRef fingerprint is unique');
+const { configuredSlipProvider } = require('../src/lib/ct/slipInquiry');
+assert(configuredSlipProvider() == null, 'inquiry is off until a provider key is set');
 console.log('desk-ops ok');
