@@ -22,18 +22,19 @@ export async function GET(req: NextRequest) {
       await ensureTodayPins(chatId).catch(() => []);
       await quarantineOcrJunk(chatId).catch(() => []);
     }
+    const pendingQ = supabaseAdmin
+        .from('pending_slips')
+        .select('short_ref, ledger_ref, status, thb_in, should_send, bank, name, note, created_at')
+        .in('status', ['IN_READY', 'IN_READY_REVIEW', 'LOCKED', 'OCR_WEAK', 'PIN_MISMATCH'])
+        .order('created_at', { ascending: false })
+        .limit(20);
     const [vault, pins, pending, rates] = await Promise.all([
       loadVault(Number.isFinite(chatId) ? chatId : null, mode),
       supabaseAdmin
         .from('pinned_bank_accounts')
         .select('chat_id, pinned_for_date, bank_account_id, bank_accounts(id, bank_name, account_number, label)')
         .eq('pinned_for_date', new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' })),
-      supabaseAdmin
-        .from('pending_slips')
-        .select('short_ref, ledger_ref, status, thb_in, should_send, bank, name, note, created_at')
-        .in('status', ['IN_READY', 'IN_READY_REVIEW', 'LOCKED', 'OCR_WEAK', 'PIN_MISMATCH'])
-        .order('created_at', { ascending: false })
-        .limit(20),
+      chatId != null && Number.isFinite(chatId) ? pendingQ.eq('chat_id', chatId) : pendingQ,
       opsRates(0),
     ]);
 
