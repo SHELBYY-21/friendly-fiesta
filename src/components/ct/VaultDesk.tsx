@@ -144,6 +144,10 @@ export default function VaultDesk() {
       const res = await fetch('/api/dashboard/settle', { method: 'POST' });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || json.ok === false) throw new Error(json.error || 'settle failed');
+      if (Array.isArray(json.skipped) && json.skipped.length) {
+        const parts = json.skipped.map((s: { short: string; reason: string }) => `${s.short} ${s.reason}`);
+        setError(`ข้าม ${parts.join(' · ')}`);
+      }
       await load();
     } catch (err: any) {
       setError(err?.message ?? 'settle failed');

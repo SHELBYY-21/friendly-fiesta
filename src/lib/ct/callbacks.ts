@@ -9,10 +9,11 @@ import {
   upsertAdmin,
 } from '../transactions';
 import { getSession, setSession, clearSession } from '../botSessions';
-import { findSlip, patchSlip, type PendingSlip } from './store';
+import { findSlip, patchSlip, markSettledIfLocked, type PendingSlip } from './store';
 import { renderVault, renderRecent } from './vault';
 import { opsRates, applyDeskRate } from './rates';
 import { commitIncomingLock, dueSummary, settleAllDue } from './queue';
+import { outgoingLedgerRef, settleBlockReason, SKIP_TH } from './settleGuard';
 import { shouldSend, clockBkk, displayLedger, adminKeyboard, thbCard, usdt } from './format';
 import { renderHeroPng } from './cardImage';
 import { gateOcr } from './gate';
@@ -167,7 +168,14 @@ export async function handleCtCallback(opts: {
         return;
       }
       const done = await settleAllDue(chatId, userId);
-      await answerCallback(id, `โอนรวม ${done.count} ใบ`);
+      const skipBit = done.skipped.length
+        ? ` · ข้าม ${done.skipped.map((s) => `${s.short} ${SKIP_TH[s.reason] ?? s.reason}`).join(' · ')}`
+        : '';
+      if (!done.count) {
+        await answerCallback(id, done.skipped.length ? `ยังไม่ส่ง${skipBit}` : 'ยังไม่มีคิวรอส่ง');
+        return;
+      }
+      await answerCallback(id, `โอนรวม ${done.count} ใบ${skipBit}`);
       const card = C.cardSettledBatch({
         count: done.count,
         thb: done.thb,
@@ -449,7 +457,11 @@ async function doLock(
       ? 'บัญชีไม่ตรงกับบัญชีรับวันนี้ครับ'
       : e?.message === 'NO_AMOUNT'
         ? 'ยังไม่พบยอดเงินครับ'
-        : 'บันทึกไม่สำเร็จครับ';
+        : e?.message === 'HIGH_VALUE'
+          ? 'ยอดสูง ต้องยืนยันก่อนครับ'
+          : e?.message === 'AMOUNT_TOO_LARGE'
+            ? 'ยอดเกินเพดาน ไม่บันทึกครับ'
+            : 'บันทึกไม่สำเร็จครับ';
     await answerCallback(cbId, msg);
   }
 }
@@ -465,37 +477,47 @@ async function doSettle(
     await answerCallback(cbId, `โอนครบแล้ว · ${p.short_ref}`);
     return;
   }
-  if (p.status !== 'LOCKED' || !p.should_send) {
-    await answerCallback(cbId, 'รายการนี้ยังไม่ได้ยืนยันครับ');
+  const pins = await listPinnedBanks(chatId);
+  const block = settleBlockReason(p, pins);
+  if (block) {
+    await answerCallback(cbId, `${SKIP_TH[block]} · ${p.short_ref}`);
     return;
   }
-  await recordOutgoing({
-    adminTelegramId: userId,
-    chatId,
-    usdt: p.should_send,
-    ledgerRef: p.ledger_ref,
-    slipImageUrl: p.slip_url,
-  });
-  const next = await patchSlip(p.id, { status: 'SETTLED', undo_until: null });
+  try {
+    await recordOutgoing({
+      adminTelegramId: userId,
+      chatId,
+      usdt: p.should_send as number,
+      ledgerRef: outgoingLedgerRef(p.ledger_ref),
+      slipImageUrl: p.slip_url,
+    });
+  } catch (e: any) {
+    const dup = /duplicate key|unique constraint|23505/i.test(String(e?.message ?? e));
+    if (!dup) {
+      await answerCallback(cbId, `บันทึกส่งไม่สำเร็จ · ${p.short_ref}`);
+      return;
+    }
+  }
+  await markSettledIfLocked(p.id, `S-${p.short_ref}`);
   await answerCallback(cbId, `โอนครบแล้ว · ${p.short_ref}`);
   const card = C.cardSettled({
-    thb: next.thb_in ?? 0,
-    usdtOut: next.should_send ?? 0,
-    desk: next.desk_rate ?? 0,
-    ledger: next.ledger_ref,
-    adminName: next.admin_name ?? 'Admin',
+    thb: p.thb_in ?? 0,
+    usdtOut: p.should_send ?? 0,
+    desk: p.desk_rate ?? 0,
+    ledger: p.ledger_ref,
+    adminName: p.admin_name ?? 'Admin',
     inTime: clockBkk(),
     outTime: clockBkk(),
-    short: next.short_ref,
+    short: p.short_ref,
   });
   await sendHero(
     chatId,
     messageId,
     'settled',
     card,
-    `${usdt(next.should_send ?? 0)} USDT`,
-    `IN ${thbCard(next.thb_in ?? 0)} THB`,
-    next.ledger_ref,
+    `${usdt(p.should_send ?? 0)} USDT`,
+    `IN ${thbCard(p.thb_in ?? 0)} THB`,
+    p.ledger_ref,
   );
 }
 

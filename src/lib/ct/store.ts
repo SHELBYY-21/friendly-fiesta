@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../supabaseAdmin';
 import { makeRef, ymdBkk } from './format';
+import { MAX_SLIP_THB } from './gate';
 
 export type SlipStatus =
   | 'IN_READY'
@@ -193,6 +194,54 @@ export async function listLockedOpen(chatId: number): Promise<PendingSlip[]> {
 /** Open LOCKED slips for a room — includes carry-over from previous days. */
 export async function listLockedToday(chatId: number): Promise<PendingSlip[]> {
   return listLockedOpen(chatId);
+}
+
+export async function markSettledIfLocked(id: string, batchId: string): Promise<boolean> {
+  const { data, error } = await supabaseAdmin
+    .from('pending_slips')
+    .update({
+      status: 'SETTLED',
+      undo_until: null,
+      note: `BATCH:${batchId}`,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .eq('status', 'LOCKED')
+    .select('id')
+    .maybeSingle();
+  if (error) throw new Error(`PENDING_SLIP_PATCH: ${error.message}`);
+  return Boolean(data);
+}
+
+export async function quarantineOcrJunk(chatId?: number | null): Promise<string[]> {
+  let q = supabaseAdmin
+    .from('pending_slips')
+    .select('id, short_ref, thb_in, status, note')
+    .gt('thb_in', MAX_SLIP_THB)
+    .in('status', ['PIN_MISMATCH', 'IN_READY', 'IN_READY_REVIEW', 'LOCKED', 'HOLD', 'NEED_UNIT', 'OCR_WEAK']);
+  if (chatId != null) q = q.eq('chat_id', chatId);
+  const { data, error } = await q;
+  if (error) throw new Error(`PENDING_SLIP_LIST: ${error.message}`);
+  const marked: string[] = [];
+  for (const row of data ?? []) {
+    const note = String(row.note || '');
+    if (row.status === 'OCR_WEAK' && note.includes('OCR_JUNK:AMOUNT_TOO_LARGE')) continue;
+    const nextNote = note.includes('OCR_JUNK:AMOUNT_TOO_LARGE')
+      ? note
+      : [note, 'OCR_JUNK:AMOUNT_TOO_LARGE'].filter(Boolean).join('|');
+    await supabaseAdmin
+      .from('pending_slips')
+      .update({
+        status: 'OCR_WEAK',
+        should_send: 0,
+        note: nextNote,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', row.id)
+      .neq('status', 'SETTLED');
+    marked.push(String(row.short_ref));
+  }
+  return marked;
 }
 
 export async function patchSlip(id: string, patch: Partial<PendingSlip>): Promise<PendingSlip> {

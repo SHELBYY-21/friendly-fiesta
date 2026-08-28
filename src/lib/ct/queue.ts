@@ -3,13 +3,27 @@ import { supabaseAdmin } from '../supabaseAdmin';
 import { getRoom } from '../botSessions';
 import { opsRates } from './rates';
 import { shouldSend } from './format';
-import { listLockedToday, patchSlip, listOpenPending, type PendingSlip } from './store';
+import {
+  listLockedToday,
+  patchSlip,
+  listOpenPending,
+  markSettledIfLocked,
+  type PendingSlip,
+} from './store';
 import { listPinnedBanks, matchPinnedBank } from '../banks';
 import { dueUsdt } from './state';
 import { MAX_SLIP_THB } from './gate';
+import {
+  HIGH_VALUE_THB,
+  outgoingLedgerRef,
+  settleBlockReason,
+  isOcrJunkAmount,
+  type SettleSkip,
+} from './settleGuard';
 import type { Admin } from '@/types/transactions';
 
 export const BATCH_THB = 10_000;
+export { HIGH_VALUE_THB, settleBlockReason };
 
 export interface DueSummary {
   count: number;
@@ -22,6 +36,7 @@ export interface DueSummary {
   remain: number;
   ready: boolean;
   refs: string[];
+  skipped: Array<{ short: string; reason: SettleSkip }>;
   batchId: string | null;
 }
 
@@ -44,6 +59,20 @@ export function newBatchId(): string {
   return `B-${Date.now().toString(36).toUpperCase().slice(-6)}`;
 }
 
+async function findOutgoingForLedger(ledgerRef: string): Promise<{ id: string; usdt: number } | null> {
+  const outRef = outgoingLedgerRef(ledgerRef);
+  const { data, error } = await supabaseAdmin
+    .from('transactions')
+    .select('id, ledger_ref, usdt_amount')
+    .eq('type', 'USDT_SEND')
+    .in('ledger_ref', [ledgerRef, outRef])
+    .limit(1);
+  if (error) throw error;
+  const row = data?.[0];
+  if (!row) return null;
+  return { id: String(row.id), usdt: Number(row.usdt_amount || 0) };
+}
+
 export async function dueSummary(chatId: number): Promise<DueSummary> {
   const rows = await listLockedToday(chatId);
   const thb = Math.round(rows.reduce((s, r) => s + (r.thb_in ?? 0), 0) * 100) / 100;
@@ -55,6 +84,7 @@ export async function dueSummary(chatId: number): Promise<DueSummary> {
     due: dueUsdt(expected, 0) ?? expected,
     usdt: expected,
     refs: rows.map((r) => r.short_ref),
+    skipped: [],
     batchId: null,
     ...batchProgress(thb),
   };
@@ -62,12 +92,13 @@ export async function dueSummary(chatId: number): Promise<DueSummary> {
 
 export async function commitIncomingLock(
   p: PendingSlip,
-  opts: { chatId: number; userId: number; admin: Admin; force: boolean; queued: boolean },
+  opts: { chatId: number; userId: number; admin: Admin; force: boolean; queued: boolean; confirmHigh?: boolean },
 ): Promise<PendingSlip> {
   if (p.status === 'LOCKED' || p.status === 'SETTLED') return p;
   if (!opts.force && !p.pin_match) throw new Error('PIN_MISMATCH');
   if (p.thb_in == null || p.thb_in <= 0) throw new Error('NO_AMOUNT');
-  if (p.thb_in > MAX_SLIP_THB) throw new Error('AMOUNT_TOO_LARGE');
+  if (isOcrJunkAmount(p.thb_in)) throw new Error('AMOUNT_TOO_LARGE');
+  if (p.thb_in >= HIGH_VALUE_THB && !opts.confirmHigh) throw new Error('HIGH_VALUE');
   const desk = p.desk_rate && p.desk_rate > 0
     ? p.desk_rate
     : (await opsRates(opts.chatId)).desk;
@@ -107,33 +138,64 @@ export async function commitIncomingLock(
   });
 }
 
-export async function settleAllDue(chatId: number, userId: number): Promise<DueSummary> {
+export async function settleAllDue(
+  chatId: number,
+  userId: number,
+  opts: { confirmHigh?: boolean; confirmMismatch?: boolean; dryRun?: boolean } = {},
+): Promise<DueSummary> {
   const rows = await listLockedToday(chatId);
+  const pins = await listPinnedBanks(chatId);
   const batchId = newBatchId();
   let sent = 0;
   const refs: string[] = [];
+  const skipped: Array<{ short: string; reason: SettleSkip }> = [];
+
   for (const p of rows) {
-    if (!p.should_send || p.status !== 'LOCKED') continue;
-    if ((p.thb_in ?? 0) > MAX_SLIP_THB) continue;
+    const block = settleBlockReason(p, pins, opts);
+    if (block) {
+      skipped.push({ short: p.short_ref, reason: block });
+      continue;
+    }
+    const existing = await findOutgoingForLedger(p.ledger_ref);
+    if (existing) {
+      if (!opts.dryRun) await markSettledIfLocked(p.id, batchId);
+      refs.push(p.short_ref);
+      continue;
+    }
+    if (opts.dryRun) {
+      refs.push(p.short_ref);
+      sent += p.should_send ?? 0;
+      continue;
+    }
     try {
       await recordOutgoing({
         adminTelegramId: userId,
         chatId,
-        usdt: p.should_send,
-        ledgerRef: p.ledger_ref,
+        usdt: p.should_send as number,
+        ledgerRef: outgoingLedgerRef(p.ledger_ref),
         slipImageUrl: p.slip_url,
       });
-      await patchSlip(p.id, {
-        status: 'SETTLED',
-        undo_until: null,
-        note: `BATCH:${batchId}`,
-      });
-      sent += p.should_send;
-      refs.push(p.short_ref);
-    } catch (e) {
-      console.warn('settle row failed', p.short_ref, e);
+    } catch (e: any) {
+      const dup = /duplicate key|unique constraint|23505/i.test(String(e?.message ?? e));
+      const again = dup ? await findOutgoingForLedger(p.ledger_ref) : null;
+      if (!again) {
+        console.warn('settle row failed', p.short_ref, e);
+        skipped.push({ short: p.short_ref, reason: 'NOT_LOCKED' });
+        continue;
+      }
     }
+    const claimed = await markSettledIfLocked(p.id, batchId);
+    if (!claimed) {
+      const again = await findOutgoingForLedger(p.ledger_ref);
+      if (!again) {
+        skipped.push({ short: p.short_ref, reason: 'ALREADY_SETTLED' });
+        continue;
+      }
+    }
+    sent += p.should_send ?? 0;
+    refs.push(p.short_ref);
   }
+
   const thb = Math.round(rows.reduce((s, r) => s + (r.thb_in ?? 0), 0) * 100) / 100;
   const expected = Math.round(rows.reduce((s, r) => s + (r.should_send ?? 0), 0) * 100) / 100;
   sent = Math.round(sent * 100) / 100;
@@ -144,6 +206,7 @@ export async function settleAllDue(chatId: number, userId: number): Promise<DueS
     due: dueUsdt(expected, sent) ?? 0,
     usdt: sent,
     refs,
+    skipped,
     batchId,
     ...batchProgress(thb),
     remain: 0,

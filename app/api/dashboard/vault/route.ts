@@ -5,6 +5,7 @@ import { opsRates } from '@/lib/ct/rates';
 import { requireDashboardSession } from '@/lib/dashboardAuth';
 import { ensureTodayPins, accountLast4Candidates } from '@/lib/banks';
 import { opsChatId } from '@/lib/ct/deskChat';
+import { quarantineOcrJunk } from '@/lib/ct/store';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -19,6 +20,7 @@ export async function GET(req: NextRequest) {
   try {
     if (chatId != null && Number.isFinite(chatId)) {
       await ensureTodayPins(chatId).catch(() => []);
+      await quarantineOcrJunk(chatId).catch(() => []);
     }
     const [vault, pins, pending, rates] = await Promise.all([
       loadVault(Number.isFinite(chatId) ? chatId : null, mode),

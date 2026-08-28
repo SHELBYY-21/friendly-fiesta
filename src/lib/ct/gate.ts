@@ -16,11 +16,11 @@ export function gateOcr(input: {
   hasCurrency?: boolean;
 }): OcrGate {
   if (input.hasCurrency === false) return 'NEED_UNIT';
-  if (!input.pinMatch) return 'PIN_MISMATCH';
   const thb = input.thb;
+  if (thb != null && Number.isFinite(thb) && thb > MAX_SLIP_THB) return 'OCR_WEAK';
+  if (!input.pinMatch) return 'PIN_MISMATCH';
   const conf = input.confidence;
   if (thb == null || !Number.isFinite(thb) || thb <= 0) return 'NEED_UNIT';
-  if (thb > MAX_SLIP_THB) return 'OCR_WEAK';
   if (conf == null || !Number.isFinite(conf) || conf < 80) return 'OCR_WEAK';
   if (conf < 95) return 'IN_READY_REVIEW';
   return 'IN_READY';

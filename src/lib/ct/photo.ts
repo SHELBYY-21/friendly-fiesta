@@ -10,6 +10,7 @@ import { opsRates } from './rates';
 import { insertPending, findPendingByFingerprint, type PendingSlip } from './store';
 import { shouldSend, maskAcct, clockBkk } from './format';
 import { canAutoQueue, commitIncomingLock, dueSummary } from './queue';
+import { isOcrJunkAmount } from './settleGuard';
 import * as C from './copy';
 import { cardDuplicate, cardAlreadyQueued } from './notice';
 import { AiTransition, aiReceived } from './aiTransition';
@@ -97,7 +98,9 @@ export async function handleCtPhoto(opts: { chatId: number; userId: number; admi
     account_masked: maskAcct(last4Early),
     name: slip.receiverName ?? slip.senderName ?? null, pin_match: pinMatch, ocr_confidence: slip.confidence ?? null,
     source_file_id: fileId, slip_url: url, slip_fingerprint: fingerprint, message_id: cardId,
-    undo_until: null, tx_id: null, note: null, bank_account_id: matchedPin?.id ?? null,
+    undo_until: null, tx_id: null,
+    note: isOcrJunkAmount(thb) ? 'OCR_JUNK:AMOUNT_TOO_LARGE' : null,
+    bank_account_id: matchedPin?.id ?? null,
   });
   const last4 = last4Early;
   if (canAutoQueue(gate, thb, rates.desk) && pinMatch) {

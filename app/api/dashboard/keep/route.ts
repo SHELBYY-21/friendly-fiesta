@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireDashboardSession } from '@/lib/dashboardAuth';
-import { findSlipByShort } from '@/lib/ct/store';
+import { findSlipByShort, patchSlip } from '@/lib/ct/store';
 import { commitIncomingLock } from '@/lib/ct/queue';
 import { opsChatId } from '@/lib/ct/deskChat';
+import { HIGH_VALUE_THB, isOcrJunkAmount } from '@/lib/ct/settleGuard';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -10,7 +11,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
   const denied = await requireDashboardSession(req);
   if (denied) return denied;
-  let body: { short?: string; force?: boolean } = {};
+  let body: { short?: string; force?: boolean; confirmHigh?: boolean } = {};
   try {
     body = await req.json();
   } catch {
@@ -21,6 +22,25 @@ export async function POST(req: NextRequest) {
 
   const slip = await findSlipByShort(short);
   if (!slip) return NextResponse.json({ ok: false, error: 'NOT_FOUND' }, { status: 404 });
+
+  if (isOcrJunkAmount(slip.thb_in)) {
+    const note = String(slip.note || '');
+    const nextNote = note.includes('OCR_JUNK:AMOUNT_TOO_LARGE')
+      ? note
+      : [note, 'OCR_JUNK:AMOUNT_TOO_LARGE'].filter(Boolean).join('|');
+    const kept = await patchSlip(slip.id, {
+      status: 'OCR_WEAK',
+      should_send: 0,
+      note: nextNote,
+    });
+    return NextResponse.json({
+      ok: false,
+      error: 'AMOUNT_TOO_LARGE',
+      short: kept.short_ref,
+      status: kept.status,
+      note: kept.note,
+    }, { status: 400 });
+  }
 
   const chatId = await opsChatId(slip.chat_id);
   const admin = {
@@ -38,11 +58,11 @@ export async function POST(req: NextRequest) {
       admin,
       force,
       queued: true,
+      confirmHigh: Boolean(body.confirmHigh) || (slip.thb_in ?? 0) < HIGH_VALUE_THB,
     });
     return NextResponse.json({ ok: true, short: locked.short_ref, status: locked.status, ledger: locked.ledger_ref });
   } catch (e: any) {
     const msg = e?.message ?? 'keep_failed';
-    const status = msg === 'AMOUNT_TOO_LARGE' ? 400 : 400;
-    return NextResponse.json({ ok: false, error: msg }, { status });
+    return NextResponse.json({ ok: false, error: msg }, { status: 400 });
   }
 }

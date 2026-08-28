@@ -6,6 +6,7 @@ import type { OutgoingMessage } from '../telegram';
 import { dueUsdt as calcDue, stateFromSlip, statusChip } from './state';
 import { listOpenPending } from './store';
 import { MAX_SLIP_THB } from './gate';
+import { outgoingIndexKeys } from './settleGuard';
 
 function midnightIso(): string {
   const now = new Date();
@@ -95,9 +96,10 @@ export async function loadVault(chatId?: number | null, mode: VaultMode = 'today
 
   const outByRef = new Map<string, { usdt: number | null; at: string }>();
   for (const o of outs ?? []) {
-    const k = String(o.ledger_ref || '');
-    if (!k || outByRef.has(k)) continue;
-    outByRef.set(k, { usdt: numOrNull(o.usdt_amount), at: o.created_at });
+    const rec = { usdt: numOrNull(o.usdt_amount), at: o.created_at };
+    for (const k of outgoingIndexKeys(String(o.ledger_ref || ''))) {
+      if (!outByRef.has(k)) outByRef.set(k, rec);
+    }
   }
 
   const inRows: VaultRow[] = [];

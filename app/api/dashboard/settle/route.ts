@@ -22,12 +22,18 @@ export async function POST(req: NextRequest) {
   }
 
   let chatId: number | null = null;
+  let dryRun = false;
+  let confirmHigh = false;
+  let confirmMismatch = false;
   try {
     const body = await req.json();
     if (body?.chatId != null) {
       const n = Number(body.chatId);
       if (Number.isFinite(n)) chatId = n;
     }
+    dryRun = Boolean(body?.dryRun);
+    confirmHigh = Boolean(body?.confirmHigh);
+    confirmMismatch = Boolean(body?.confirmMismatch);
   } catch {
     /* empty body is fine */
   }
@@ -47,29 +53,33 @@ export async function POST(req: NextRequest) {
   )];
   const targets = chatId ? chats.filter((id) => id === chatId) : chats;
   if (!targets.length) {
-    return NextResponse.json({ ok: true, count: 0, sent: 0, due: 0, refs: [] });
+    return NextResponse.json({ ok: true, count: 0, sent: 0, due: 0, refs: [], skipped: [] });
   }
 
   let count = 0;
   let sent = 0;
   let due = 0;
   const refs: string[] = [];
+  const skipped: Array<{ short: string; reason: string }> = [];
   let batchId: string | null = null;
   for (const id of targets) {
-    const r = await settleAllDue(id, actor);
+    const r = await settleAllDue(id, actor, { dryRun, confirmHigh, confirmMismatch });
     count += r.count;
     sent += r.sent;
     due += r.due;
     refs.push(...r.refs);
+    skipped.push(...r.skipped);
     batchId = r.batchId;
   }
 
   return NextResponse.json({
     ok: true,
+    dryRun,
     count,
     sent: Math.round(sent * 100) / 100,
     due: Math.round(due * 100) / 100,
     refs,
-    batchId,
+    skipped,
+    batchId: dryRun ? null : batchId,
   });
 }
