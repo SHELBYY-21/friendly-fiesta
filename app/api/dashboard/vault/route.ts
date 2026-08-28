@@ -3,6 +3,8 @@ import { loadVault } from '@/lib/ct/vault';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { opsRates } from '@/lib/ct/rates';
 import { requireDashboardSession } from '@/lib/dashboardAuth';
+import { ensureTodayPins } from '@/lib/banks';
+import { opsChatId } from '@/lib/ct/deskChat';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -11,10 +13,13 @@ export async function GET(req: NextRequest) {
   const denied = await requireDashboardSession(req);
   if (denied) return denied;
   const chatParam = req.nextUrl.searchParams.get('chatId');
-  const chatId = chatParam ? Number(chatParam) : null;
+  const chatId = chatParam ? Number(chatParam) : await opsChatId(null);
   const mode = (req.nextUrl.searchParams.get('mode') as 'today' | 'pending' | 'all') || 'today';
 
   try {
+    if (chatId != null && Number.isFinite(chatId)) {
+      await ensureTodayPins(chatId).catch(() => []);
+    }
     const [vault, pins, pending, rates] = await Promise.all([
       loadVault(Number.isFinite(chatId) ? chatId : null, mode),
       supabaseAdmin

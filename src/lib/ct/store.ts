@@ -39,6 +39,7 @@ export interface PendingSlip {
   tx_id: string | null;
   note: string | null;
   bank_account_id: string | null;
+  created_at?: string | null;
 }
 
 function mapRow(r: any): PendingSlip {
@@ -69,6 +70,7 @@ function mapRow(r: any): PendingSlip {
     tx_id: r.tx_id,
     note: r.note,
     bank_account_id: r.bank_account_id ?? null,
+    created_at: r.created_at ?? null,
   };
 }
 
@@ -146,6 +148,34 @@ export async function findSlip(chatId: number, short: string, dateKey = ymdBkk()
     .limit(1)
     .maybeSingle();
   return anyDay ? mapRow(anyDay) : null;
+}
+
+export async function findSlipByShort(short: string): Promise<PendingSlip | null> {
+  const raw = short.trim().toUpperCase().replace(/^#/, '');
+  const ref = raw.includes('-') ? raw.split('-').pop() || raw : raw;
+  if (!ref) return null;
+  const { data, error } = await supabaseAdmin
+    .from('pending_slips')
+    .select('*')
+    .eq('short_ref', ref)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`PENDING_SLIP_READ: ${error.message}`);
+  return data ? mapRow(data) : null;
+}
+
+export async function listOpenPending(chatId?: number | null, limit = 40): Promise<PendingSlip[]> {
+  let q = supabaseAdmin
+    .from('pending_slips')
+    .select('*')
+    .in('status', ['PIN_MISMATCH', 'OCR_WEAK', 'NEED_UNIT', 'IN_READY', 'IN_READY_REVIEW', 'HOLD', 'LOCKED'])
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (chatId != null) q = q.eq('chat_id', chatId);
+  const { data, error } = await q;
+  if (error) throw new Error(`PENDING_SLIP_LIST: ${error.message}`);
+  return (data ?? []).map(mapRow);
 }
 
 export async function listLockedToday(chatId: number): Promise<PendingSlip[]> {

@@ -1,6 +1,6 @@
 import { sendMessage, editMessage, sendChatAction, downloadTelegramFile, uploadSlipBuffer, getChatPinnedText } from '../telegram';
 import { analyzeSlipFast, type SlipExtract } from '../ocr';
-import { listPinnedBanks, matchPinnedBank, accountLast4, pinBankAccount } from '../banks';
+import { listPinnedBanks, matchPinnedBank, accountLast4, pinBankAccount, ensureTodayPins } from '../banks';
 import { findSlipByFingerprint } from '../transactions';
 import { findReceiversByLast4 } from '../receivers';
 import { slipFingerprint } from '../botSecurity';
@@ -17,6 +17,12 @@ import type { Admin } from '@/types/transactions';
 import type { PinnedBank } from '../banks';
 
 async function pinsForToday(chatId: number): Promise<PinnedBank[]> {
+  try {
+    const rolled = await ensureTodayPins(chatId);
+    if (rolled.length) return rolled;
+  } catch {
+    /* fall through to telegram pin text */
+  }
   const existing = await listPinnedBanks(chatId);
   if (existing.length) return existing;
   const pinnedText = await getChatPinnedText(chatId);

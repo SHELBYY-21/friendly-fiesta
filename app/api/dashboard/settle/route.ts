@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
   const chats = [...new Set(
     (locked ?? [])
       .map((r: { chat_id: number }) => Number(r.chat_id))
-      .filter((n) => Number.isFinite(n) && n > 0),
+      .filter((n) => Number.isFinite(n) && n !== 0),
   )];
   const targets = chatId ? chats.filter((id) => id === chatId) : chats;
   if (!targets.length) {

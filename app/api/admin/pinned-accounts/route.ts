@@ -7,7 +7,7 @@ export const runtime = 'nodejs';
 export const revalidate = 0;
 
 function today(): string {
-  return new Date().toISOString().split('T')[0];
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
 }
 
 export async function GET(req: NextRequest) {

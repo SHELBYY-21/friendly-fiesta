@@ -4,6 +4,7 @@ import { bannerDate, clockBkk, shortOf, ymdBkk } from './format';
 import { vaultBanner, cardRecent, type VaultRow } from './copy';
 import type { OutgoingMessage } from '../telegram';
 import { dueUsdt as calcDue, stateFromSlip, statusChip } from './state';
+import { listOpenPending } from './store';
 
 function midnightIso(): string {
   const now = new Date();
@@ -158,6 +159,40 @@ export async function loadVault(chatId?: number | null, mode: VaultMode = 'today
       last4: r.receiver_last4 ?? extra?.last4 ?? null,
     };
   });
+  const seen = new Set(tape.map((r) => r.ledger || r.short));
+  const openPending = await listOpenPending(chatId ?? null, 40);
+  for (const p of openPending) {
+    const key = p.ledger_ref || p.short_ref;
+    if (seen.has(key) || seen.has(p.short_ref)) continue;
+    seen.add(key);
+    const last4 = String(p.account_masked ?? '').replace(/\D/g, '');
+    const state = stateFromSlip({
+      slipStatus: p.status,
+      gate: p.status,
+      expectedUsdt: p.should_send,
+      sentUsdt: null,
+    });
+    tape.push({
+      id: p.id,
+      ledger: p.ledger_ref ?? null,
+      short: p.short_ref,
+      thb: p.thb_in,
+      usdt: p.should_send ?? 0,
+      expectedUsdt: p.should_send,
+      dueUsdt: calcDue(p.should_send, null),
+      sentUsdt: null,
+      createdAt: p.created_at ?? null,
+      dateStamp: p.created_at ? fmtDate(p.created_at) : '\u2014',
+      time: p.created_at ? fmtTime(p.created_at) : clockBkk(),
+      pending: p.status !== 'SETTLED',
+      status: statusChip(state),
+      state,
+      bank: p.bank,
+      name: p.name,
+      last4: last4.length >= 4 ? last4.slice(-4) : last4 || null,
+    });
+  }
+  tape.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
   const viewTape = tape.filter((r) => matchesFilter(mode, r.status, r.pending));
   const viewRows = mode === 'today' || mode === 'all'
     ? inRows

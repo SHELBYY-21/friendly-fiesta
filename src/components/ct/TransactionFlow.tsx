@@ -30,7 +30,7 @@ function matches(filter: QueueFilter, status: string, pending: boolean) {
   if (filter === 'ALL') return true;
   if (filter === 'DONE') return status === 'DONE';
   if (filter === 'ERR') return status === 'ERR' || status === 'ERROR';
-  return status === 'WAIT' || status === 'SENT' || status === 'QUEUE' || pending;
+  return status !== 'DONE';
 }
 
 function badgeOf(status: string, pending: boolean) {
@@ -76,7 +76,7 @@ function useCountUp(value: number, digits = 2) {
 }
 
 export function QueueTape({
-  rows, dateLabel, clock, waiting, sent, due, flash, onSettle, settling,
+  rows, dateLabel, clock, waiting, sent, due, flash, onSettle, settling, onKeep,
 }: {
   rows: TapeRow[];
   dateLabel: string;
@@ -88,6 +88,7 @@ export function QueueTape({
   coinDelta?: number;
   onSettle?: () => Promise<void> | void;
   settling?: boolean;
+  onKeep?: (row: TapeRow) => Promise<void> | void;
 }) {
   const [filter, setFilter] = useState<QueueFilter>('WAIT');
   const [open, setOpen] = useState<TapeRow | null>(null);
@@ -135,7 +136,7 @@ export function QueueTape({
           );
         })}
       </div>
-      {open ? <SlipCard slip={open} onClose={() => setOpen(null)} queue={batch} /> : null}
+      {open ? <SlipCard slip={open} onClose={() => setOpen(null)} queue={batch} onKeep={onKeep ? async () => { await onKeep(open); setOpen(null); } : undefined} /> : null}
       <div className="qd-dock">
         <button type="button" className="qd-send" disabled={due <= 0 || settling || !onSettle} onClick={() => void onSettle?.()}>{settling ? 'กำลังบันทึก' : 'บันทึกส่งรวม'}</button>
       </div>

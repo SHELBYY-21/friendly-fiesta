@@ -5,6 +5,7 @@ import './queue-desk.css';
 import './sum-desk.css';
 import './slip-card.css';
 import './desk-board.css';
+import { GrokPreviewBridge } from '@/components/ct/GrokPreviewBridge';
 
 const sans = Geist({
   subsets: ['latin'],
@@ -33,7 +34,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="th" className={`${sans.variable} ${thai.variable} ${mono.variable} antialiased`}>
-      <body className="min-h-screen bg-bg text-fg">{children}</body>
+      <body className="min-h-screen bg-bg text-fg">
+        <GrokPreviewBridge />
+        {children}
+      </body>
     </html>
   );
 }

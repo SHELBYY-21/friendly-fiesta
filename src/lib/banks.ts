@@ -128,3 +128,31 @@ export function matchPinnedBank(
   if (!bankCode) return null;
   return last4Hits.find((item) => normalizeBankCode(item.bank_name) === bankCode) ?? null;
 }
+
+export async function ensureTodayPins(chatId: number): Promise<PinnedBank[]> {
+  const today = todayBangkok();
+  const have = await listPinnedBanks(chatId, today);
+  if (have.length) return have;
+
+  const { data: latest, error: latestErr } = await supabaseAdmin
+    .from('pinned_bank_accounts')
+    .select('pinned_for_date')
+    .eq('chat_id', chatId)
+    .order('pinned_for_date', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (latestErr) throw latestErr;
+  const prevDate = latest?.pinned_for_date;
+  if (!prevDate || prevDate === today) return have;
+
+  const prev = await listPinnedBanks(chatId, prevDate);
+  for (const bank of prev.slice(0, MAX_PINNED_ACCOUNTS)) {
+    const { error } = await supabaseAdmin.from('pinned_bank_accounts').insert({
+      chat_id: chatId,
+      bank_account_id: bank.id,
+      pinned_for_date: today,
+    });
+    if (error && error.code !== '23505') throw error;
+  }
+  return listPinnedBanks(chatId, today);
+}

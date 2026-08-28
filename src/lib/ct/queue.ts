@@ -3,7 +3,8 @@ import { supabaseAdmin } from '../supabaseAdmin';
 import { getRoom } from '../botSessions';
 import { opsRates } from './rates';
 import { shouldSend } from './format';
-import { listLockedToday, patchSlip, type PendingSlip } from './store';
+import { listLockedToday, patchSlip, listOpenPending, type PendingSlip } from './store';
+import { listPinnedBanks, matchPinnedBank } from '../banks';
 import { dueUsdt } from './state';
 import type { Admin } from '@/types/transactions';
 
@@ -149,4 +150,25 @@ export async function settleAllDue(chatId: number, userId: number): Promise<DueS
 
 export function canAutoQueue(gate: string, thb: number | null, desk: number): boolean {
   return gate === 'IN_READY' && thb != null && thb > 0 && desk > 0;
+}
+
+export async function rematchOpenSlips(chatId: number): Promise<{ matched: string[] }> {
+  const pins = await listPinnedBanks(chatId);
+  if (!pins.length) return { matched: [] };
+  const open = await listOpenPending(chatId, 40);
+  const matched: string[] = [];
+  for (const p of open) {
+    if (p.status !== 'PIN_MISMATCH' || p.pin_match) continue;
+    const last4 = payeeLast4(p.account_masked);
+    const hit = matchPinnedBank(p.bank, last4, pins);
+    if (!hit) continue;
+    const nextStatus = p.thb_in && p.thb_in > 0 ? 'IN_READY' : 'PIN_MISMATCH';
+    await patchSlip(p.id, {
+      pin_match: true,
+      bank_account_id: hit.id,
+      status: nextStatus,
+    });
+    matched.push(p.short_ref);
+  }
+  return { matched };
 }

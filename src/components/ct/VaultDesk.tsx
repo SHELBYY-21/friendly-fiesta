@@ -57,6 +57,8 @@ export default function VaultDesk() {
   const [deskDraft, setDeskDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const [settling, setSettling] = useState(false);
+  const [pinning, setPinning] = useState(false);
+  const [catalog, setCatalog] = useState<Array<{ id: string; bankName: string; last4: string; label?: string | null }>>([]);
   const [mode, setMode] = useState<'today' | 'pending'>('today');
   const [flash, setFlash] = useState<Set<string>>(new Set());
   const seen = useRef<Set<string>>(new Set());
@@ -94,6 +96,45 @@ export default function VaultDesk() {
     const t = setInterval(() => void load(), live ? 30_000 : 8_000);
     return () => clearInterval(t);
   }, [load, live]);
+
+  useEffect(() => {
+    fetch('/api/admin/bank-accounts', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((j) => setCatalog(Array.isArray(j.data) ? j.data : []))
+      .catch(() => setCatalog([]));
+  }, []);
+
+  const pinAccount = async (bankAccountId: string) => {
+    if (pinning) return;
+    setPinning(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/dashboard/pin', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ bankAccountId }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json.ok === false) throw new Error(json.error || 'pin failed');
+      await load();
+    } catch (err: any) {
+      setError(err?.message ?? 'pin failed');
+    } finally {
+      setPinning(false);
+    }
+  };
+
+  const keepSlip = async (short: string) => {
+    setError(null);
+    const res = await fetch('/api/dashboard/keep', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ short, force: true }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || json.ok === false) throw new Error(json.error || 'keep failed');
+    await load();
+  };
 
   const settleQueue = async () => {
     if (settling) return;
@@ -208,7 +249,7 @@ export default function VaultDesk() {
           syncStatus={error ? 'error' : live ? 'live' : data ? 'syncing' : 'syncing'}
         />
         <div className="desk-pin">
-          <PinnedAccounts accounts={pinCards} lastSync={data ? new Date() : null} syncStatus={error ? 'error' : live ? 'live' : 'syncing'} />
+          <PinnedAccounts accounts={pinCards} catalog={catalog} onPin={pinAccount} pinning={pinning} lastSync={data ? new Date() : null} syncStatus={error ? 'error' : live ? 'live' : 'syncing'} />
         </div>
       </div>
       {error && <p className="px-4 py-2 text-sm text-danger">{error}</p>}
@@ -226,6 +267,7 @@ export default function VaultDesk() {
         flash={flash}
         onSettle={settleQueue}
         settling={settling}
+        onKeep={(row) => keepSlip(row.short)}
       />
     </div>
   );

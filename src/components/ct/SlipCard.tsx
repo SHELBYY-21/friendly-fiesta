@@ -41,12 +41,14 @@ function refOf(slip: Slip) {
   return slip.short ? '#CE-' + slip.short : '';
 }
 
-export function SlipCard({ slip, onClose, queue }: {
+export function SlipCard({ slip, onClose, queue, onKeep }: {
   slip: Slip;
   onClose: () => void;
   queue?: { count: number; thb: number; usdt: number; target: number };
+  onKeep?: () => Promise<void> | void;
 }) {
   const [copied, setCopied] = useState(false);
+  const [keeping, setKeeping] = useState(false);
   const expected = slip.expectedUsdt ?? slip.usdt ?? null;
   const sent = slip.sentUsdt ?? (slip.status === 'DONE' ? expected : null);
   const due = slip.dueUsdt ?? (
@@ -97,11 +99,25 @@ export function SlipCard({ slip, onClose, queue }: {
       <div className="slip-row"><span>LEFT</span><span>{n(left)} THB</span></div>
       <div className="slip-rule" />
       <p className="slip-note">
-        {queued
-          ? `บันทึกเข้าคิวแล้ว ตอนนี้ต้องโอนรวม ${n(dueAll || due, 2)} USDT`
-          : 'รายการนี้ปิดแล้ว'}
+        {slip.status === 'ERR' || slip.status === 'ERROR'
+          ? 'บัญชีรับยังไม่ตรงหมุด — ปักบัญชีแล้วกด KEEP'
+          : queued
+            ? `บันทึกเข้าคิวแล้ว ตอนนี้ต้องโอนรวม ${n(dueAll || due, 2)} USDT`
+            : 'รายการนี้ปิดแล้ว'}
       </p>
-      {queued ? <p className="slip-note">กด บันทึกส่งรวม เมื่อต้องการโอน</p> : null}
+      {onKeep && slip.status !== 'DONE' ? (
+        <button
+          type="button"
+          className="keep mt-3 w-full px-3 py-2 text-xs"
+          disabled={keeping}
+          onClick={async () => {
+            setKeeping(true);
+            try { await onKeep(); } finally { setKeeping(false); }
+          }}
+        >
+          {keeping ? 'กำลังเก็บ' : slip.status === 'ERR' || slip.status === 'ERROR' ? 'KEEP บังคับเข้าคิว' : 'KEEP'}
+        </button>
+      ) : queued ? <p className="slip-note">กด บันทึกส่งรวม เมื่อต้องการโอน</p> : null}
     </article>
   );
 }

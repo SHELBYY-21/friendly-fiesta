@@ -16,10 +16,20 @@ export interface PinnedAccount {
   status: 'active' | 'depleted' | 'inactive';
 }
 
+export interface PinChoice {
+  id: string;
+  bankName: string;
+  last4: string;
+  label?: string | null;
+}
+
 interface PinnedAccountsProps {
   accounts: PinnedAccount[];
+  catalog?: PinChoice[];
   selectedAccountId?: string;
   onSelectAccount?: (id: string) => void;
+  onPin?: (accountId: string) => Promise<void> | void;
+  pinning?: boolean;
   isLoading?: boolean;
   lastSync?: Date | null;
   syncStatus?: SyncStatus;
@@ -27,13 +37,18 @@ interface PinnedAccountsProps {
 
 export default function PinnedAccounts({
   accounts,
+  catalog = [],
   selectedAccountId,
   onSelectAccount,
+  onPin,
+  pinning,
   isLoading,
   lastSync,
   syncStatus,
 }: PinnedAccountsProps) {
   const nf = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+  const pinnedIds = new Set(accounts.map((a) => a.bankAccountId));
+  const choices = catalog.filter((c) => /^\d{4}$/.test(c.last4) && !pinnedIds.has(c.id));
 
   if (accounts.length === 0) {
     return (
@@ -42,6 +57,23 @@ export default function PinnedAccounts({
           <p className="text-sm text-muted">ยังไม่มีบัญชีรับวันนี้</p>
           <SyncBadge lastSync={lastSync} status={syncStatus} />
         </div>
+        {choices.length > 0 && onPin ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {choices.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                disabled={pinning || isLoading}
+                onClick={() => void onPin(c.id)}
+                className="keep px-3 py-2 text-xs"
+              >
+                ปัก {c.bankName} ····{c.last4}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-2 text-xs text-muted">ปักบัญชีรับแล้วสลิปจะเข้าคิวเอง</p>
+        )}
       </div>
     );
   }
@@ -83,6 +115,21 @@ export default function PinnedAccounts({
           );
         })}
       </div>
+      {choices.length > 0 && onPin ? (
+        <div className="flex flex-wrap gap-2 border-t border-[color:var(--border)] px-5 py-3">
+          {choices.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              disabled={pinning || isLoading}
+              onClick={() => void onPin(c.id)}
+              className="keep px-3 py-2 text-xs"
+            >
+              + {c.bankName} ····{c.last4}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
