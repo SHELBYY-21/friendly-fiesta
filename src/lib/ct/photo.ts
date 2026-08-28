@@ -1,6 +1,6 @@
 import { sendMessage, editMessage, sendChatAction, downloadTelegramFile, uploadSlipBuffer, getChatPinnedText } from '../telegram';
 import { analyzeSlipFast, type SlipExtract } from '../ocr';
-import { listPinnedBanks, matchPinnedBank, accountLast4, pinBankAccount, ensureTodayPins } from '../banks';
+import { listPinnedBanks, matchSlipPins, accountLast4, pinBankAccount, ensureTodayPins } from '../banks';
 import { findSlipByFingerprint } from '../transactions';
 import { findReceiversByLast4 } from '../receivers';
 import { slipFingerprint } from '../botSecurity';
@@ -81,10 +81,10 @@ export async function handleCtPhoto(opts: { chatId: number; userId: number; admi
   const { cardId, url, slip } = read;
   const ai = new AiTransition(chatId, cardId);
   await ai.step('ocr');
-  const matchedPin = matchPinnedBank(slip.bank, slip.receiverLast4, pins);
+  const matchedPin = matchSlipPins(slip.bank, slip.receiverLast4, slip.senderLast4, pins);
   const pinMatch = Boolean(matchedPin);
   const thb = slip.thbAmount && slip.thbAmount > 0 ? slip.thbAmount : null;
-  const last4Early = slip.receiverLast4 ?? accountLast4(matchedPin?.account_number);
+  const last4Early = accountLast4(matchedPin?.account_number) ?? slip.receiverLast4 ?? slip.senderLast4;
   await ai.step('match', { bank: slip.bank ?? todayPin?.bank_name, last4: last4Early, thb });
   const gate = gateOcr({ thb, confidence: slip.confidence, pinMatch, hasCurrency: thb != null });
   const usdtDue = thb && rates.desk ? shouldSend(thb, rates.desk) : null;
@@ -93,21 +93,21 @@ export async function handleCtPhoto(opts: { chatId: number; userId: number; admi
     chat_id: chatId, admin_tg_id: userId, admin_name: admin.name,
     status: gate === 'IN_READY_REVIEW' ? 'IN_READY_REVIEW' : gate,
     thb_in: thb, should_send: usdtDue, desk_rate: rates.desk || null, mkt_rate: rates.mkt, bot_usd: rates.usd,
-    bank: slip.bank ?? matchedPin?.bank_name ?? null,
-    account_masked: maskAcct(slip.receiverLast4 ?? accountLast4(matchedPin?.account_number)),
-    name: slip.receiverName ?? null, pin_match: pinMatch, ocr_confidence: slip.confidence ?? null,
+    bank: matchedPin?.bank_name ?? slip.bank ?? null,
+    account_masked: maskAcct(last4Early),
+    name: slip.receiverName ?? slip.senderName ?? null, pin_match: pinMatch, ocr_confidence: slip.confidence ?? null,
     source_file_id: fileId, slip_url: url, slip_fingerprint: fingerprint, message_id: cardId,
     undo_until: null, tx_id: null, note: null, bank_account_id: matchedPin?.id ?? null,
   });
-  const last4 = slip.receiverLast4 ?? accountLast4(matchedPin?.account_number);
+  const last4 = last4Early;
   if (canAutoQueue(gate, thb, rates.desk) && pinMatch) {
-    const queued = await tryQueue(pending, { chatId, userId, admin, cardId, last4, bank: todayPin?.bank_name ?? slip.bank ?? '—' });
+    const queued = await tryQueue(pending, { chatId, userId, admin, cardId, last4, bank: matchedPin?.bank_name ?? todayPin?.bank_name ?? slip.bank ?? '—' });
     if (queued) return;
   }
   const known = last4 ? await findReceiversByLast4(last4) : [];
   await editMessage(chatId, cardId, renderGateCard(pending, {
-    gate, slipBank: slip.bank ?? '—', slipLast4: slip.receiverLast4 ?? '????',
-    pinBank: todayPin?.bank_name ?? '—', pinLast4: accountLast4(todayPin?.account_number) ?? 'ยังไม่หมุด',
+    gate, slipBank: slip.bank ?? '—', slipLast4: last4Early ?? slip.receiverLast4 ?? '????',
+    pinBank: matchedPin?.bank_name ?? todayPin?.bank_name ?? '—', pinLast4: accountLast4(matchedPin?.account_number ?? todayPin?.account_number) ?? 'ยังไม่หมุด',
     lead: admin.role === 'SuperAdmin' || admin.role === 'Admin',
     chips: thb ? [thb] : [500, 1000], fresh: Boolean(last4) && known.length === 0,
   }));

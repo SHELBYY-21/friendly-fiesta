@@ -3,7 +3,7 @@ import { loadVault } from '@/lib/ct/vault';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { opsRates } from '@/lib/ct/rates';
 import { requireDashboardSession } from '@/lib/dashboardAuth';
-import { ensureTodayPins } from '@/lib/banks';
+import { ensureTodayPins, accountLast4Candidates } from '@/lib/banks';
 import { opsChatId } from '@/lib/ct/deskChat';
 
 export const runtime = 'nodejs';
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
       loadVault(Number.isFinite(chatId) ? chatId : null, mode),
       supabaseAdmin
         .from('pinned_bank_accounts')
-        .select('chat_id, pinned_for_date, bank_accounts(bank_name, account_number, label)')
+        .select('chat_id, pinned_for_date, bank_account_id, bank_accounts(id, bank_name, account_number, label)')
         .eq('pinned_for_date', new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' })),
       supabaseAdmin
         .from('pending_slips')
@@ -35,18 +35,27 @@ export async function GET(req: NextRequest) {
       opsRates(0),
     ]);
 
-    const pinsOut = (pins.data ?? []).map((p: any) => ({
-      chatId: p.chat_id,
-      date: p.pinned_for_date,
-      bank: p.bank_accounts?.bank_name ?? '—',
-      last4: String(p.bank_accounts?.account_number ?? '').replace(/\D/g, '').slice(-4),
-      label: p.bank_accounts?.label ?? null,
-    }));
+    const pinsOut = (pins.data ?? []).map((p: any) => {
+      const acct = String(p.bank_accounts?.account_number ?? '');
+      const last4s = accountLast4Candidates(acct);
+      return {
+        id: p.bank_accounts?.id ?? p.bank_account_id,
+        chatId: p.chat_id,
+        date: p.pinned_for_date,
+        bank: p.bank_accounts?.bank_name ?? '—',
+        last4: last4s[0] ?? '',
+        last4s,
+        label: p.bank_accounts?.label ?? null,
+      };
+    });
 
     const accounts = pinsOut.map((p) => {
-      const rows = (vault.tape ?? []).filter(
-        (t: any) => t.bank === p.bank && String(t.last4 ?? '') === p.last4,
-      );
+      const rows = (vault.tape ?? []).filter((t: any) => {
+        const slip4 = String(t.last4 ?? '');
+        if (!slip4 || !p.last4s.includes(slip4)) return false;
+        if (t.bank && p.bank && t.bank !== p.bank) return false;
+        return true;
+      });
       return {
         ...p,
         count: rows.length,

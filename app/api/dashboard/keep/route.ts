@@ -41,6 +41,8 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ ok: true, short: locked.short_ref, status: locked.status, ledger: locked.ledger_ref });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message ?? 'keep_failed' }, { status: 400 });
+    const msg = e?.message ?? 'keep_failed';
+    const status = msg === 'AMOUNT_TOO_LARGE' ? 400 : 400;
+    return NextResponse.json({ ok: false, error: msg }, { status });
   }
 }

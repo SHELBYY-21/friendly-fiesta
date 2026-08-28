@@ -43,8 +43,8 @@ type VaultPayload = {
     tape: TapeRow[];
   };
   rates: { desk: number; mkt: number | null };
-  pins: Array<{ bank: string; last4: string; label: string | null }>;
-  accounts?: Array<{ bank: string; last4: string; count: number; totalThb: number; totalUsdt: number }>;
+  pins: Array<{ id?: string; bank: string; last4: string; last4s?: string[]; label: string | null }>;
+  accounts?: Array<{ id?: string; bank: string; last4: string; count: number; totalThb: number; totalUsdt: number }>;
 };
 
 function money(n: number, d = 0) {
@@ -59,7 +59,7 @@ export default function VaultDesk() {
   const [settling, setSettling] = useState(false);
   const [pinning, setPinning] = useState(false);
   const [catalog, setCatalog] = useState<Array<{ id: string; bankName: string; last4: string; label?: string | null }>>([]);
-  const [mode, setMode] = useState<'today' | 'pending'>('today');
+  const [mode, setMode] = useState<'today' | 'pending'>('pending');
   const [flash, setFlash] = useState<Set<string>>(new Set());
   const seen = useRef<Set<string>>(new Set());
   const primed = useRef(false);
@@ -197,8 +197,8 @@ export default function VaultDesk() {
       ? [{ bank: pin.bank, last4: pin.last4, count: 0, totalThb: 0, totalUsdt: 0 }]
       : []
   ).map((a, i) => ({
-    id: `${a.bank}-${a.last4}-${i}`,
-    bankAccountId: `${a.bank}-${a.last4}`,
+    id: a.id ?? `${a.bank}-${a.last4}-${i}`,
+    bankAccountId: a.id ?? `${a.bank}-${a.last4}`,
     accountName: a.bank,
     bankName: a.bank,
     last4: a.last4,
@@ -208,6 +208,10 @@ export default function VaultDesk() {
     totalUsdt: a.totalUsdt,
     status: 'active' as const,
   }));
+  const waitDue = tape
+    .filter((r) => r.status === 'WAIT' || r.status === 'QUEUE' || r.status === 'SENT' || r.status === 'LOCK')
+    .reduce((s, r) => s + (r.dueUsdt ?? r.expectedUsdt ?? r.usdt ?? 0), 0);
+  const settleDue = Math.max(due, Math.round(waitDue * 100) / 100);
 
   return (
     <div className="desk-board">
@@ -218,8 +222,20 @@ export default function VaultDesk() {
           <span className={`pill hidden sm:inline-flex ${live ? 'pill-done' : 'pill-wait'}`}>
             {live ? 'live' : 'poll'}
           </span>
-          {due > 0 && (
-            <span className="font-mono text-sm text-gold">due {money(due, 2)}</span>
+          <span className="flex gap-1">
+            {(['today', 'pending'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                className={'qd-pill' + (mode === m ? ' is-on' : '')}
+                onClick={() => setMode(m)}
+              >
+                {m === 'today' ? 'วันนี้' : 'ค้าง'}
+              </button>
+            ))}
+          </span>
+          {settleDue > 0 && (
+            <span className="font-mono text-sm text-gold">due {money(settleDue, 2)}</span>
           )}
         </div>
         <form onSubmit={saveDesk} className="hidden items-center gap-1 md:flex">
@@ -236,7 +252,7 @@ export default function VaultDesk() {
             totalThbReceived: v?.inThb ?? 0,
             totalUsdtSent: sent,
             requiredUsdt: required,
-            pendingUsdt: due,
+            pendingUsdt: settleDue,
             coinDelta: coin,
             feeUsdt: fee,
             inCount: v?.inCount ?? 0,
@@ -261,9 +277,9 @@ export default function VaultDesk() {
         rows={tape}
         dateLabel={v?.dateLabel ?? '\u2014'}
         clock={v?.clock ?? '\u2014'}
-        waiting={tape.filter((r) => r.status !== 'DONE').reduce((s, r) => s + (r.expectedUsdt ?? r.usdt ?? 0), 0)}
+        waiting={tape.filter((r) => r.status === 'WAIT' || r.status === 'QUEUE' || r.status === 'SENT' || r.status === 'LOCK').reduce((s, r) => s + (r.expectedUsdt ?? r.usdt ?? 0), 0)}
         sent={sent}
-        due={Math.max(0, Math.round(((v?.requiredUsdt ?? 0) - sent) * 100) / 100)}
+        due={settleDue}
         flash={flash}
         onSettle={settleQueue}
         settling={settling}

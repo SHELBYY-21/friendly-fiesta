@@ -5,6 +5,7 @@ import { vaultBanner, cardRecent, type VaultRow } from './copy';
 import type { OutgoingMessage } from '../telegram';
 import { dueUsdt as calcDue, stateFromSlip, statusChip } from './state';
 import { listOpenPending } from './store';
+import { MAX_SLIP_THB } from './gate';
 
 function midnightIso(): string {
   const now = new Date();
@@ -36,14 +37,18 @@ export type VaultMode = 'today' | 'pending' | 'all' | 'wait' | 'done' | 'err';
 
 function chipOf(status: string): 'WAIT' | 'DONE' | 'ERR' | 'SENT' {
   if (status === 'DONE') return 'DONE';
-  if (status === 'ERR' || status === 'ERROR') return 'ERR';
+  if (status === 'ERR' || status === 'ERROR' || status === 'SCAN') return 'ERR';
   if (status === 'SENT') return 'SENT';
   return 'WAIT';
 }
 
-function matchesFilter(mode: VaultMode, status: string, pending: boolean): boolean {
+function isOpenWait(status: string): boolean {
+  return status === 'WAIT' || status === 'SENT' || status === 'QUEUE' || status === 'LOCK';
+}
+
+function matchesFilter(mode: VaultMode, status: string, _pending: boolean): boolean {
   const chip = chipOf(status);
-  if (mode === 'wait' || mode === 'pending') return chip === 'WAIT' || chip === 'SENT' || pending;
+  if (mode === 'wait' || mode === 'pending') return isOpenWait(status) || chip === 'WAIT' || chip === 'SENT';
   if (mode === 'done') return chip === 'DONE';
   if (mode === 'err') return chip === 'ERR';
   return true;
@@ -53,6 +58,15 @@ function bannerModeOf(mode: VaultMode): 'today' | 'pending' | 'all' {
   if (mode === 'wait' || mode === 'pending') return 'pending';
   if (mode === 'all') return 'all';
   return 'today';
+}
+
+function isBkkToday(iso: string | null | undefined): boolean {
+  if (!iso) return true;
+  return ymdBkk(new Date(iso)) === ymdBkk();
+}
+
+function isErrChip(status: string): boolean {
+  return status === 'ERR' || status === 'ERROR' || status === 'SCAN';
 }
 
 export async function loadVault(chatId?: number | null, mode: VaultMode = 'today') {
@@ -87,15 +101,11 @@ export async function loadVault(chatId?: number | null, mode: VaultMode = 'today
   }
 
   const inRows: VaultRow[] = [];
-  let inThb = 0;
-  let owed = 0;
   let feeUsdt = 0;
   for (const r of ins ?? []) {
     const thb = numOrNull(r.thb_amount) ?? 0;
     const should = numOrNull(r.usdt_amount) ?? 0;
     const settled = outByRef.has(String(r.ledger_ref || ''));
-    inThb += thb;
-    owed += should;
     feeUsdt += Number((r as any).fee_usdt || 0);
     inRows.push({
       thb,
@@ -113,10 +123,6 @@ export async function loadVault(chatId?: number | null, mode: VaultMode = 'today
     pending: false,
   }));
   const outUsdt = outRows.reduce((s, r) => s + (r.usdt ?? 0), 0);
-  const requiredUsdt = Math.round(owed * 100) / 100;
-  const pendingUsdt = Math.max(0, Math.round((owed - outUsdt) * 100) / 100);
-  const coinDelta = Math.round((outUsdt - owed) * 100) / 100;
-  const pendingShorts = inRows.filter((r) => r.pending).map((r) => r.short);
   const refs = (ins ?? []).map((r: any) => r.ledger_ref).filter(Boolean);
   const extraBy = new Map<string, { bank: string | null; name: string | null; last4: string | null }>();
   if (refs.length) {
@@ -193,17 +199,48 @@ export async function loadVault(chatId?: number | null, mode: VaultMode = 'today
     });
   }
   tape.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
-  const viewTape = tape.filter((r) => matchesFilter(mode, r.status, r.pending));
-  const viewRows = mode === 'today' || mode === 'all'
-    ? inRows
-    : inRows.filter((r) => viewTape.some((t) => t.short === r.short));
+  const dayTape = tape.filter((r) => isBkkToday(r.createdAt));
+  const viewTape = (mode === 'today' ? dayTape : tape).filter((r) => matchesFilter(mode, r.status, r.pending));
+
+  const counted = new Set<string>();
+  let inThbDay = 0;
+  let inCountDay = 0;
+  let owedDay = 0;
+  for (const r of dayTape) {
+    const key = r.ledger || r.short;
+    if (isErrChip(r.status)) continue;
+    if (Number(r.thb || 0) > MAX_SLIP_THB) continue;
+    if (counted.has(key)) continue;
+    counted.add(key);
+    const thb = Number(r.thb || 0);
+    const usdt = Number(r.expectedUsdt ?? r.usdt ?? 0);
+    inThbDay += thb;
+    owedDay += usdt;
+    inCountDay += 1;
+  }
+  let pendingAll = 0;
+  const pendingShorts: string[] = [];
+  const dueSeen = new Set<string>();
+  for (const r of tape) {
+    if (!isOpenWait(r.status)) continue;
+    if (Number(r.thb || 0) > MAX_SLIP_THB) continue;
+    const key = r.ledger || r.short;
+    if (dueSeen.has(key)) continue;
+    dueSeen.add(key);
+    pendingAll += Number(r.dueUsdt ?? r.expectedUsdt ?? r.usdt ?? 0);
+    pendingShorts.push(r.short);
+  }
+  const requiredUsdt = Math.round(owedDay * 100) / 100;
+  const pendingUsdt = Math.max(0, Math.round(pendingAll * 100) / 100);
+  const coinDelta = Math.round((outUsdt - owedDay) * 100) / 100;
+  const viewRows = inRows.filter((r) => viewTape.some((t) => t.short === r.short));
 
   return {
     mode,
     dateLabel: bannerDate(),
     clock: clockBkk(),
-    inThb,
-    inCount: inRows.length,
+    inThb: Math.round(inThbDay * 100) / 100,
+    inCount: inCountDay,
     inRows: viewRows,
     outUsdt,
     outCount: outRows.length,

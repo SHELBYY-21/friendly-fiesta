@@ -129,6 +129,17 @@ export function matchPinnedBank(
   return last4Hits.find((item) => normalizeBankCode(item.bank_name) === bankCode) ?? null;
 }
 
+/** OCR often swaps payee/payer. Try receiver last4 first, then sender. */
+export function matchSlipPins(
+  bankInput: string | null | undefined,
+  receiverLast4: string | null | undefined,
+  senderLast4: string | null | undefined,
+  pinned: PinnedBank[],
+): PinnedBank | null {
+  return matchPinnedBank(bankInput, receiverLast4, pinned)
+    ?? matchPinnedBank(bankInput, senderLast4, pinned);
+}
+
 export async function ensureTodayPins(chatId: number): Promise<PinnedBank[]> {
   const today = todayBangkok();
   const have = await listPinnedBanks(chatId, today);

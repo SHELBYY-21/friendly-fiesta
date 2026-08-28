@@ -408,6 +408,7 @@ assert(batchProgress(4110).remain === 5890, 'remain to 10k');
 assert(batchProgress(10000).ready === true, 'ready at 10k');
 assert(canAutoQueue('IN_READY', 1090, 36.7) === true, 'auto queue matched slip');
 assert(canAutoQueue('PIN_MISMATCH', 1090, 36.7) === false, 'do not auto queue mismatch');
+assert(canAutoQueue('IN_READY', 10_000_000, 36.7) === false, 'do not auto queue OCR 10M');
 assert(collectCbs(CT.cardLocked({ ...sample, time: '06:20', canUndo: true, queued: true, batch: { count: 4, thb: 4110, usdt: 112, target: 10000, remain: 5890, ready: false } })).includes('vault:batch'), 'locked card exposes batch');
 assert(matchReplyCommand('/admin') === 'addadmin', '/admin asks for id');
 assert(parseTelegramId('/admin 5676959274') === 5676959274, '/admin + telegram id');

@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireDashboardSession } from '@/lib/dashboardAuth';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { settleAllDue } from '@/lib/ct/queue';
-import { ymdBkk } from '@/lib/ct/format';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -36,8 +35,7 @@ export async function POST(req: NextRequest) {
   const { data: locked, error } = await supabaseAdmin
     .from('pending_slips')
     .select('chat_id')
-    .eq('status', 'LOCKED')
-    .eq('date_key', ymdBkk());
+    .eq('status', 'LOCKED');
   if (error) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }

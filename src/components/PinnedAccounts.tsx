@@ -48,7 +48,10 @@ export default function PinnedAccounts({
 }: PinnedAccountsProps) {
   const nf = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
   const pinnedIds = new Set(accounts.map((a) => a.bankAccountId));
-  const choices = catalog.filter((c) => /^\d{4}$/.test(c.last4) && !pinnedIds.has(c.id));
+  const pinnedKeys = new Set(accounts.map((a) => `${a.bankName}-${a.last4}`));
+  const choices = catalog.filter(
+    (c) => /^\d{4}$/.test(c.last4) && !pinnedIds.has(c.id) && !pinnedKeys.has(`${c.bankName}-${c.last4}`),
+  );
 
   if (accounts.length === 0) {
     return (

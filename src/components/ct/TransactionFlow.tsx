@@ -29,8 +29,8 @@ function n(v: number | null | undefined, d = 0) {
 function matches(filter: QueueFilter, status: string, pending: boolean) {
   if (filter === 'ALL') return true;
   if (filter === 'DONE') return status === 'DONE';
-  if (filter === 'ERR') return status === 'ERR' || status === 'ERROR';
-  return status !== 'DONE';
+  if (filter === 'ERR') return status === 'ERR' || status === 'ERROR' || status === 'SCAN';
+  return status === 'WAIT' || status === 'QUEUE' || status === 'SENT' || status === 'LOCK';
 }
 
 function badgeOf(status: string, pending: boolean) {
@@ -90,7 +90,7 @@ export function QueueTape({
   settling?: boolean;
   onKeep?: (row: TapeRow) => Promise<void> | void;
 }) {
-  const [filter, setFilter] = useState<QueueFilter>('WAIT');
+  const [filter, setFilter] = useState<QueueFilter>('ALL');
   const [open, setOpen] = useState<TapeRow | null>(null);
   const dueText = useCountUp(due, 2);
   const shown = useMemo(() => rows.filter((r) => matches(filter, r.status, r.pending)), [rows, filter]);
@@ -122,7 +122,7 @@ export function QueueTape({
         <span>TIME</span><span>ACCT</span><span>THB</span><span>DUE</span><span>STATUS</span>
       </div>
       <div className="qd-list">
-        {shown.length === 0 ? <p className="qd-empty">วันนี้ยังไม่มีสลิป</p> : shown.map((row, i) => {
+        {shown.length === 0 ? <p className="qd-empty">ไม่มีคิวค้างโอน</p> : shown.map((row, i) => {
           const badge = badgeOf(row.status, row.pending);
           const dueU = row.dueUsdt ?? row.expectedUsdt ?? row.usdt;
           return (

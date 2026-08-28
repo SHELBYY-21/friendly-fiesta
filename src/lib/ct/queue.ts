@@ -6,6 +6,7 @@ import { shouldSend } from './format';
 import { listLockedToday, patchSlip, listOpenPending, type PendingSlip } from './store';
 import { listPinnedBanks, matchPinnedBank } from '../banks';
 import { dueUsdt } from './state';
+import { MAX_SLIP_THB } from './gate';
 import type { Admin } from '@/types/transactions';
 
 export const BATCH_THB = 10_000;
@@ -66,6 +67,7 @@ export async function commitIncomingLock(
   if (p.status === 'LOCKED' || p.status === 'SETTLED') return p;
   if (!opts.force && !p.pin_match) throw new Error('PIN_MISMATCH');
   if (p.thb_in == null || p.thb_in <= 0) throw new Error('NO_AMOUNT');
+  if (p.thb_in > MAX_SLIP_THB) throw new Error('AMOUNT_TOO_LARGE');
   const desk = p.desk_rate && p.desk_rate > 0
     ? p.desk_rate
     : (await opsRates(opts.chatId)).desk;
@@ -112,6 +114,7 @@ export async function settleAllDue(chatId: number, userId: number): Promise<DueS
   const refs: string[] = [];
   for (const p of rows) {
     if (!p.should_send || p.status !== 'LOCKED') continue;
+    if ((p.thb_in ?? 0) > MAX_SLIP_THB) continue;
     try {
       await recordOutgoing({
         adminTelegramId: userId,
@@ -149,7 +152,7 @@ export async function settleAllDue(chatId: number, userId: number): Promise<DueS
 }
 
 export function canAutoQueue(gate: string, thb: number | null, desk: number): boolean {
-  return gate === 'IN_READY' && thb != null && thb > 0 && desk > 0;
+  return gate === 'IN_READY' && thb != null && thb > 0 && thb <= MAX_SLIP_THB && desk > 0;
 }
 
 export async function rematchOpenSlips(chatId: number): Promise<{ matched: string[] }> {
