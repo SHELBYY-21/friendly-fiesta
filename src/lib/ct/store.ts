@@ -170,7 +170,7 @@ export async function listOpenPending(chatId?: number | null, limit = 40): Promi
   let q = supabaseAdmin
     .from('pending_slips')
     .select('*')
-    .in('status', ['PIN_MISMATCH', 'OCR_WEAK', 'NEED_UNIT', 'IN_READY', 'IN_READY_REVIEW', 'HOLD', 'LOCKED'])
+    .in('status', ['PIN_MISMATCH', 'OCR_WEAK', 'NEED_UNIT', 'IN_READY', 'IN_READY_REVIEW', 'LOCKED'])
     .order('created_at', { ascending: false })
     .limit(limit);
   if (chatId != null) q = q.eq('chat_id', chatId);
@@ -218,7 +218,7 @@ export async function quarantineOcrJunk(chatId?: number | null): Promise<string[
     .from('pending_slips')
     .select('id, short_ref, thb_in, status, note')
     .gt('thb_in', MAX_SLIP_THB)
-    .in('status', ['PIN_MISMATCH', 'IN_READY', 'IN_READY_REVIEW', 'LOCKED', 'HOLD', 'NEED_UNIT', 'OCR_WEAK']);
+    .in('status', ['PIN_MISMATCH', 'IN_READY', 'IN_READY_REVIEW', 'LOCKED', 'NEED_UNIT', 'OCR_WEAK']);
   if (chatId != null) q = q.eq('chat_id', chatId);
   const { data, error } = await q;
   if (error) throw new Error(`PENDING_SLIP_LIST: ${error.message}`);
@@ -234,6 +234,34 @@ export async function quarantineOcrJunk(chatId?: number | null): Promise<string[
       .update({
         status: 'OCR_WEAK',
         should_send: 0,
+        note: nextNote,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', row.id)
+      .neq('status', 'SETTLED');
+    marked.push(String(row.short_ref));
+  }
+  return marked;
+}
+
+/** Park live queue in place. Never deletes, never marks SETTLED, never sends USDT. */
+export async function parkOpenQueue(chatId: number, tag: string): Promise<string[]> {
+  const { data, error } = await supabaseAdmin
+    .from('pending_slips')
+    .select('id, short_ref, status, note')
+    .eq('chat_id', chatId)
+    .in('status', ['PIN_MISMATCH', 'OCR_WEAK', 'NEED_UNIT', 'IN_READY', 'IN_READY_REVIEW', 'HOLD', 'LOCKED']);
+  if (error) throw new Error(`PENDING_SLIP_LIST: ${error.message}`);
+  const marked: string[] = [];
+  for (const row of data ?? []) {
+    const note = String(row.note || '');
+    if (row.status === 'HOLD' && note.includes(tag)) continue;
+    const nextNote = note.includes(tag) ? note : [note, tag].filter(Boolean).join('|');
+    await supabaseAdmin
+      .from('pending_slips')
+      .update({
+        status: 'HOLD',
+        undo_until: null,
         note: nextNote,
         updated_at: new Date().toISOString(),
       })

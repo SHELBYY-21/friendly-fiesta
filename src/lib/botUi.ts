@@ -1150,7 +1150,7 @@ export function resetAsk(roomName?: string | null): OutgoingMessage {
     titleTh: 'เริ่มรอบใหม่?',
     titleEn: 'Start New Cycle',
     groups: fields.length ? [fields] : [],
-    note: 'รายการเดิมยังอยู่ครบ · ยอดรอบใหม่เริ่มจาก 0',
+    note: 'คิวที่ค้างถูกพักไว้ · ไม่ลบ · ไม่โอน USDT · ยอดรอบใหม่เริ่ม 0',
     keyboard: {
       inline_keyboard: [[
         { text: '✅ ยืนยัน', callback_data: 'resetgo:1' },
@@ -1166,9 +1166,9 @@ export function resetDone(count: number): OutgoingMessage {
     titleTh: 'เริ่มรอบใหม่แล้ว',
     titleEn: 'New Cycle Started',
     groups: [[
-      { icon: '🧾', labelTh: 'จำนวนรายการ', labelEn: 'Transactions', value: mono(`${count} รายการ (เก็บไว้)`) },
+      { icon: '🧾', labelTh: 'คิวที่พัก', labelEn: 'Parked', value: mono(`${count} รายการ (เก็บไว้)`) },
     ]],
-    note: 'ยอดรอบใหม่เริ่มจาก 0',
+    note: 'ยอดรอบใหม่เริ่มจาก 0 · ประวัติเดิมยังอยู่ในสมุด',
   });
 }
 

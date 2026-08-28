@@ -57,9 +57,10 @@ export default function VaultDesk() {
   const [deskDraft, setDeskDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const [settling, setSettling] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [pinning, setPinning] = useState(false);
   const [catalog, setCatalog] = useState<Array<{ id: string; bankName: string; last4: string; label?: string | null }>>([]);
-  const [mode, setMode] = useState<'today' | 'pending'>('pending');
+  const [mode, setMode] = useState<'today' | 'pending'>('today');
   const [flash, setFlash] = useState<Set<string>>(new Set());
   const seen = useRef<Set<string>>(new Set());
   const primed = useRef(false);
@@ -156,6 +157,28 @@ export default function VaultDesk() {
     }
   };
 
+  const resetCycle = async () => {
+    if (resetting) return;
+    if (typeof window !== 'undefined' && !window.confirm('เริ่มรอบใหม่? คิวเดิมถูกพักไว้ ไม่ลบ ไม่โอน USDT')) return;
+    setResetting(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/dashboard/reset', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ confirm: true }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json.ok === false) throw new Error(json.error || 'reset failed');
+      setMode('today');
+      await load();
+    } catch (err: any) {
+      setError(err?.message ?? 'reset failed');
+    } finally {
+      setResetting(false);
+    }
+  };
+
   const saveDesk = async (e: React.FormEvent) => {
     e.preventDefault();
     const sellRate = Number(deskDraft);
@@ -245,6 +268,9 @@ export default function VaultDesk() {
         <form onSubmit={saveDesk} className="hidden items-center gap-1 md:flex">
           <input value={deskDraft} onChange={(e) => setDeskDraft(e.target.value)} placeholder="rate" inputMode="decimal" aria-label="desk rate" className="field w-20 px-2 text-sm" />
           <button type="submit" disabled={saving} className="keep px-3 text-xs">set rate</button>
+          <button type="button" disabled={resetting} className="keep px-3 text-xs" onClick={() => void resetCycle()}>
+            {resetting ? '…' : 'เริ่มใหม่'}
+          </button>
         </form>
       </header>
       <div className="agent-rail" />
@@ -276,6 +302,9 @@ export default function VaultDesk() {
       <form onSubmit={saveDesk} className="flex gap-2 border-b border-[var(--line)] px-4 py-3 md:hidden">
         <input value={deskDraft} onChange={(e) => setDeskDraft(e.target.value)} placeholder="36.70" inputMode="decimal" aria-label="desk rate" className="field" />
         <button type="submit" disabled={saving} className="keep px-4 text-xs">set rate</button>
+        <button type="button" disabled={resetting} className="keep px-4 text-xs" onClick={() => void resetCycle()}>
+          {resetting ? '…' : 'เริ่มใหม่'}
+        </button>
       </form>
       <QueueTape
         rows={tape}

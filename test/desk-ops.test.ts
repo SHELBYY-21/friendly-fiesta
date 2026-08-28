@@ -71,6 +71,11 @@ assert(
   settleBlockReason({ status: 'LOCKED', thb_in: 10_000_000, should_send: 243902.44, bank: 'SCB', account_masked: null }, pins) === 'AMOUNT_TOO_LARGE',
   '10M never settles',
 );
+assert(
+  settleBlockReason({ status: 'HOLD', thb_in: 1020, should_send: 24.88, bank: 'KTB', account_masked: '••••6034' }, pins) === 'NOT_LOCKED',
+  'parked HOLD queue cannot settle',
+);
+assert(statusChip(stateFromSlip({ slipStatus: 'HOLD', expectedUsdt: 24.88, sentUsdt: null })) === 'ERR', 'parked HOLD is not WAIT');
 assert(outgoingLedgerRef('CE-20260827-C416') === 'CE-20260827-C416-OUT', 'outgoing uses distinct ledger');
 assert(outgoingLedgerRef('CE-20260827-C416-OUT') === 'CE-20260827-C416-OUT', 'outgoing suffix is stable');
 assert(

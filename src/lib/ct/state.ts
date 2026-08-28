@@ -88,6 +88,7 @@ export function stateFromSlip(input: {
   if (sent > 0 && expected > 0 && sent + 1e-9 >= expected) return 'DONE';
   if (sent > 0) return 'SENT';
   if (input.slipStatus === 'SETTLED') return 'DONE';
+  if (input.slipStatus === 'HOLD' || input.slipStatus === 'DELETED') return 'ERROR';
   if (input.slipStatus === 'LOCKED' || input.slipStatus === 'IN_READY') return 'WAIT';
   if (input.gate === 'IN_READY' || input.gate === 'IN_READY_REVIEW') return 'LOCK';
   if (input.gate === 'NEED_UNIT') return 'SCAN';

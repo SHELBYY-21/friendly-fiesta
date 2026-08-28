@@ -30,8 +30,8 @@ export async function GET(req: NextRequest) {
         .eq('pinned_for_date', new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' })),
       supabaseAdmin
         .from('pending_slips')
-        .select('short_ref, ledger_ref, status, thb_in, should_send, bank, name, created_at')
-        .in('status', ['IN_READY', 'IN_READY_REVIEW', 'LOCKED', 'HOLD', 'OCR_WEAK', 'PIN_MISMATCH'])
+        .select('short_ref, ledger_ref, status, thb_in, should_send, bank, name, note, created_at')
+        .in('status', ['IN_READY', 'IN_READY_REVIEW', 'LOCKED', 'OCR_WEAK', 'PIN_MISMATCH'])
         .order('created_at', { ascending: false })
         .limit(20),
       opsRates(0),

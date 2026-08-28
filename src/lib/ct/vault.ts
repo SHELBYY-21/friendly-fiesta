@@ -7,6 +7,7 @@ import { dueUsdt as calcDue, stateFromSlip, statusChip } from './state';
 import { listOpenPending } from './store';
 import { MAX_SLIP_THB } from './gate';
 import { outgoingIndexKeys } from './settleGuard';
+import { getRoom } from '../botSessions';
 
 function midnightIso(): string {
   const now = new Date();
@@ -71,7 +72,9 @@ function isErrChip(status: string): boolean {
 }
 
 export async function loadVault(chatId?: number | null, mode: VaultMode = 'today') {
-  const cut = midnightIso();
+  const midnight = midnightIso();
+  const roomCut = chatId != null ? (await getRoom(chatId)).dayCutAt : null;
+  const cut = roomCut && roomCut > midnight ? roomCut : midnight;
   let insQ = supabaseAdmin
       .from('transactions')
       .select('id, ledger_ref, created_at, thb_amount, usdt_amount, sell_rate, status, chat_id, receiver_name, receiver_bank, receiver_last4')

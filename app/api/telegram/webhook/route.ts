@@ -17,7 +17,6 @@ import {
   deleteTransaction,
   getTodayLedger,
   recordDeal,
-  resetRoom,
   getStaffLeaderboard,
   exportRoomCsv,
   recordIncoming,
@@ -1183,9 +1182,9 @@ async function handleCallback(cb: any): Promise<void> {
     try {
       await sendMessage(chatId, UI.sectionIntro('สรุปก่อนเริ่มรอบใหม่', 'Cycle Closing Summary'));
       await sendLedger(chatId);
-      const n = await resetRoom(chatId);
-      await startNewDay(chatId);
-      await sendMessage(chatId, UI.resetDone(n));
+      const { resetDesk } = await import('@/lib/ct/deskReset');
+      const r = await resetDesk(chatId);
+      await sendMessage(chatId, UI.resetDone(r.parkedCount));
     } catch (e: any) {
       await sendMessage(chatId, UI.error(e?.message ?? 'reset failed'));
     }
