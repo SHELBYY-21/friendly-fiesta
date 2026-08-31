@@ -28,7 +28,7 @@ const STEPS = ['OCR', 'MATCH', 'IN', 'WAIT', 'DONE'] as const;
 
 function onSteps(status: string, pending: boolean): number {
   if (status === 'DONE') return 5;
-  if (status === 'ERR' || status === 'ERROR') return 1;
+  if (status === 'ERR' || status === 'ERROR' || status === 'HOLD' || status === 'SCAN') return 1;
   if (status === 'WAIT' || status === 'SENT' || status === 'QUEUE' || pending) return 4;
   if (status === 'IN' || status === 'LOCK') return 3;
   if (status === 'MATCH') return 2;
@@ -49,6 +49,7 @@ export function SlipCard({ slip, onClose, queue, onKeep }: {
 }) {
   const [copied, setCopied] = useState(false);
   const [keeping, setKeeping] = useState(false);
+  const [keepErr, setKeepErr] = useState<string | null>(null);
   const expected = slip.expectedUsdt ?? slip.usdt ?? null;
   const sent = slip.sentUsdt ?? (slip.status === 'DONE' ? expected : null);
   const due = slip.dueUsdt ?? (
@@ -106,17 +107,29 @@ export function SlipCard({ slip, onClose, queue, onKeep }: {
             : 'รายการนี้ปิดแล้ว'}
       </p>
       {onKeep && slip.status !== 'DONE' ? (
-        <button
-          type="button"
-          className="keep mt-3 w-full px-3 py-2 text-xs"
-          disabled={keeping}
-          onClick={async () => {
-            setKeeping(true);
-            try { await onKeep(); } finally { setKeeping(false); }
-          }}
-        >
-          {keeping ? 'กำลังเก็บ' : slip.status === 'ERR' || slip.status === 'ERROR' ? 'KEEP บังคับเข้าคิว' : 'KEEP'}
-        </button>
+        <>
+          {keepErr ? <p className="slip-note" style={{ color: 'var(--danger,#ff453a)' }}>{keepErr}</p> : null}
+          <button
+            type="button"
+            className="keep mt-3 w-full px-3 py-2 text-xs"
+            disabled={keeping}
+            onClick={async () => {
+              setKeeping(true);
+              setKeepErr(null);
+              try {
+                await onKeep();
+              } catch (e: any) {
+                setKeepErr(e?.message || 'KEEP ไม่สำเร็จ');
+              } finally {
+                setKeeping(false);
+              }
+            }}
+          >
+            {keeping ? 'กำลังเก็บ' : slip.status === 'ERR' || slip.status === 'ERROR' || slip.status === 'HOLD'
+              ? 'KEEP เข้าคิว'
+              : 'KEEP'}
+          </button>
+        </>
       ) : queued ? <p className="slip-note">กด บันทึกส่งรวม เมื่อต้องการโอน</p> : null}
     </article>
   );

@@ -60,7 +60,7 @@ export default function VaultDesk() {
   const [resetting, setResetting] = useState(false);
   const [pinning, setPinning] = useState(false);
   const [catalog, setCatalog] = useState<Array<{ id: string; bankName: string; last4: string; label?: string | null }>>([]);
-  const [mode, setMode] = useState<'today' | 'pending'>('today');
+  const [mode, setMode] = useState<'today' | 'pending'>('pending');
   const [flash, setFlash] = useState<Set<string>>(new Set());
   const seen = useRef<Set<string>>(new Set());
   const primed = useRef(false);
@@ -125,15 +125,24 @@ export default function VaultDesk() {
     }
   };
 
-  const keepSlip = async (short: string) => {
+  const keepSlip = async (row: TapeRow) => {
     setError(null);
+    const thb = Number(row.thb || 0);
+    if (thb >= 20_000) {
+      const ok = typeof window === 'undefined' || window.confirm(`ยอด ${thb.toLocaleString('en-US')} THB สูง — บังคับเข้าคิว?`);
+      if (!ok) throw new Error('ยกเลิก KEEP ยอดสูง');
+    }
     const res = await fetch('/api/dashboard/keep', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ short, force: true }),
+      body: JSON.stringify({ short: row.short, force: true, confirmHigh: thb >= 20_000 }),
     });
     const json = await res.json().catch(() => ({}));
-    if (!res.ok || json.ok === false) throw new Error(json.error || 'keep failed');
+    if (!res.ok || json.ok === false) {
+      const msg = String(json.error || 'keep failed');
+      setError(msg);
+      throw new Error(msg);
+    }
     await load();
   };
 
@@ -245,7 +254,7 @@ export default function VaultDesk() {
       <header className="nav dense-nav">
         <div className="flex min-w-0 items-center gap-3">
           <span className="mark-glow" aria-hidden>CT</span>
-          <span className="text-xs tracking-[0.18em]">DESK</span>
+          <span className="ops-title">DESK // OPS</span>
           <span className={`pill hidden sm:inline-flex ${live ? 'pill-done' : 'pill-wait'}`}>
             {live ? 'live' : 'poll'}
           </span>
@@ -265,15 +274,10 @@ export default function VaultDesk() {
             <span className="font-mono text-sm text-gold">due {money(settleDue, 2)}</span>
           )}
         </div>
-        <form onSubmit={saveDesk} className="hidden items-center gap-1 md:flex">
-          <input value={deskDraft} onChange={(e) => setDeskDraft(e.target.value)} placeholder="rate" inputMode="decimal" aria-label="desk rate" className="field w-20 px-2 text-sm" />
-          <button type="submit" disabled={saving} className="keep px-3 text-xs">set rate</button>
-          <button type="button" disabled={resetting} className="keep px-3 text-xs" onClick={() => void resetCycle()}>
-            {resetting ? '…' : 'เริ่มใหม่'}
-          </button>
-        </form>
       </header>
       <div className="agent-rail" />
+      {error && <div className="noc-alert" role="alert">{error}</div>}
+      <div className="scan-ring" aria-hidden><span>{live ? 'scan live' : 'scan poll'}</span></div>
       <div className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <SummaryToday
           dateLabel={v ? `${v.dateLabel} ${v.clock}` : undefined}
@@ -298,8 +302,8 @@ export default function VaultDesk() {
           <PinnedAccounts accounts={pinCards} catalog={catalog} onPin={pinAccount} pinning={pinning} lastSync={data ? new Date() : null} syncStatus={error ? 'error' : live ? 'live' : 'syncing'} />
         </div>
       </div>
-      {error && <p className="px-4 py-2 text-sm text-danger">{error}</p>}
-      <form onSubmit={saveDesk} className="flex gap-2 border-b border-[var(--line)] px-4 py-3 md:hidden">
+      {error && <p className="sr-only">{error}</p>}
+      <form onSubmit={saveDesk} className="flex gap-2 border-b border-[var(--line)] px-4 py-3">
         <input value={deskDraft} onChange={(e) => setDeskDraft(e.target.value)} placeholder="36.70" inputMode="decimal" aria-label="desk rate" className="field" />
         <button type="submit" disabled={saving} className="keep px-4 text-xs">set rate</button>
         <button type="button" disabled={resetting} className="keep px-4 text-xs" onClick={() => void resetCycle()}>
@@ -316,7 +320,7 @@ export default function VaultDesk() {
         flash={flash}
         onSettle={settleQueue}
         settling={settling}
-        onKeep={(row) => keepSlip(row.short)}
+        onKeep={(row) => keepSlip(row)}
       />
     </div>
   );

@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono, Noto_Sans_Thai } from 'next/font/google';
+import { Geist, Geist_Mono, Noto_Sans_Thai, Orbitron } from 'next/font/google';
 import './globals.css';
 import './queue-desk.css';
 import './sum-desk.css';
@@ -26,6 +26,13 @@ const mono = Geist_Mono({
   display: 'swap',
 });
 
+const ops = Orbitron({
+  subsets: ['latin'],
+  weight: ['500', '700'],
+  variable: '--font-ops-next',
+  display: 'swap',
+});
+
 export const metadata: Metadata = {
   title: 'CT',
   description: 'Crown Tether private desk',
@@ -33,7 +40,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="th" className={`${sans.variable} ${thai.variable} ${mono.variable} antialiased`}>
+    <html lang="th" className={`${sans.variable} ${thai.variable} ${mono.variable} ${ops.variable} antialiased`}>
       <body className="min-h-screen bg-bg text-fg">
         <GrokPreviewBridge />
         {children}

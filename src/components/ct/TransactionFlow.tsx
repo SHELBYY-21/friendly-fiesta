@@ -122,7 +122,7 @@ export function QueueTape({
         <span>TIME</span><span>ACCT</span><span>THB</span><span>DUE</span><span>STATUS</span>
       </div>
       <div className="qd-list">
-        {shown.length === 0 ? <p className="qd-empty">ไม่มีคิวค้างโอน</p> : shown.map((row, i) => {
+        {shown.length === 0 ? <p className="qd-empty">{filter === 'WAIT' ? 'ไม่มีคิวรอโอน — ดู ERR เพื่อ KEEP คิวพัก' : 'ไม่มีรายการในมุมนี้'}</p> : shown.map((row, i) => {
           const badge = badgeOf(row.status, row.pending);
           const dueU = row.dueUsdt ?? row.expectedUsdt ?? row.usdt;
           return (
@@ -136,7 +136,19 @@ export function QueueTape({
           );
         })}
       </div>
-      {open ? <SlipCard slip={open} onClose={() => setOpen(null)} queue={batch} onKeep={onKeep ? async () => { await onKeep(open); setOpen(null); } : undefined} /> : null}
+      {open ? (
+        <SlipCard
+          slip={open}
+          onClose={() => setOpen(null)}
+          queue={batch}
+          onKeep={onKeep ? async () => {
+            await onKeep(open);
+            setOpen((cur) => cur && cur.id === open.id
+              ? { ...cur, status: 'WAIT', pending: true }
+              : cur);
+          } : undefined}
+        />
+      ) : null}
       <div className="qd-dock">
         <button type="button" className="qd-send" disabled={due <= 0 || settling || !onSettle} onClick={() => void onSettle?.()}>{settling ? 'กำลังบันทึก' : 'บันทึกส่งรวม'}</button>
       </div>

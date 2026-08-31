@@ -60,13 +60,15 @@
 .st-wait{color:var(--qd-wait)}
 .st-done{color:var(--qd-ok)}
 .qd-dock{
-  position:sticky;bottom:0;display:grid;grid-template-columns:1fr;gap:8px;
+  position:sticky;bottom:0;z-index:2;display:grid;grid-template-columns:1fr;gap:8px;
   padding:12px 0 calc(12px + env(safe-area-inset-bottom,0px));
   background:linear-gradient(180deg,transparent,var(--bg,#050505) 28%);
+  pointer-events:none;
 }
 .qd-send{
   height:44px;border-radius:12px;font-weight:700;color:#0a0a0a;
   background:linear-gradient(135deg,var(--qd-gold),#e8d48a);
+  pointer-events:auto;
 }
 .qd-send:disabled{opacity:.4}
 @media (max-width:420px){

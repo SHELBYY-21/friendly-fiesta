@@ -170,7 +170,7 @@ export async function listOpenPending(chatId?: number | null, limit = 40): Promi
   let q = supabaseAdmin
     .from('pending_slips')
     .select('*')
-    .in('status', ['PIN_MISMATCH', 'OCR_WEAK', 'NEED_UNIT', 'IN_READY', 'IN_READY_REVIEW', 'LOCKED'])
+    .in('status', ['PIN_MISMATCH', 'OCR_WEAK', 'NEED_UNIT', 'IN_READY', 'IN_READY_REVIEW', 'LOCKED', 'HOLD'])
     .order('created_at', { ascending: false })
     .limit(limit);
   if (chatId != null) q = q.eq('chat_id', chatId);

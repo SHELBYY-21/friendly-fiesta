@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     const pendingQ = supabaseAdmin
         .from('pending_slips')
         .select('short_ref, ledger_ref, status, thb_in, should_send, bank, name, note, created_at')
-        .in('status', ['IN_READY', 'IN_READY_REVIEW', 'LOCKED', 'OCR_WEAK', 'PIN_MISMATCH'])
+        .in('status', ['IN_READY', 'IN_READY_REVIEW', 'LOCKED', 'OCR_WEAK', 'PIN_MISMATCH', 'HOLD'])
         .order('created_at', { ascending: false })
         .limit(20);
     const [vault, pins, pending, rates] = await Promise.all([

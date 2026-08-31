@@ -50,7 +50,9 @@ function isOpenWait(status: string): boolean {
 
 function matchesFilter(mode: VaultMode, status: string, _pending: boolean): boolean {
   const chip = chipOf(status);
-  if (mode === 'wait' || mode === 'pending') return isOpenWait(status) || chip === 'WAIT' || chip === 'SENT';
+  if (mode === 'wait' || mode === 'pending') {
+    return isOpenWait(status) || chip === 'WAIT' || chip === 'SENT' || chip === 'ERR';
+  }
   if (mode === 'done') return chip === 'DONE';
   if (mode === 'err') return chip === 'ERR';
   return true;

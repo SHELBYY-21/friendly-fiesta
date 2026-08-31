@@ -4,23 +4,23 @@
 @tailwind utilities;
 
 :root {
-  --bg: #050505;
-  --bg-elevated: #0c0c0c;
-  --bg-subtle: #141414;
-  --panel: #0c0c0c;
-  --fg: #f4f4f5;
-  --fg-muted: #a1a1aa;
-  --fg-subtle: #71717a;
-  --gold: #c9a84c;
+  --bg: #030a16;
+  --bg-elevated: #0d1b2a;
+  --bg-subtle: #132238;
+  --panel: rgba(13, 27, 42, 0.86);
+  --fg: #d6e4ff;
+  --fg-muted: #8ab4f8;
+  --fg-subtle: #4a6288;
+  --gold: #ffbf00;
   --gold-dim: color-mix(in srgb, var(--gold) 14%, transparent);
-  --cyan: #8a9aa8;
-  --cyan-dim: color-mix(in srgb, var(--cyan) 14%, transparent);
-  --line: color-mix(in srgb, var(--fg) 10%, transparent);
-  --danger: #ff453a;
+  --cyan: #00ffff;
+  --cyan-dim: color-mix(in srgb, var(--cyan) 16%, transparent);
+  --line: #1c355e;
+  --danger: #ff0000;
   --text: var(--fg);
   --muted: var(--fg-muted);
   --border: var(--line);
-  --border-strong: color-mix(in srgb, var(--fg) 20%, transparent);
+  --border-strong: #2a4a7a;
   --brand-1: var(--gold);
   --good: var(--cyan);
 
@@ -37,7 +37,7 @@
   --space-5: 24px;
   --space-6: 32px;
 
-  --font-display: var(--font-sans-next), var(--font-thai-next), system-ui, sans-serif;
+  --font-display: var(--font-ops-next), var(--font-sans-next), system-ui, sans-serif;
   --font-body: var(--font-sans-next), var(--font-thai-next), system-ui, sans-serif;
   --font-mono: var(--font-mono-next), ui-monospace, SFMono-Regular, Menlo, monospace;
 
@@ -82,17 +82,19 @@
     justify-content: space-between;
     min-height: calc(56px + env(safe-area-inset-top, 0px));
     padding: calc(env(safe-area-inset-top, 0px) + var(--space-2)) var(--space-5) var(--space-2);
-    background: color-mix(in srgb, var(--bg) 86%, transparent);
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
     backdrop-filter: saturate(140%) blur(16px);
-    border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid var(--cyan);
   }
   .agent-rail {
     height: 1px;
     background: var(--line);
   }
   .mark-glow {
-    color: var(--gold);
-    font-size: 14px;
+    color: var(--cyan);
+    font-family: var(--font-display);
+    font-size: 12px;
+    letter-spacing: 0.2em;
     line-height: 1;
   }
   @media (min-width: 768px) {

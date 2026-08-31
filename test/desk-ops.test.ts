@@ -76,6 +76,14 @@ assert(
   'parked HOLD queue cannot settle',
 );
 assert(statusChip(stateFromSlip({ slipStatus: 'HOLD', expectedUsdt: 24.88, sentUsdt: null })) === 'ERR', 'parked HOLD is not WAIT');
+function pendingTapeIncludes(slipStatus: string) {
+  const chip = statusChip(stateFromSlip({ slipStatus, expectedUsdt: 24.88, sentUsdt: null }));
+  return chip === 'WAIT' || chip === 'SENT' || chip === 'ERR';
+}
+assert(pendingTapeIncludes('HOLD') === true, 'parked HOLD is visible on pending tape for KEEP');
+assert(pendingTapeIncludes('PIN_MISMATCH') === true, 'mismatch stays on pending tape');
+assert(pendingTapeIncludes('LOCKED') === true, 'locked still on pending tape');
+assert(pendingTapeIncludes('SETTLED') === false, 'settled stays off pending tape');
 assert(outgoingLedgerRef('CE-20260827-C416') === 'CE-20260827-C416-OUT', 'outgoing uses distinct ledger');
 assert(outgoingLedgerRef('CE-20260827-C416-OUT') === 'CE-20260827-C416-OUT', 'outgoing suffix is stable');
 assert(
