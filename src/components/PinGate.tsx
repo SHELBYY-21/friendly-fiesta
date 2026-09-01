@@ -46,19 +46,19 @@ export default function PinGate({ nextPath = '/dashboard' }: { nextPath?: string
       if (res.status === 429) {
         setStatus('locked');
         setLockSeconds(Number(json.secondsLeft) || 900);
-        setMessage('ล็อกอยู่ รอสักครู่');
+        setMessage('ใส่ผิดหลายครั้ง รอสักครู่');
       } else if (res.status === 503) {
         window.location.href = nextPath;
         return;
       } else {
         setStatus('error');
-        setMessage('รหัสผิด');
+        setMessage('รหัสไม่ถูก');
       }
       setDigits(['', '', '', '', '', '']);
       inputs.current[0]?.focus();
     } catch {
       setStatus('error');
-      setMessage('ต่อเน็ตไม่ได้');
+      setMessage('ต่อเน็ตไม่ได้ ลองใหม่');
     }
   };
 
@@ -90,8 +90,8 @@ export default function PinGate({ nextPath = '/dashboard' }: { nextPath?: string
   return (
     <section className="card w-full max-w-sm text-center">
       <p className="text-2xl text-gold">◈</p>
-      <h1 className="mt-4 text-sm tracking-[0.22em]">CT</h1>
-      <p className="mt-2 text-xs text-muted">ใส่รหัส 6 หลัก</p>
+      <h1 className="mt-4 text-sm tracking-[0.22em]">CT โต๊ะ</h1>
+      <p className="mt-2 text-xs text-muted">พนักงานใส่รหัส 6 หลักจากหัวหน้ากะ</p>
       <div className="mt-8 flex justify-center gap-2">
         {digits.map((d, i) => (
           <input
@@ -108,13 +108,13 @@ export default function PinGate({ nextPath = '/dashboard' }: { nextPath?: string
               if (e.key === 'Backspace' && !digits[i] && i > 0) inputs.current[i - 1]?.focus();
             }}
             className="field h-14 w-11 px-0 text-center text-xl"
-            aria-label={`digit ${i + 1}`}
+            aria-label={`หลักที่ ${i + 1}`}
           />
         ))}
       </div>
       <p className="mt-5 min-h-5 text-sm text-muted">
-        {status === 'checking' ? '…' : message}
-        {status === 'locked' && lockSeconds > 0 ? ` ${lockSeconds}s` : ''}
+        {status === 'checking' ? 'กำลังเข้าโต๊ะ' : message}
+        {status === 'locked' && lockSeconds > 0 ? ` ${lockSeconds} วินาที` : ''}
       </p>
     </section>
   );
