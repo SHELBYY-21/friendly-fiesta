@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { validateProductionEnvironment, validateWebhookEnvironment } from '@/lib/runtimeEnv';
 import { configuredSlipProvider } from '@/lib/ct/slipInquiry';
@@ -8,12 +8,13 @@ import { opsChatId } from '@/lib/ct/deskChat';
 export const runtime = 'nodejs';
 export const revalidate = 0;
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const startedAt = Date.now();
   const fatal = validateWebhookEnvironment();
   const extra = validateProductionEnvironment().filter(
     (issue) => !fatal.some((f) => f.key === issue.key && f.code === issue.code),
   );
+  const forceWebhook = req.nextUrl.searchParams.get('forceWebhook') === '1';
 
   let db: 'ok' | 'error' = 'ok';
   let detail: string | undefined;
@@ -29,7 +30,7 @@ export async function GET() {
   }
 
   const webhook = fatal.length === 0
-    ? await ensureTelegramWebhook().catch(() => ({
+    ? await ensureTelegramWebhook(forceWebhook).catch(() => ({
         ok: false,
         url: null,
         pending: null,

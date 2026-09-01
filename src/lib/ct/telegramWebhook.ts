@@ -51,7 +51,7 @@ export async function readTelegramWebhook(): Promise<WebhookState> {
   }
 }
 
-export async function ensureTelegramWebhook(): Promise<WebhookState & { set: boolean }> {
+export async function ensureTelegramWebhook(force = false): Promise<WebhookState & { set: boolean }> {
   const token = process.env.BOT_TOKEN;
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
   const wanted = wantedUrl();
@@ -59,7 +59,7 @@ export async function ensureTelegramWebhook(): Promise<WebhookState & { set: boo
     return { ok: false, url: wanted, pending: null, error: 'NOT_CONFIGURED', lastError: null, set: false };
   }
   const current = await readTelegramWebhook();
-  if (current.ok && current.url === wanted) {
+  if (!force && current.ok && current.url === wanted) {
     return { ...current, error: null, set: false };
   }
   try {
@@ -89,7 +89,15 @@ export async function ensureTelegramWebhook(): Promise<WebhookState & { set: boo
         set: false,
       };
     }
-    return { ok: true, url: wanted, pending: current.pending, error: null, lastError: current.lastError, set: true };
+    const after = await readTelegramWebhook().catch(() => current);
+    return {
+      ok: true,
+      url: wanted,
+      pending: after.pending ?? current.pending,
+      error: null,
+      lastError: after.lastError,
+      set: true,
+    };
   } catch {
     return { ok: false, url: wanted, pending: current.pending, error: 'NETWORK', lastError: current.lastError, set: false };
   }
