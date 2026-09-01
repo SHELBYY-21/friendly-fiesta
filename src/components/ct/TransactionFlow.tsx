@@ -42,13 +42,22 @@ function matches(filter: QueueFilter, status: string, pending: boolean) {
   return status === 'WAIT' || status === 'QUEUE' || status === 'SENT' || status === 'LOCK';
 }
 
+function rowState(status: string, pending: boolean) {
+  if (status === 'HOLD') return 'hold';
+  if (status === 'ERR' || status === 'ERROR' || status === 'SCAN') return 'err';
+  if (status === 'DONE') return 'done';
+  if (status === 'IN' || status === 'LOCK') return 'in';
+  if (status === 'WAIT' || status === 'SENT' || status === 'QUEUE' || pending) return 'wait';
+  return 'in';
+}
+
 function badgeOf(status: string, pending: boolean) {
-  if (status === 'DONE') return { label: 'เสร็จ', cls: 'st-done' };
-  if (status === 'HOLD') return { label: 'พัก', cls: 'st-hold' };
-  if (status === 'ERR' || status === 'ERROR') return { label: 'ผิด', cls: 'st-ocr' };
-  if (status === 'IN' || status === 'LOCK') return { label: 'เข้า', cls: 'st-in' };
-  if (status === 'WAIT' || status === 'SENT' || status === 'QUEUE' || pending) return { label: 'คิว', cls: 'st-wait' };
-  return { label: status || 'เข้า', cls: 'st-ocr' };
+  const state = rowState(status, pending);
+  if (state === 'done') return { label: 'เสร็จ', cls: 'st-done' };
+  if (state === 'hold') return { label: 'พัก', cls: 'st-hold' };
+  if (state === 'err') return { label: 'ผิด', cls: 'st-ocr' };
+  if (state === 'wait') return { label: 'คิว', cls: 'st-wait' };
+  return { label: 'เข้า', cls: 'st-in' };
 }
 
 function acct(row: TapeRow) {
@@ -138,13 +147,14 @@ export function QueueTape({
         {shown.length === 0 ? <p className="qd-empty">{filter === 'WAIT' ? 'ไม่มีคิวรอโอน — ดูแท็บพักถ้าต้องการดึงกลับ' : filter === 'HOLD' ? 'ไม่มีรายการพัก — กดเริ่มรอบใหม่จะจอดคิวไว้ที่นี่' : 'ไม่มีรายการในมุมนี้'}</p> : shown.map((row, i) => {
           const badge = badgeOf(row.status, row.pending);
           const dueU = row.dueUsdt ?? row.expectedUsdt ?? row.usdt;
+          const state = rowState(row.status, row.pending);
           return (
-            <div key={row.id} role="button" tabIndex={0} onClick={() => setOpen(row)} onKeyDown={(e) => { if (e.key === 'Enter') setOpen(row); }} className={'qd-row' + (flash.has(row.id) ? ' is-flash' : '') + (row.status === 'HOLD' ? ' is-hold' : '')} style={{ ['--i' as string]: Math.min(i, 12) }}>
+            <div key={row.id} role="button" tabIndex={0} onClick={() => setOpen(row)} onKeyDown={(e) => { if (e.key === 'Enter') setOpen(row); }} className={'qd-row' + (flash.has(row.id) ? ' is-flash' : '')} data-status={state} style={{ ['--row-state' as string]: state, ['--i' as string]: Math.min(i, 12) }}>
               <span className="qd-time">{row.time || '—'}</span>
               <span className="qd-acct">{acct(row)}</span>
               <span className="qd-thb">{row.thb == null ? '—' : n(row.thb)}</span>
               <span className="qd-usdt">{n(dueU, 2)}</span>
-              <span className={'st ' + badge.cls}>{badge.label}</span>
+              <span className="st">{badge.label}</span>
             </div>
           );
         })}
