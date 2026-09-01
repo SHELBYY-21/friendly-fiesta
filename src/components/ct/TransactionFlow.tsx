@@ -21,6 +21,14 @@ type TapeRow = {
 
 type QueueFilter = 'ALL' | 'WAIT' | 'HOLD' | 'DONE' | 'ERR';
 
+const FILTER_LABEL: Record<QueueFilter, string> = {
+  WAIT: 'คิว',
+  HOLD: 'พัก',
+  DONE: 'เสร็จ',
+  ERR: 'ผิด',
+  ALL: 'ทั้งหมด',
+};
+
 function n(v: number | null | undefined, d = 0) {
   if (v == null || !Number.isFinite(Number(v))) return '—';
   return Number(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -35,12 +43,12 @@ function matches(filter: QueueFilter, status: string, pending: boolean) {
 }
 
 function badgeOf(status: string, pending: boolean) {
-  if (status === 'DONE') return { label: 'DONE', cls: 'st-done' };
-  if (status === 'HOLD') return { label: 'HOLD', cls: 'st-hold' };
-  if (status === 'ERR' || status === 'ERROR') return { label: 'ERR', cls: 'st-ocr' };
-  if (status === 'IN' || status === 'LOCK') return { label: 'IN', cls: 'st-in' };
-  if (status === 'WAIT' || status === 'SENT' || status === 'QUEUE' || pending) return { label: 'QUEUE', cls: 'st-wait' };
-  return { label: status || 'IN', cls: 'st-ocr' };
+  if (status === 'DONE') return { label: 'เสร็จ', cls: 'st-done' };
+  if (status === 'HOLD') return { label: 'พัก', cls: 'st-hold' };
+  if (status === 'ERR' || status === 'ERROR') return { label: 'ผิด', cls: 'st-ocr' };
+  if (status === 'IN' || status === 'LOCK') return { label: 'เข้า', cls: 'st-in' };
+  if (status === 'WAIT' || status === 'SENT' || status === 'QUEUE' || pending) return { label: 'คิว', cls: 'st-wait' };
+  return { label: status || 'เข้า', cls: 'st-ocr' };
 }
 
 function acct(row: TapeRow) {
@@ -108,26 +116,26 @@ export function QueueTape({
   return (
     <section className="queue-desk">
       <div className="qd-head">
-        <p className="qd-mark">{'CT \u00b7 LEDGER'}</p>
+        <p className="qd-mark">CT · สมุดรายการ</p>
         <p className="qd-clock">{dateLabel} {clock}</p>
       </div>
       <div className="qd-pills" role="tablist">
         {(['WAIT', 'HOLD', 'DONE', 'ERR', 'ALL'] as QueueFilter[]).map((f) => (
           <button key={f} type="button" className={'qd-pill' + (filter === f ? ' is-on' : '')} onClick={() => setFilter(f)}>
-            {f === 'WAIT' ? 'QUEUE' : f}{f === 'HOLD' && holdCount ? ` ${holdCount}` : ''}
+            {FILTER_LABEL[f]}{f === 'HOLD' && holdCount ? ` ${holdCount}` : ''}
           </button>
         ))}
       </div>
       <article className="qd-balance">
-        <p className="qd-k">USDT DUE</p>
+        <p className="qd-k">ต้องโอน USDT</p>
         <p className="qd-amt">{dueText}</p>
-        <p className="qd-sub">{`QUEUE ${batch.count} \u00b7 IN ${n(batch.thb)} THB \u00b7 SENT ${n(sent, 2)}${holdCount ? ` \u00b7 HOLD ${holdCount}` : ''}`}</p>
+        <p className="qd-sub">{`คิว ${batch.count} · รับ ${n(batch.thb)} บาท · ส่งแล้ว ${n(sent, 2)}${holdCount ? ` · พัก ${holdCount}` : ''}`}</p>
       </article>
       <div className="qd-cols">
-        <span>TIME</span><span>ACCT</span><span>THB</span><span>DUE</span><span>STATUS</span>
+        <span>เวลา</span><span>บัญชี</span><span>บาท</span><span>ต้องส่ง</span><span>สถานะ</span>
       </div>
       <div className="qd-list">
-        {shown.length === 0 ? <p className="qd-empty">{filter === 'WAIT' ? 'ไม่มีคิวรอโอน — ดู HOLD เพื่อ KEEP คิวพัก' : filter === 'HOLD' ? 'ไม่มีรายการพัก — กดเริ่มใหม่จะจอดคิวไว้ที่นี่' : 'ไม่มีรายการในมุมนี้'}</p> : shown.map((row, i) => {
+        {shown.length === 0 ? <p className="qd-empty">{filter === 'WAIT' ? 'ไม่มีคิวรอโอน — ดูแท็บพักถ้าต้องการดึงกลับ' : filter === 'HOLD' ? 'ไม่มีรายการพัก — กดเริ่มรอบใหม่จะจอดคิวไว้ที่นี่' : 'ไม่มีรายการในมุมนี้'}</p> : shown.map((row, i) => {
           const badge = badgeOf(row.status, row.pending);
           const dueU = row.dueUsdt ?? row.expectedUsdt ?? row.usdt;
           return (
