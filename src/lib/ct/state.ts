@@ -103,6 +103,12 @@ export function statusChip(s: TxState): string {
   return s;
 }
 
+/** Desk tape label. HOLD stays HOLD so parked slips are not mixed with OCR ERR. */
+export function tapeChip(slipStatus: string | null | undefined, state: TxState): string {
+  if (slipStatus === 'HOLD') return 'HOLD';
+  return statusChip(state);
+}
+
 export function dueUsdt(expected: number | null, sent: number | null): number | null {
   if (expected == null) return null;
   return Math.max(0, Math.round((expected - (sent ?? 0)) * 100) / 100);

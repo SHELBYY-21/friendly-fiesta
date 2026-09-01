@@ -10,6 +10,8 @@
   "include": [
     "./run-test.ts",
     "./desk-ops.test.ts",
+    "./fifty-rounds.ts",
+    "./accuracy-cases.ts",
     "../src/**/*.ts"
   ],
   "exclude": [

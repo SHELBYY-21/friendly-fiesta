@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "ts-node --project test/tsconfig.json test/run-test.ts",
+    "test": "ts-node --project test/tsconfig.json test/run-test.ts && ts-node --project test/tsconfig.json test/desk-ops.test.ts && ts-node --project test/tsconfig.json test/fifty-rounds.ts",
     "validate:env": "node -r ts-node/register scripts/validate-env.ts",
     "migrate:help": "echo \"Uses STAGING_DATABASE_URL environment variable. Example: STAGING_DATABASE_URL='******host:5432/db' npm run migrate:staging-node\"",
     "migrate:staging": "psql \"$STAGING_DATABASE_URL\" -v ON_ERROR_STOP=1 -f supabase/patch-v10-production-safety.sql",
