@@ -20,11 +20,11 @@ type Slip = {
 };
 
 function n(v: number | null | undefined, d = 0) {
-  if (v == null || !Number.isFinite(Number(v))) return '\u2014';
+  if (v == null || !Number.isFinite(Number(v))) return '—';
   return Number(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 
-const STEPS = ['OCR', 'MATCH', 'IN', 'WAIT', 'DONE'] as const;
+const STEPS = ['อ่านสลิป', 'ตรงบัญชี', 'รับเงิน', 'รอโอน', 'เสร็จ'] as const;
 
 function onSteps(status: string, pending: boolean): number {
   if (status === 'DONE') return 5;
@@ -34,6 +34,14 @@ function onSteps(status: string, pending: boolean): number {
   if (status === 'IN' || status === 'LOCK') return 3;
   if (status === 'MATCH') return 2;
   return 1;
+}
+
+function statusLabel(status: string) {
+  if (status === 'DONE') return 'เสร็จ';
+  if (status === 'HOLD') return 'พัก';
+  if (status === 'ERR' || status === 'ERROR') return 'ผิด';
+  if (status === 'WAIT' || status === 'QUEUE' || status === 'SENT') return 'คิว';
+  return 'รับ';
 }
 
 function refOf(slip: Slip) {
@@ -64,7 +72,7 @@ export function SlipCard({ slip, onClose, queue, onKeep }: {
   const used = queue?.thb ?? 0;
   const left = Math.max(0, target - used);
   const dueAll = queue?.usdt ?? 0;
-  const payee = [slip.bank, slip.last4 ? '\u00b7\u00b7\u00b7\u00b7 ' + slip.last4 : null].filter(Boolean).join(' ');
+  const payee = [slip.bank, slip.last4 ? '···· ' + slip.last4 : null].filter(Boolean).join(' ');
 
   async function copyRef() {
     if (!ref) return;
@@ -74,39 +82,39 @@ export function SlipCard({ slip, onClose, queue, onKeep }: {
   }
 
   const note = slip.status === 'HOLD'
-    ? 'พักรอบนี้แล้ว — กด KEEP ถ้าจะดึงกลับเข้าคิว (ไม่นับใน DUE)'
+    ? 'พักรอบนี้แล้ว — กด ดึงเข้าคิว ถ้าจะโอน (ยังไม่นับในยอดต้องโอน)'
     : slip.status === 'ERR' || slip.status === 'ERROR'
-      ? 'บัญชีรับยังไม่ตรงหมุด — ปักบัญชีแล้วกด KEEP'
+      ? 'บัญชีรับยังไม่ตรงที่ปัก — ปักบัญชีแล้วกด ดึงเข้าคิว'
       : queued
-        ? `บันทึกเข้าคิวแล้ว ตอนนี้ต้องโอนรวม ${n(dueAll || due, 2)} USDT`
+        ? `อยู่ในคิว · ต้องโอนรวม ${n(dueAll || due, 2)} USDT`
         : 'รายการนี้ปิดแล้ว';
 
   return (
     <article className="slip term">
       <div className="slip-head">
-        <span className="slip-tag">CT \u00b7 {slip.status || 'QUEUE'}</span>
-        <button type="button" className="slip-x" onClick={onClose} aria-label="close">close</button>
+        <span className="slip-tag">สลิป · {statusLabel(slip.status)}</span>
+        <button type="button" className="slip-x" onClick={onClose} aria-label="ปิด">ปิด</button>
       </div>
       <p className="slip-rail">
         {STEPS.map((s, i) => (
-          <span key={s} className={i < active ? 'on' : ''}>{(i < active ? '\u25cf' : '\u25cb') + ' ' + s}</span>
+          <span key={s} className={i < active ? 'on' : ''}>{(i < active ? '●' : '○') + ' ' + s}</span>
         ))}
       </p>
       <div className="slip-rule" />
-      <div className="slip-row"><span>TIME</span><span>{slip.time || '\u2014'}</span></div>
-      <div className="slip-row"><span>REF</span><button type="button" className={'slip-copy' + (copied ? ' is-on' : '')} onClick={copyRef}>{copied ? 'copied' : ref || '\u2014'}</button></div>
-      <div className="slip-row"><span>PAYEE</span><span>{payee || '\u2014'}</span></div>
-      <div className="slip-row"><span>NAME</span><span>{slip.name || '\u2014'}</span></div>
+      <div className="slip-row"><span>เวลา</span><span>{slip.time || '—'}</span></div>
+      <div className="slip-row"><span>เลขอ้างอิง</span><button type="button" className={'slip-copy' + (copied ? ' is-on' : '')} onClick={copyRef}>{copied ? 'คัดอยู่' : ref || '—'}</button></div>
+      <div className="slip-row"><span>บัญชีรับ</span><span>{payee || '—'}</span></div>
+      <div className="slip-row"><span>ชื่อ</span><span>{slip.name || '—'}</span></div>
       <div className="slip-rule" />
-      <div className="slip-row"><span>IN</span><span className="in">{n(slip.thb)} THB</span></div>
-      <div className="slip-row"><span>DUE</span><span className="due">{n(due ?? expected, 2)} USDT</span></div>
-      <div className="slip-row"><span>SENT</span><span>{n(sent, 2)} USDT</span></div>
+      <div className="slip-row"><span>รับ</span><span className="in">{n(slip.thb)} บาท</span></div>
+      <div className="slip-row"><span>ต้องโอน</span><span className="due">{n(due ?? expected, 2)} USDT</span></div>
+      <div className="slip-row"><span>โอนแล้ว</span><span>{n(sent, 2)} USDT</span></div>
       <div className="slip-rule" />
-      <div className="slip-row"><span>QUEUE</span><span>{queue?.count ?? 1} รายการ</span></div>
-      <div className="slip-row"><span>IN ALL</span><span className="in">{n(queue?.thb)} THB</span></div>
-      <div className="slip-row"><span>DUE ALL</span><span className="due">{n(dueAll, 2)} USDT</span></div>
-      <div className="slip-row"><span>TARGET</span><span>{n(target)} THB</span></div>
-      <div className="slip-row"><span>LEFT</span><span>{n(left)} THB</span></div>
+      <div className="slip-row"><span>คิวรวม</span><span>{queue?.count ?? 1} รายการ</span></div>
+      <div className="slip-row"><span>รับรวม</span><span className="in">{n(queue?.thb)} บาท</span></div>
+      <div className="slip-row"><span>ต้องโอนรวม</span><span className="due">{n(dueAll, 2)} USDT</span></div>
+      <div className="slip-row"><span>เป้าหมายกอง</span><span>{n(target)} บาท</span></div>
+      <div className="slip-row"><span>เหลืออีก</span><span>{n(left)} บาท</span></div>
       <div className="slip-rule" />
       <p className="slip-note">{note}</p>
       {onKeep && slip.status !== 'DONE' ? (
@@ -122,18 +130,16 @@ export function SlipCard({ slip, onClose, queue, onKeep }: {
               try {
                 await onKeep();
               } catch (e: any) {
-                setKeepErr(e?.message || 'KEEP ไม่สำเร็จ');
+                setKeepErr(e?.message || 'ดึงเข้าคิวไม่สำเร็จ');
               } finally {
                 setKeeping(false);
               }
             }}
           >
-            {keeping ? 'กำลังเก็บ' : slip.status === 'ERR' || slip.status === 'ERROR' || slip.status === 'HOLD'
-              ? 'KEEP เข้าคิว'
-              : 'KEEP'}
+            {keeping ? 'กำลังดึง' : 'ดึงเข้าคิว'}
           </button>
         </>
-      ) : queued ? <p className="slip-note">กด บันทึกส่งรวม เมื่อต้องการโอน</p> : null}
+      ) : queued ? <p className="slip-note">โอน USDT แล้วค่อยกด บันทึกส่งรวม</p> : null}
     </article>
   );
 }

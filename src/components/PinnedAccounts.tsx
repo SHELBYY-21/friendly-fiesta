@@ -57,7 +57,7 @@ export default function PinnedAccounts({
     return (
       <div className="glass accent-top reveal p-5">
         <div className="flex items-center justify-between gap-3">
-          <p className="text-sm text-muted">ยังไม่มีบัญชีรับวันนี้</p>
+          <p className="text-sm text-muted">ยังไม่มีบัญชีรับวันนี้ — กดปักก่อนรับสลิป</p>
           <SyncBadge lastSync={lastSync} status={syncStatus} />
         </div>
         {choices.length > 0 && onPin ? (
@@ -75,7 +75,7 @@ export default function PinnedAccounts({
             ))}
           </div>
         ) : (
-          <p className="mt-2 text-xs text-muted">ปักบัญชีรับแล้วสลิปจะเข้าคิวเอง</p>
+          <p className="mt-2 text-xs text-muted">ปักบัญชีรับแล้วสลิปจึงเข้าคิวได้</p>
         )}
       </div>
     );
@@ -84,9 +84,9 @@ export default function PinnedAccounts({
   return (
     <div className="glass accent-top reveal overflow-hidden">
       <div className="flex items-center justify-between border-b border-[color:var(--border)] px-5 py-3">
-        <h2 className="text-sm font-semibold tracking-[0.14em]">วงเงินวันนี้</h2>
+        <h2 className="text-sm font-semibold tracking-[0.08em]">บัญชีรับวันนี้</h2>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted">{accounts.length}</span>
+          <span className="text-xs text-muted">{accounts.length} บัญชี</span>
           <SyncBadge lastSync={lastSync} status={syncStatus} />
         </div>
       </div>
@@ -108,11 +108,11 @@ export default function PinnedAccounts({
                 <p className="min-w-0 truncate text-sm">
                   {acc.bankName} <span className="font-mono text-gold">····{acc.last4}</span>
                 </p>
-                <span className={`pill ${acc.status === 'active' ? 'pill-wait' : 'pill-done'}`}>pin</span>
+                <span className={`pill ${acc.status === 'active' ? 'pill-wait' : 'pill-done'}`}>ปักอยู่</span>
               </div>
               <p className="mt-1 font-mono text-xs text-muted">
-                ใช้ไป {nf.format(acc.totalThb)} THB
-                {cap != null ? ` \u00B7 วงเงิน ${nf.format(cap)} \u00B7 เหลือ ${nf.format(left ?? 0)}` : ' \u00B7 วงเงินยังไม่ตั้ง'}
+                รับแล้ว {nf.format(acc.totalThb)} บาท
+                {cap != null ? ` · วงเงิน ${nf.format(cap)} · เหลือ ${nf.format(left ?? 0)}` : ''}
               </p>
             </button>
           );
@@ -128,7 +128,7 @@ export default function PinnedAccounts({
               onClick={() => void onPin(c.id)}
               className="keep px-3 py-2 text-xs"
             >
-              + {c.bankName} ····{c.last4}
+              + ปัก {c.bankName} ····{c.last4}
             </button>
           ))}
         </div>

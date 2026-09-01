@@ -14,17 +14,17 @@ function formatRelative(date: Date): string {
   const diffMs = Date.now() - date.getTime();
   const diffSec = Math.floor(diffMs / 1000);
   if (diffSec < 5) return 'เมื่อกี้';
-  if (diffSec < 60) return `${diffSec}s`;
+  if (diffSec < 60) return `${diffSec} วิ`;
   const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}m`;
-  return `${Math.floor(diffMin / 60)}h`;
+  if (diffMin < 60) return `${diffMin} นาที`;
+  return `${Math.floor(diffMin / 60)} ชม.`;
 }
 
 const LABEL: Record<SyncStatus, string> = {
-  live: 'live',
-  syncing: 'sync',
-  stale: 'stale',
-  error: 'error',
+  live: 'สด',
+  syncing: 'กำลังอัปเดต',
+  stale: 'ข้อมูลเก่า',
+  error: 'เชื่อมไม่ได้',
 };
 
 export default function SyncBadge({ lastSync, status, staleAfterMs = 60_000 }: SyncBadgeProps) {

@@ -39,10 +39,10 @@ function n(v: number, d: number) {
 }
 
 function Row({
-  label, en, value, tone, mark,
+  label, hint, value, tone, mark,
 }: {
   label: string;
-  en: string;
+  hint: string;
   value: ReactNode;
   tone?: 'in' | 'out' | 'net' | 'due' | 'muted';
   mark?: 'in' | 'out';
@@ -52,7 +52,7 @@ function Row({
       <span className="sum-k">
         {mark ? <i className={'sum-dot ' + mark} /> : null}
         {label}
-        <em>{en}</em>
+        <em>{hint}</em>
       </span>
       <span className="sum-v">{value}</span>
     </div>
@@ -84,47 +84,47 @@ export default function SummaryToday({
     <section className="sum-desk">
       <header className="sum-head">
         <div>
-          <p className="sum-title">โต๊ะวันนี้</p>
-          <p className="sum-meta">{dateLabel ?? 'today'}</p>
+          <p className="sum-title">ยอดวันนี้</p>
+          <p className="sum-meta">{dateLabel ?? 'วันนี้'}</p>
         </div>
         <SyncBadge lastSync={lastSync} status={syncStatus} />
       </header>
 
       <div className="kpi-strip">
         <article className="kpi is-in">
-          <p>IN</p>
+          <p>รับบาท</p>
           <strong><CountUp value={daily.totalThbReceived} decimals={0} /></strong>
-          <span>THB · {inCount}</span>
+          <span>บาท · {inCount} รายการ</span>
         </article>
         <article className="kpi is-due">
-          <p>DUE</p>
+          <p>ต้องโอน</p>
           <strong><CountUp value={required} decimals={2} /></strong>
-          <span>USDT ต้องโอน</span>
+          <span>USDT</span>
         </article>
         <article className="kpi">
-          <p>SENT</p>
+          <p>โอนแล้ว</p>
           <strong><CountUp value={daily.totalUsdtSent} decimals={2} /></strong>
-          <span>USDT · {outCount}</span>
+          <span>USDT · {outCount} รายการ</span>
         </article>
         <article className={over ? 'kpi is-out' : 'kpi'}>
-          <p>{over ? 'OVER' : 'OPEN'}</p>
+          <p>{over ? 'ส่งเกิน' : 'ยังค้าง'}</p>
           <strong><CountUp value={over ? Math.abs(coin) : pending} decimals={2} /></strong>
-          <span>{over ? 'ส่งเกิน' : `ค้าง ${wait}`}</span>
+          <span>{over ? 'USDT' : `คิว ${wait}`}</span>
         </article>
       </div>
 
       <div className="sum-block">
-        <Row mark="in" label="เงินเข้า" en="IN" tone="in" value={<><CountUp value={daily.totalThbReceived} decimals={0} /> THB<span className="sum-qty">{inCount}</span></>} />
-        <Row label="ต้องโอน" en="DUE" tone="due" value={<><CountUp value={required} decimals={2} /> U</>} />
-        <Row mark="out" label="โอนแล้ว" en="SENT" tone="out" value={<><CountUp value={daily.totalUsdtSent} decimals={2} /> U<span className="sum-qty">{outCount}</span></>} />
-        <Row label={over ? 'ส่งเกิน' : 'ค้างส่ง'} en={over ? 'OVER' : 'OPEN'} tone={over ? 'net' : 'due'} value={<><CountUp value={over ? Math.abs(coin) : pending} decimals={2} /> U</>} />
+        <Row mark="in" label="เงินเข้า" hint="รับจากลูกค้า" tone="in" value={<><CountUp value={daily.totalThbReceived} decimals={0} /> บาท<span className="sum-qty">{inCount}</span></>} />
+        <Row label="ต้องโอน" hint="ยังไม่ส่ง" tone="due" value={<><CountUp value={required} decimals={2} /> U</>} />
+        <Row mark="out" label="โอนแล้ว" hint="บันทึกแล้ว" tone="out" value={<><CountUp value={daily.totalUsdtSent} decimals={2} /> U<span className="sum-qty">{outCount}</span></>} />
+        <Row label={over ? 'ส่งเกิน' : 'ยังค้าง'} hint={over ? 'ตรวจหัวหน้า' : 'รอในคิว'} tone={over ? 'net' : 'due'} value={<><CountUp value={over ? Math.abs(coin) : pending} decimals={2} /> U</>} />
       </div>
       <div className="sum-rule" />
       <div className="sum-block">
-        <Row label="เรทโต๊ะ" en="DESK" value={desk ? n(desk, 2) + ' THB / U' : '\u2014'} />
-        <Row label="ตลาด" en="MKT" tone="muted" value={mkt ? n(mkt, 2) : '\u2014'} />
-        <Row label="อัปเดต" en="SYNC" tone="muted" value={clock ?? '\u2014'} />
-        {owner ? <Row label="ผู้รับผิดชอบ" en="OPS" value={owner.name + ' \u00B7 ' + owner.count} /> : null}
+        <Row label="เรทโต๊ะ" hint="ขายลูกค้า" value={desk ? n(desk, 2) + ' บาท / U' : '—'} />
+        <Row label="เรทตลาด" hint="อ้างอิง" tone="muted" value={mkt ? n(mkt, 2) : '—'} />
+        <Row label="อัปเดตล่าสุด" hint="" tone="muted" value={clock ?? '—'} />
+        {owner ? <Row label="ผู้รับผิดชอบ" hint="" value={owner.name + ' · ' + owner.count} /> : null}
       </div>
     </section>
   );
