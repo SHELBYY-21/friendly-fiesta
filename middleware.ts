@@ -2,10 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { SESSION_COOKIE, verifySessionToken, isAuthConfigured } from '@/lib/dashboardAuth';
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/api/dashboard/:path*', '/api/admin/:path*'],
+  matcher: ['/dashboard/:path*', '/api/dashboard/:path*', '/api/admin/:path*', '/api/telegram/webhook'],
 };
 
 export async function middleware(req: NextRequest) {
+  if (req.nextUrl.pathname === '/api/telegram/webhook') {
+    if (req.method === 'GET' || req.method === 'HEAD') {
+      return NextResponse.json({ ok: true, expect: 'POST' });
+    }
+    return NextResponse.next();
+  }
+
   if (!isAuthConfigured()) return NextResponse.next();
 
   const token = req.cookies.get(SESSION_COOKIE)?.value;
