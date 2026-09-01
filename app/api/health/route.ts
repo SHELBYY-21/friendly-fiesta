@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { validateProductionEnvironment, validateWebhookEnvironment } from '@/lib/runtimeEnv';
 import { configuredSlipProvider } from '@/lib/ct/slipInquiry';
+import { ensureTelegramWebhook } from '@/lib/ct/telegramWebhook';
+import { opsChatId } from '@/lib/ct/deskChat';
 
 export const runtime = 'nodejs';
 export const revalidate = 0;
@@ -26,6 +28,11 @@ export async function GET() {
     detail = e?.message;
   }
 
+  const webhook = fatal.length === 0
+    ? await ensureTelegramWebhook().catch(() => ({ ok: false, url: null, pending: null, error: 'ENSURE_FAILED', set: false }))
+    : { ok: false, url: null, pending: null, error: 'ENV', set: false };
+  const chatId = await opsChatId(null).catch(() => null);
+
   const latency = Date.now() - startedAt;
   const isUp = fatal.length === 0 && db === 'ok' && latency < 5000;
   const vision = Boolean(
@@ -44,7 +51,15 @@ export async function GET() {
       ocrFallback,
       slipVerify,
       pinGate: Boolean(process.env.DASHBOARD_PIN),
-      opsChat: Boolean(process.env.OPS_CHAT_ID || process.env.NOTIFY_CHAT_ID),
+      opsChat: Boolean(process.env.OPS_CHAT_ID || process.env.NOTIFY_CHAT_ID || chatId),
+      chatId,
+      webhook: {
+        ok: webhook.ok,
+        url: webhook.url,
+        pending: webhook.pending,
+        set: webhook.set,
+        error: webhook.error,
+      },
       app: (process.env.APP_URL || '').replace(/\/$/, '') || null,
       configuration: [...fatal, ...extra].map((issue) => `${issue.key}:${issue.code}`),
       latencyMs: latency,

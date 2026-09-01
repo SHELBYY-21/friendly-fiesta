@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '../supabaseAdmin';
+import { configuredAdminIds } from '../runtimeEnv';
 
 function envChatId(): number | null {
   for (const key of ['OPS_CHAT_ID', 'NOTIFY_CHAT_ID']) {
@@ -27,5 +28,7 @@ export async function opsChatId(preferred?: number | null): Promise<number | nul
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
-  return slip?.chat_id != null ? Number(slip.chat_id) : null;
+  if (slip?.chat_id != null) return Number(slip.chat_id);
+  const admins = configuredAdminIds();
+  return admins[0] ?? null;
 }
