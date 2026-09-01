@@ -4,6 +4,7 @@
   --qd-emerald: #1f8a5b;
   --qd-ok: #3dd68c;
   --qd-wait: #d4a017;
+  --qd-hold: var(--cyan, #00ffff);
   --qd-card: var(--panel, #0c0c0c);
   --qd-line: var(--line, rgba(244,244,245,.1));
   --qd-cols: 4.4rem minmax(0,1.6fr) minmax(5.2rem,1fr) minmax(5.2rem,1fr) 4.6rem;
@@ -50,6 +51,7 @@
   min-height:44px;padding:8px 2px;border-top:1px solid var(--qd-line);
   font-family:var(--font-mono),ui-monospace,monospace;font-size:13px;
 }
+.qd-row.is-hold{background:color-mix(in srgb, var(--qd-hold) 7%, transparent)}
 .qd-time{color:var(--fg-muted,#a1a1aa);font-variant-numeric:tabular-nums}
 .qd-acct{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg,#f4f4f5)}
 .qd-thb{font-weight:600;color:var(--fg,#f4f4f5);text-align:right;font-variant-numeric:tabular-nums}
@@ -59,6 +61,7 @@
 .st-in{color:var(--qd-emerald)}
 .st-wait{color:var(--qd-wait)}
 .st-done{color:var(--qd-ok)}
+.st-hold{color:var(--qd-hold)}
 .qd-dock{
   position:sticky;bottom:0;z-index:2;display:grid;grid-template-columns:1fr;gap:8px;
   padding:12px 0 calc(12px + env(safe-area-inset-bottom,0px));

@@ -37,7 +37,8 @@ function fmtDate(iso: string) {
 
 export type VaultMode = 'today' | 'pending' | 'all' | 'wait' | 'done' | 'err';
 
-function chipOf(status: string): 'WAIT' | 'DONE' | 'ERR' | 'SENT' {
+function chipOf(status: string): 'WAIT' | 'DONE' | 'ERR' | 'SENT' | 'HOLD' {
+  if (status === 'HOLD') return 'HOLD';
   if (status === 'DONE') return 'DONE';
   if (status === 'ERR' || status === 'ERROR' || status === 'SCAN') return 'ERR';
   if (status === 'SENT') return 'SENT';
@@ -51,10 +52,10 @@ function isOpenWait(status: string): boolean {
 function matchesFilter(mode: VaultMode, status: string, _pending: boolean): boolean {
   const chip = chipOf(status);
   if (mode === 'wait' || mode === 'pending') {
-    return isOpenWait(status) || chip === 'WAIT' || chip === 'SENT' || chip === 'ERR';
+    return isOpenWait(status) || chip === 'WAIT' || chip === 'SENT' || chip === 'ERR' || chip === 'HOLD';
   }
   if (mode === 'done') return chip === 'DONE';
-  if (mode === 'err') return chip === 'ERR';
+  if (mode === 'err') return chip === 'ERR' || chip === 'HOLD';
   return true;
 }
 
@@ -70,7 +71,12 @@ function isBkkToday(iso: string | null | undefined): boolean {
 }
 
 function isErrChip(status: string): boolean {
-  return status === 'ERR' || status === 'ERROR' || status === 'SCAN';
+  return status === 'ERR' || status === 'ERROR' || status === 'SCAN' || status === 'HOLD';
+}
+
+function displayStatus(slipStatus: string | null | undefined, state: string): string {
+  if (slipStatus === 'HOLD') return 'HOLD';
+  return statusChip(state as any);
 }
 
 export async function loadVault(chatId?: number | null, mode: VaultMode = 'today') {
@@ -165,7 +171,7 @@ export async function loadVault(chatId?: number | null, mode: VaultMode = 'today
       dateStamp: r.created_at ? fmtDate(r.created_at) : '\u2014',
       time: r.created_at ? fmtTime(r.created_at) : '\u2014',
       pending: state !== 'DONE',
-      status: statusChip(state),
+      status: displayStatus(r.status, state),
       state,
       bank: r.receiver_bank ?? extra?.bank ?? null,
       name: r.receiver_name ?? extra?.name ?? null,
@@ -198,7 +204,7 @@ export async function loadVault(chatId?: number | null, mode: VaultMode = 'today
       dateStamp: p.created_at ? fmtDate(p.created_at) : '\u2014',
       time: p.created_at ? fmtTime(p.created_at) : clockBkk(),
       pending: p.status !== 'SETTLED',
-      status: statusChip(state),
+      status: displayStatus(p.status, state),
       state,
       bank: p.bank,
       name: p.name,

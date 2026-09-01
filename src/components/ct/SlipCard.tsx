@@ -28,7 +28,8 @@ const STEPS = ['OCR', 'MATCH', 'IN', 'WAIT', 'DONE'] as const;
 
 function onSteps(status: string, pending: boolean): number {
   if (status === 'DONE') return 5;
-  if (status === 'ERR' || status === 'ERROR' || status === 'HOLD' || status === 'SCAN') return 1;
+  if (status === 'HOLD') return 3;
+  if (status === 'ERR' || status === 'ERROR' || status === 'SCAN') return 1;
   if (status === 'WAIT' || status === 'SENT' || status === 'QUEUE' || pending) return 4;
   if (status === 'IN' || status === 'LOCK') return 3;
   if (status === 'MATCH') return 2;
@@ -56,7 +57,7 @@ export function SlipCard({ slip, onClose, queue, onKeep }: {
     expected == null ? null : Math.max(0, Number((expected - (sent ?? 0)).toFixed(2)))
   );
   const settled = slip.status === 'DONE';
-  const queued = !settled && slip.status !== 'ERR' && slip.status !== 'ERROR';
+  const queued = !settled && slip.status !== 'ERR' && slip.status !== 'ERROR' && slip.status !== 'HOLD';
   const active = onSteps(slip.status, slip.pending);
   const ref = refOf(slip);
   const target = queue?.target ?? 10000;
@@ -71,6 +72,14 @@ export function SlipCard({ slip, onClose, queue, onKeep }: {
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1200);
   }
+
+  const note = slip.status === 'HOLD'
+    ? 'พักรอบนี้แล้ว — กด KEEP ถ้าจะดึงกลับเข้าคิว (ไม่นับใน DUE)'
+    : slip.status === 'ERR' || slip.status === 'ERROR'
+      ? 'บัญชีรับยังไม่ตรงหมุด — ปักบัญชีแล้วกด KEEP'
+      : queued
+        ? `บันทึกเข้าคิวแล้ว ตอนนี้ต้องโอนรวม ${n(dueAll || due, 2)} USDT`
+        : 'รายการนี้ปิดแล้ว';
 
   return (
     <article className="slip term">
@@ -99,13 +108,7 @@ export function SlipCard({ slip, onClose, queue, onKeep }: {
       <div className="slip-row"><span>TARGET</span><span>{n(target)} THB</span></div>
       <div className="slip-row"><span>LEFT</span><span>{n(left)} THB</span></div>
       <div className="slip-rule" />
-      <p className="slip-note">
-        {slip.status === 'ERR' || slip.status === 'ERROR'
-          ? 'บัญชีรับยังไม่ตรงหมุด — ปักบัญชีแล้วกด KEEP'
-          : queued
-            ? `บันทึกเข้าคิวแล้ว ตอนนี้ต้องโอนรวม ${n(dueAll || due, 2)} USDT`
-            : 'รายการนี้ปิดแล้ว'}
-      </p>
+      <p className="slip-note">{note}</p>
       {onKeep && slip.status !== 'DONE' ? (
         <>
           {keepErr ? <p className="slip-note" style={{ color: 'var(--danger,#ff453a)' }}>{keepErr}</p> : null}

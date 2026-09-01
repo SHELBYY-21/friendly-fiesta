@@ -19,7 +19,7 @@ type TapeRow = {
   name?: string | null;
 };
 
-type QueueFilter = 'ALL' | 'WAIT' | 'DONE' | 'ERR';
+type QueueFilter = 'ALL' | 'WAIT' | 'HOLD' | 'DONE' | 'ERR';
 
 function n(v: number | null | undefined, d = 0) {
   if (v == null || !Number.isFinite(Number(v))) return '—';
@@ -29,12 +29,14 @@ function n(v: number | null | undefined, d = 0) {
 function matches(filter: QueueFilter, status: string, pending: boolean) {
   if (filter === 'ALL') return true;
   if (filter === 'DONE') return status === 'DONE';
+  if (filter === 'HOLD') return status === 'HOLD';
   if (filter === 'ERR') return status === 'ERR' || status === 'ERROR' || status === 'SCAN';
   return status === 'WAIT' || status === 'QUEUE' || status === 'SENT' || status === 'LOCK';
 }
 
 function badgeOf(status: string, pending: boolean) {
   if (status === 'DONE') return { label: 'DONE', cls: 'st-done' };
+  if (status === 'HOLD') return { label: 'HOLD', cls: 'st-hold' };
   if (status === 'ERR' || status === 'ERROR') return { label: 'ERR', cls: 'st-ocr' };
   if (status === 'IN' || status === 'LOCK') return { label: 'IN', cls: 'st-in' };
   if (status === 'WAIT' || status === 'SENT' || status === 'QUEUE' || pending) return { label: 'QUEUE', cls: 'st-wait' };
@@ -90,15 +92,16 @@ export function QueueTape({
   settling?: boolean;
   onKeep?: (row: TapeRow) => Promise<void> | void;
 }) {
-  const [filter, setFilter] = useState<QueueFilter>('ALL');
+  const holdCount = rows.filter((r) => r.status === 'HOLD').length;
+  const [filter, setFilter] = useState<QueueFilter>(holdCount && due <= 0 ? 'HOLD' : 'ALL');
   const [open, setOpen] = useState<TapeRow | null>(null);
   const dueText = useCountUp(due, 2);
   const shown = useMemo(() => rows.filter((r) => matches(filter, r.status, r.pending)), [rows, filter]);
   const pending = useMemo(() => rows.filter((r) => r.pending || r.status === 'WAIT' || r.status === 'QUEUE'), [rows]);
   const batch = {
-    count: pending.length,
-    thb: pending.reduce((s, r) => s + (r.thb ?? 0), 0),
-    usdt: pending.reduce((s, r) => s + (r.dueUsdt ?? r.expectedUsdt ?? r.usdt ?? 0), 0),
+    count: pending.filter((r) => r.status !== 'HOLD' && r.status !== 'ERR' && r.status !== 'ERROR').length,
+    thb: pending.filter((r) => r.status !== 'HOLD' && r.status !== 'ERR' && r.status !== 'ERROR').reduce((s, r) => s + (r.thb ?? 0), 0),
+    usdt: pending.filter((r) => r.status !== 'HOLD' && r.status !== 'ERR' && r.status !== 'ERROR').reduce((s, r) => s + (r.dueUsdt ?? r.expectedUsdt ?? r.usdt ?? 0), 0),
     target: 10000,
   };
 
@@ -109,24 +112,26 @@ export function QueueTape({
         <p className="qd-clock">{dateLabel} {clock}</p>
       </div>
       <div className="qd-pills" role="tablist">
-        {(['WAIT', 'DONE', 'ERR', 'ALL'] as QueueFilter[]).map((f) => (
-          <button key={f} type="button" className={'qd-pill' + (filter === f ? ' is-on' : '')} onClick={() => setFilter(f)}>{f === 'WAIT' ? 'QUEUE' : f}</button>
+        {(['WAIT', 'HOLD', 'DONE', 'ERR', 'ALL'] as QueueFilter[]).map((f) => (
+          <button key={f} type="button" className={'qd-pill' + (filter === f ? ' is-on' : '')} onClick={() => setFilter(f)}>
+            {f === 'WAIT' ? 'QUEUE' : f}{f === 'HOLD' && holdCount ? ` ${holdCount}` : ''}
+          </button>
         ))}
       </div>
       <article className="qd-balance">
         <p className="qd-k">USDT DUE</p>
         <p className="qd-amt">{dueText}</p>
-        <p className="qd-sub">{`QUEUE ${batch.count} \u00b7 IN ${n(batch.thb)} THB \u00b7 SENT ${n(sent, 2)}`}</p>
+        <p className="qd-sub">{`QUEUE ${batch.count} \u00b7 IN ${n(batch.thb)} THB \u00b7 SENT ${n(sent, 2)}${holdCount ? ` \u00b7 HOLD ${holdCount}` : ''}`}</p>
       </article>
       <div className="qd-cols">
         <span>TIME</span><span>ACCT</span><span>THB</span><span>DUE</span><span>STATUS</span>
       </div>
       <div className="qd-list">
-        {shown.length === 0 ? <p className="qd-empty">{filter === 'WAIT' ? 'ไม่มีคิวรอโอน — ดู ERR เพื่อ KEEP คิวพัก' : 'ไม่มีรายการในมุมนี้'}</p> : shown.map((row, i) => {
+        {shown.length === 0 ? <p className="qd-empty">{filter === 'WAIT' ? 'ไม่มีคิวรอโอน — ดู HOLD เพื่อ KEEP คิวพัก' : filter === 'HOLD' ? 'ไม่มีรายการพัก — กดเริ่มใหม่จะจอดคิวไว้ที่นี่' : 'ไม่มีรายการในมุมนี้'}</p> : shown.map((row, i) => {
           const badge = badgeOf(row.status, row.pending);
           const dueU = row.dueUsdt ?? row.expectedUsdt ?? row.usdt;
           return (
-            <div key={row.id} role="button" tabIndex={0} onClick={() => setOpen(row)} onKeyDown={(e) => { if (e.key === 'Enter') setOpen(row); }} className={'qd-row' + (flash.has(row.id) ? ' is-flash' : '')} style={{ ['--i' as string]: Math.min(i, 12) }}>
+            <div key={row.id} role="button" tabIndex={0} onClick={() => setOpen(row)} onKeyDown={(e) => { if (e.key === 'Enter') setOpen(row); }} className={'qd-row' + (flash.has(row.id) ? ' is-flash' : '') + (row.status === 'HOLD' ? ' is-hold' : '')} style={{ ['--i' as string]: Math.min(i, 12) }}>
               <span className="qd-time">{row.time || '—'}</span>
               <span className="qd-acct">{acct(row)}</span>
               <span className="qd-thb">{row.thb == null ? '—' : n(row.thb)}</span>
