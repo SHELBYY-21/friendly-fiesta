@@ -8,6 +8,19 @@ import { opsChatId } from '@/lib/ct/deskChat';
 export const runtime = 'nodejs';
 export const revalidate = 0;
 
+function staleWebhookError(webhook: {
+  pending?: number | null;
+  lastError?: string | null;
+  lastErrorAt?: string | null;
+}) {
+  if (!webhook.lastError) return null;
+  if ((webhook.pending ?? 0) > 0) return webhook.lastError;
+  const at = webhook.lastErrorAt ? Date.parse(webhook.lastErrorAt) : NaN;
+  if (!Number.isFinite(at)) return webhook.lastError;
+  if (Date.now() - at > 15 * 60 * 1000) return null;
+  return webhook.lastError;
+}
+
 export async function GET(req: NextRequest) {
   const startedAt = Date.now();
   const fatal = validateWebhookEnvironment();
@@ -36,9 +49,10 @@ export async function GET(req: NextRequest) {
         pending: null,
         error: 'ENSURE_FAILED',
         lastError: null,
+        lastErrorAt: null,
         set: false,
       }))
-    : { ok: false, url: null, pending: null, error: 'ENV', lastError: null, set: false };
+    : { ok: false, url: null, pending: null, error: 'ENV', lastError: null, lastErrorAt: null, set: false };
   const chatId = await opsChatId(null).catch(() => null);
 
   const latency = Date.now() - startedAt;
@@ -48,6 +62,7 @@ export async function GET(req: NextRequest) {
   );
   const ocrFallback = Boolean(process.env.OCR_SPACE_API_KEY?.trim());
   const slipVerify = configuredSlipProvider()?.name ?? false;
+  const liveError = staleWebhookError(webhook);
 
   return NextResponse.json(
     {
@@ -67,7 +82,9 @@ export async function GET(req: NextRequest) {
         pending: webhook.pending,
         set: webhook.set,
         error: webhook.error,
-        lastError: webhook.lastError ?? null,
+        lastError: liveError,
+        lastErrorAt: webhook.lastErrorAt ?? null,
+        lastErrorArchived: webhook.lastError && !liveError ? webhook.lastError : null,
       },
       app: (process.env.APP_URL || '').replace(/\/$/, '') || null,
       configuration: [...fatal, ...extra].map((issue) => `${issue.key}:${issue.code}`),
