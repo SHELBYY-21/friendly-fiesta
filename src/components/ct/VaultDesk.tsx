@@ -5,6 +5,7 @@ import SummaryToday from '@/components/SummaryToday';
 import PinnedAccounts, { type PinnedAccount } from '@/components/PinnedAccounts';
 import { useVaultLive } from '@/lib/ct/realtime';
 import { QueueTape } from '@/components/ct/TransactionFlow';
+import StaffPlaybook from '@/components/ct/StaffPlaybook';
 
 type TapeRow = {
   id: string;
@@ -254,9 +255,9 @@ export default function VaultDesk() {
       <header className="nav dense-nav">
         <div className="flex min-w-0 items-center gap-3">
           <span className="mark-glow" aria-hidden>CT</span>
-          <span className="ops-title">DESK // OPS</span>
+          <span className="ops-title">โต๊ะปฏิบัติการ</span>
           <span className={`pill hidden sm:inline-flex ${live ? 'pill-done' : 'pill-wait'}`}>
-            {live ? 'live' : 'poll'}
+            {live ? 'สด' : 'รีเฟรช'}
           </span>
           <span className="flex gap-1">
             {(['today', 'pending'] as const).map((m) => (
@@ -271,12 +272,13 @@ export default function VaultDesk() {
             ))}
           </span>
           {settleDue > 0 && (
-            <span className="font-mono text-sm text-gold">due {money(settleDue, 2)}</span>
+            <span className="font-mono text-sm text-gold">ต้องโอน {money(settleDue, 2)}</span>
           )}
         </div>
       </header>
       <div className="agent-rail" />
       {error && <div className="noc-alert" role="alert">{error}</div>}
+      <StaffPlaybook />
       <div className="scan-ring" aria-hidden><span>{live ? 'scan live' : 'scan poll'}</span></div>
       <div className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <SummaryToday
@@ -304,10 +306,10 @@ export default function VaultDesk() {
       </div>
       {error && <p className="sr-only">{error}</p>}
       <form onSubmit={saveDesk} className="flex gap-2 border-b border-[var(--line)] px-4 py-3">
-        <input value={deskDraft} onChange={(e) => setDeskDraft(e.target.value)} placeholder="36.70" inputMode="decimal" aria-label="desk rate" className="field" />
-        <button type="submit" disabled={saving} className="keep px-4 text-xs">set rate</button>
+        <input value={deskDraft} onChange={(e) => setDeskDraft(e.target.value)} placeholder="เรทขาย เช่น 36.70" inputMode="decimal" aria-label="เรทโต๊ะ" className="field" />
+        <button type="submit" disabled={saving} className="keep px-4 text-xs">ตั้งเรท</button>
         <button type="button" disabled={resetting} className="keep px-4 text-xs" onClick={() => void resetCycle()}>
-          {resetting ? '…' : 'เริ่มใหม่'}
+          {resetting ? '…' : 'เริ่มรอบใหม่'}
         </button>
       </form>
       <QueueTape
