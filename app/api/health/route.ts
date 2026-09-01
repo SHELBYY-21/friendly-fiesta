@@ -29,8 +29,15 @@ export async function GET() {
   }
 
   const webhook = fatal.length === 0
-    ? await ensureTelegramWebhook().catch(() => ({ ok: false, url: null, pending: null, error: 'ENSURE_FAILED', set: false }))
-    : { ok: false, url: null, pending: null, error: 'ENV', set: false };
+    ? await ensureTelegramWebhook().catch(() => ({
+        ok: false,
+        url: null,
+        pending: null,
+        error: 'ENSURE_FAILED',
+        lastError: null,
+        set: false,
+      }))
+    : { ok: false, url: null, pending: null, error: 'ENV', lastError: null, set: false };
   const chatId = await opsChatId(null).catch(() => null);
 
   const latency = Date.now() - startedAt;
@@ -59,6 +66,7 @@ export async function GET() {
         pending: webhook.pending,
         set: webhook.set,
         error: webhook.error,
+        lastError: webhook.lastError ?? null,
       },
       app: (process.env.APP_URL || '').replace(/\/$/, '') || null,
       configuration: [...fatal, ...extra].map((issue) => `${issue.key}:${issue.code}`),
