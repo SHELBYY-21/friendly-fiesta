@@ -125,7 +125,7 @@ export default function VaultDesk() {
     }
   };
 
-  const keepSlip = async (row: TapeRow) => {
+  const keepSlip = async (row: Pick<TapeRow, 'short' | 'thb'>) => {
     setError(null);
     const thb = Number(row.thb || 0);
     if (thb >= 20_000) {
