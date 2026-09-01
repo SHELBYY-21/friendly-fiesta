@@ -69,6 +69,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
+      chatId,
       vault,
       rates,
       pins: pinsOut,
