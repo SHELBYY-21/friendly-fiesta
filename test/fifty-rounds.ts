@@ -25,7 +25,7 @@ type Round = {
   last4: string;
   qr?: boolean;
   currency?: boolean;
-  after?: 'park' | 'keep' | 'settle' | 'done';
+  after?: 'park' | 'keep' | 'done';
   expectGate: string;
   expectAuto: boolean;
   expectChip: string;
@@ -34,126 +34,106 @@ type Round = {
 
 function rounds(): Round[] {
   const out: Round[] = [];
-  const banks = [
-    { bank: 'KTB', last4: '6034', pin: true },
-    { bank: 'KTB', last4: '0343', pin: true },
-    { bank: 'SCB', last4: '7573', pin: true },
-    { bank: 'SCB', last4: '0343', pin: false },
-    { bank: 'TTB', last4: '4987', pin: false },
+  const shop = [
+    { bank: 'KTB', last4: '6034' },
+    { bank: 'KTB', last4: '0343' },
+    { bank: 'SCB', last4: '7573' },
   ];
   const amts = [500, 1000, 1020, 1090, 2500, 4110, 10000];
-  let n = 1;
   for (const a of amts) {
-    const b = banks[(n - 1) % 3];
+    const b = shop[out.length % shop.length];
     out.push({
-      n, name: `clean-${a}-${b.bank}`, thb: a, conf: 96 + (n % 3), pin: true, desk: 36.7,
+      n: 0, name: `clean-${a}-${b.bank}`, thb: a, conf: 97, pin: true, desk: 36.7,
       bank: b.bank, last4: b.last4, after: 'keep', expectGate: 'IN_READY', expectAuto: true,
-      expectChip: 'WAIT', expectSettle: b.pin ? null : 'PIN_MISMATCH',
+      expectChip: 'WAIT', expectSettle: null,
     });
-    n += 1;
   }
   for (const conf of [80, 88, 90, 94]) {
     out.push({
-      n, name: `review-${conf}`, thb: 1000, conf, pin: true, desk: 41, bank: 'KTB', last4: '6034',
+      n: 0, name: `review-${conf}`, thb: 1000, conf, pin: true, desk: 41, bank: 'KTB', last4: '6034',
       after: 'keep', expectGate: 'IN_READY_REVIEW', expectAuto: false, expectChip: 'WAIT', expectSettle: null,
     });
-    n += 1;
   }
   for (const conf of [0, 40, 79]) {
     out.push({
-      n, name: `weak-${conf}`, thb: 1000, conf, pin: true, desk: 41, bank: 'KTB', last4: '6034',
-      after: 'park', expectGate: 'OCR_WEAK', expectAuto: false, expectChip: 'ERR', expectSettle: 'NOT_LOCKED',
+      n: 0, name: `weak-${conf}`, thb: 1000, conf, pin: true, desk: 41, bank: 'KTB', last4: '6034',
+      expectGate: 'OCR_WEAK', expectAuto: false, expectChip: 'ERR', expectSettle: 'NOT_LOCKED',
     });
-    n += 1;
   }
   out.push({
-    n, name: 'conf-null', thb: 1000, conf: null, pin: true, desk: 41, bank: 'KTB', last4: '6034',
-    after: 'park', expectGate: 'OCR_WEAK', expectAuto: false, expectChip: 'ERR', expectSettle: 'NOT_LOCKED',
+    n: 0, name: 'conf-null', thb: 1000, conf: null, pin: true, desk: 41, bank: 'KTB', last4: '6034',
+    expectGate: 'OCR_WEAK', expectAuto: false, expectChip: 'ERR', expectSettle: 'NOT_LOCKED',
   });
-  n += 1;
-  for (const b of banks.filter((x) => !x.pin)) {
-    out.push({
-      n, name: `miss-${b.bank}-${b.last4}`, thb: 1090, conf: 99, pin: false, desk: 36.7,
-      bank: b.bank, last4: b.last4, after: 'park', expectGate: 'PIN_MISMATCH', expectAuto: false,
-      expectChip: 'ERR', expectSettle: 'NOT_LOCKED',
-    });
-    n += 1;
-  }
   out.push({
-    n, name: 'junk-10m-pin', thb: 10_000_000, conf: 99, pin: true, desk: 41, bank: 'KTB', last4: '6034',
-    after: 'park', expectGate: 'OCR_WEAK', expectAuto: false, expectChip: 'ERR', expectSettle: 'NOT_LOCKED',
+    n: 0, name: 'miss-SCB-0343', thb: 1090, conf: 99, pin: false, desk: 36.7, bank: 'SCB', last4: '0343',
+    expectGate: 'PIN_MISMATCH', expectAuto: false, expectChip: 'ERR', expectSettle: 'NOT_LOCKED',
   });
-  n += 1;
   out.push({
-    n, name: 'junk-10m-miss', thb: 10_000_000, conf: 99, pin: false, desk: 41, bank: 'SCB', last4: '9999',
-    after: 'park', expectGate: 'OCR_WEAK', expectAuto: false, expectChip: 'ERR', expectSettle: 'NOT_LOCKED',
+    n: 0, name: 'miss-TTB-4987', thb: 1090, conf: 99, pin: false, desk: 36.7, bank: 'TTB', last4: '4987',
+    expectGate: 'PIN_MISMATCH', expectAuto: false, expectChip: 'ERR', expectSettle: 'NOT_LOCKED',
   });
-  n += 1;
   out.push({
-    n, name: 'no-thb', thb: null, conf: 99, pin: true, desk: 41, bank: 'KTB', last4: '6034',
-    after: 'park', expectGate: 'NEED_UNIT', expectAuto: false, expectChip: 'SCAN', expectSettle: 'NOT_LOCKED',
+    n: 0, name: 'junk-10m-pin', thb: 10_000_000, conf: 99, pin: true, desk: 41, bank: 'KTB', last4: '6034',
+    expectGate: 'OCR_WEAK', expectAuto: false, expectChip: 'ERR', expectSettle: 'NOT_LOCKED',
   });
-  n += 1;
   out.push({
-    n, name: 'zero-thb', thb: 0, conf: 99, pin: true, desk: 41, bank: 'KTB', last4: '6034',
-    after: 'park', expectGate: 'NEED_UNIT', expectAuto: false, expectChip: 'SCAN', expectSettle: 'NOT_LOCKED',
+    n: 0, name: 'junk-10m-miss', thb: 10_000_000, conf: 99, pin: false, desk: 41, bank: 'SCB', last4: '9999',
+    expectGate: 'OCR_WEAK', expectAuto: false, expectChip: 'ERR', expectSettle: 'NOT_LOCKED',
   });
-  n += 1;
   out.push({
-    n, name: 'no-currency', thb: 1000, conf: 99, pin: true, desk: 41, bank: 'KTB', last4: '6034',
-    currency: false, after: 'park', expectGate: 'NEED_UNIT', expectAuto: false, expectChip: 'SCAN', expectSettle: 'NOT_LOCKED',
+    n: 0, name: 'no-thb', thb: null, conf: 99, pin: true, desk: 41, bank: 'KTB', last4: '6034',
+    expectGate: 'NEED_UNIT', expectAuto: false, expectChip: 'SCAN', expectSettle: 'NOT_LOCKED',
   });
-  n += 1;
   out.push({
-    n, name: 'no-desk-auto-off', thb: 1000, conf: 99, pin: true, desk: 0, bank: 'KTB', last4: '6034',
+    n: 0, name: 'zero-thb', thb: 0, conf: 99, pin: true, desk: 41, bank: 'KTB', last4: '6034',
+    expectGate: 'NEED_UNIT', expectAuto: false, expectChip: 'SCAN', expectSettle: 'NOT_LOCKED',
+  });
+  out.push({
+    n: 0, name: 'no-currency', thb: 1000, conf: 99, pin: true, desk: 41, bank: 'KTB', last4: '6034',
+    currency: false, expectGate: 'NEED_UNIT', expectAuto: false, expectChip: 'SCAN', expectSettle: 'NOT_LOCKED',
+  });
+  out.push({
+    n: 0, name: 'no-desk-auto-off', thb: 1000, conf: 99, pin: true, desk: 0, bank: 'KTB', last4: '6034',
     after: 'keep', expectGate: 'IN_READY', expectAuto: false, expectChip: 'WAIT', expectSettle: null,
   });
-  n += 1;
-  for (let i = 0; i < 6; i += 1) {
+  for (let i = 0; i < 8; i += 1) {
     const a = 800 + i * 110;
     out.push({
-      n, name: `park-hold-${a}`, thb: a, conf: 97, pin: true, desk: 36.7, bank: 'KTB', last4: '6034',
+      n: 0, name: `park-hold-${a}`, thb: a, conf: 97, pin: true, desk: 36.7, bank: 'KTB', last4: '6034',
       after: 'park', expectGate: 'IN_READY', expectAuto: true, expectChip: 'HOLD', expectSettle: 'NOT_LOCKED',
     });
-    n += 1;
   }
   for (let i = 0; i < 6; i += 1) {
     const a = 900 + i * 50;
     out.push({
-      n, name: `keep-from-hold-${a}`, thb: a, conf: 97, pin: true, desk: 36.7, bank: 'KTB', last4: '6034',
+      n: 0, name: `keep-from-hold-${a}`, thb: a, conf: 97, pin: true, desk: 36.7, bank: 'KTB', last4: '6034',
       after: 'keep', expectGate: 'IN_READY', expectAuto: true, expectChip: 'WAIT', expectSettle: null,
     });
-    n += 1;
   }
   out.push({
-    n, name: 'high-31k', thb: 31000, conf: 99, pin: true, desk: 41, bank: 'KTB', last4: '6034',
+    n: 0, name: 'high-31k', thb: 31000, conf: 99, pin: true, desk: 41, bank: 'KTB', last4: '6034',
     after: 'keep', expectGate: 'IN_READY', expectAuto: true, expectChip: 'WAIT', expectSettle: 'HIGH_VALUE',
   });
-  n += 1;
   out.push({
-    n, name: 'c416-ttb', thb: 31000, conf: 99, pin: false, desk: 41, bank: 'TTB', last4: '4987',
+    n: 0, name: 'c416-ttb', thb: 31000, conf: 99, pin: false, desk: 41, bank: 'TTB', last4: '4987',
     after: 'keep', expectGate: 'PIN_MISMATCH', expectAuto: false, expectChip: 'WAIT', expectSettle: 'PIN_MISMATCH',
   });
-  n += 1;
   out.push({
-    n, name: 'already-settled', thb: 1020, conf: 99, pin: true, desk: 41, bank: 'KTB', last4: '6034',
+    n: 0, name: 'already-settled', thb: 1020, conf: 99, pin: true, desk: 41, bank: 'KTB', last4: '6034',
     after: 'done', expectGate: 'IN_READY', expectAuto: true, expectChip: 'DONE', expectSettle: 'ALREADY_SETTLED',
   });
-  n += 1;
   out.push({
-    n, name: 'qr-beats-weak-ocr', thb: 1020, conf: 70, pin: true, desk: 36.7, bank: 'KTB', last4: '6034',
+    n: 0, name: 'qr-beats-weak-ocr', thb: 1020, conf: 70, pin: true, desk: 36.7, bank: 'KTB', last4: '6034',
     qr: true, after: 'keep', expectGate: 'IN_READY', expectAuto: true, expectChip: 'WAIT', expectSettle: null,
   });
-  n += 1;
   out.push({
-    n, name: 'above-target', thb: 12000, conf: 98, pin: true, desk: 36.7, bank: 'SCB', last4: '7573',
+    n: 0, name: 'above-target', thb: 12000, conf: 98, pin: true, desk: 36.7, bank: 'SCB', last4: '7573',
     after: 'keep', expectGate: 'IN_READY', expectAuto: true, expectChip: 'WAIT', expectSettle: null,
   });
-  n += 1;
   while (out.length < 50) {
     const a = 600 + out.length * 17;
     out.push({
-      n: out.length + 1, name: `fill-clean-${a}`, thb: a, conf: 98, pin: true, desk: 36.7,
+      n: 0, name: `fill-clean-${a}`, thb: a, conf: 98, pin: true, desk: 36.7,
       bank: 'KTB', last4: '6034', after: 'keep', expectGate: 'IN_READY', expectAuto: true,
       expectChip: 'WAIT', expectSettle: null,
     });
@@ -182,7 +162,7 @@ function runOne(r: Round) {
   const sent = r.after === 'done' ? expected : null;
   const state = stateFromSlip({
     slipStatus,
-    gate: r.after === 'park' || r.after === 'keep' || r.after === 'done' ? slipStatus : gate,
+    gate: r.after ? slipStatus : gate,
     expectedUsdt: expected,
     sentUsdt: sent,
   });
@@ -199,7 +179,7 @@ function runOne(r: Round) {
     thb_in: r.thb,
     should_send: expected && expected > 0 ? expected : 24.39,
     bank: r.bank,
-    account_masked: `····${r.last4}`,
+    account_masked: `\u00b7\u00b7\u00b7\u00b7${r.last4}`,
   }, PINS);
   assert(block === r.expectSettle, `R${r.n} ${r.name} settle ${block} != ${r.expectSettle}`);
 
@@ -224,7 +204,7 @@ export function runFiftyRounds() {
   assert(hold >= 6, 'at least 6 HOLD parks');
   assert(sent === 1, 'one settled cycle');
   assert(due > 0, 'open KEEP queue has THB');
-  console.log(`fifty-rounds ok · 50/50 · HOLD ${hold} · openTHB ${due} · settled ${sent}`);
+  console.log(`fifty-rounds ok \u00b7 50/50 \u00b7 HOLD ${hold} \u00b7 openTHB ${due} \u00b7 settled ${sent}`);
 }
 
 if (require.main === module) {
