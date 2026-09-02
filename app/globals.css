@@ -38,6 +38,7 @@
   --space-6: 32px;
 
   --font-display: var(--font-ops-next), var(--font-sans-next), system-ui, sans-serif;
+  --font-thai-next: var(--font-thai-looped-next), var(--font-thai-sans-next);
   --font-body: var(--font-thai-next), var(--font-sans-next), system-ui, sans-serif;
   --font-mono: var(--font-mono-next), ui-monospace, SFMono-Regular, Menlo, monospace;
   --ot-th: "ccmp" 1, "mark" 1, "mkmk" 1, "kern" 1;
@@ -53,6 +54,8 @@
 
 @layer base {
   html { color-scheme: dark; }
+  html[data-thai='sans'] { --font-thai-next: var(--font-thai-sans-next); }
+  html[data-thai='looped'] { --font-thai-next: var(--font-thai-looped-next); }
   body {
     background: var(--bg);
     color: var(--fg);
@@ -80,6 +83,33 @@
 }
 
 @layer components {
+  .thai-face {
+    position: sticky;
+    top: calc(8px + env(safe-area-inset-top, 0px));
+    z-index: 30;
+    display: flex;
+    width: max-content;
+    margin: 8px 12px 0 auto;
+    padding: 3px;
+    gap: 2px;
+    border-radius: 999px;
+    background: var(--bg-elevated);
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
+  .thai-face button {
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--fg-muted);
+  }
+  .thai-face button[data-on='true'] {
+    background: var(--gold);
+    color: #14110a;
+    font-weight: 700;
+  }
+
   .nav {
     position: sticky;
     top: 0;
