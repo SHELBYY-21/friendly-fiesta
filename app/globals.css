@@ -38,8 +38,9 @@
   --space-6: 32px;
 
   --font-display: var(--font-ops-next), var(--font-sans-next), system-ui, sans-serif;
-  --font-body: var(--font-sans-next), var(--font-thai-next), system-ui, sans-serif;
+  --font-body: var(--font-thai-next), var(--font-sans-next), system-ui, sans-serif;
   --font-mono: var(--font-mono-next), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ot-th: "ccmp" 1, "mark" 1, "mkmk" 1, "kern" 1;
 
   --motion-stagger: 40ms;
   --motion-micro: 80ms;
@@ -56,6 +57,10 @@
     background: var(--bg);
     color: var(--fg);
     font-family: var(--font-body);
+    line-height: 1.65;
+    font-kerning: normal;
+    font-variant-ligatures: none;
+    font-feature-settings: var(--ot-th);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -68,7 +73,9 @@
     outline-offset: 3px;
   }
   .num, .font-mono, .metrics .v, .tape td {
-    font-variant-numeric: tabular-nums;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: "tnum" 1, "lnum" 1;
   }
 }
 
@@ -96,6 +103,7 @@
     font-size: 12px;
     letter-spacing: 0.18em;
     line-height: 1;
+    font-feature-settings: normal;
   }
   @media (min-width: 768px) {
     .nav {
@@ -118,6 +126,7 @@
     border-radius: 999px;
     font-size: 13px;
     font-weight: 500;
+    line-height: 1.4;
     color: var(--fg-muted);
     transition: background var(--motion-quick) var(--ease), color var(--motion-quick) var(--ease);
   }
@@ -174,6 +183,7 @@
     color: #14110a;
     font-weight: 600;
     font-size: 14px;
+    line-height: 1.4;
     transition: transform var(--motion-quick) var(--ease), opacity var(--motion-quick) var(--ease);
   }
   .keep:active { transform: scale(0.98); }
@@ -208,8 +218,7 @@
   }
   .metrics .k {
     font-size: 10px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
+    letter-spacing: 0.04em;
     color: var(--fg-subtle);
   }
   .metrics .v {
@@ -219,6 +228,7 @@
     font-weight: 600;
     letter-spacing: -0.03em;
     line-height: 1.2;
+    font-variant-numeric: tabular-nums lining-nums;
   }
   .metrics .s {
     margin-left: 6px;
@@ -279,7 +289,8 @@
     padding: 0 10px;
     font-size: 11px;
     font-weight: 600;
-    letter-spacing: 0.04em;
+    letter-spacing: 0;
+    line-height: 1.35;
   }
   .pill-wait {
     color: var(--gold);
