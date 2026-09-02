@@ -1,17 +1,18 @@
 .desk-board{
   min-height:100vh;
   background:
-    radial-gradient(1200px 640px at 12% -10%, rgba(201,168,76,.08), transparent 55%),
-    radial-gradient(900px 500px at 100% 0%, rgba(15,61,46,.35), transparent 50%),
-    #070908;
+    radial-gradient(900px 520px at 50% 118%, rgba(30,224,138,.08), transparent 55%),
+    radial-gradient(1200px 640px at 12% -10%, rgba(94,231,255,.10), transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, rgba(8,40,80,.55), transparent 50%),
+    #050814;
   color:var(--fg);
 }
 .desk-board .nav.dense-nav{
   flex-wrap:wrap;
   gap:8px 12px;
-  border-bottom:1px solid color-mix(in srgb, var(--gold) 22%, var(--line));
-  background:color-mix(in srgb, #070908 82%, transparent);
-  backdrop-filter:blur(18px) saturate(120%);
+  border-bottom:1px solid var(--line);
+  background:color-mix(in srgb, #050814 78%, transparent);
+  backdrop-filter:blur(18px) saturate(140%);
 }
 .desk-board .nav.dense-nav > :first-child{
   min-width:0;
@@ -34,17 +35,17 @@
 .desk-board .queue-desk,
 .desk-board .slip,
 .desk-board .desk-pin > *{
-  background:color-mix(in srgb, #101612 88%, transparent);
+  background:color-mix(in srgb, #0a1220 82%, transparent);
   backdrop-filter:blur(16px);
   border:1px solid var(--line);
-  box-shadow:0 12px 40px rgba(0,0,0,.28);
+  box-shadow:0 0 0 1px color-mix(in srgb, var(--gold) 8%, transparent), 0 18px 48px rgba(0,0,0,.35);
   border-radius:16px;
 }
 .desk-board .sum-title,
 .desk-board .qd-mark{
-  font-family:var(--font-body);
-  color:var(--fg-muted);
-  letter-spacing:.08em;
+  font-family:var(--font-display);
+  color:var(--gold);
+  letter-spacing:.14em;
   text-transform:uppercase;
   font-size:11px;
   font-weight:600;
@@ -60,8 +61,8 @@
 .desk-board .slip{position:relative;z-index:3}
 .desk-board .agent-rail{
   height:1px;
-  background:linear-gradient(90deg, transparent, color-mix(in srgb, var(--gold) 40%, transparent), transparent);
-  box-shadow:none;
+  background:linear-gradient(90deg, transparent, var(--gold), transparent);
+  box-shadow:0 0 12px color-mix(in srgb, var(--gold) 40%, transparent);
 }
 .desk-board .noc-alert{
   margin:8px 16px 0;
