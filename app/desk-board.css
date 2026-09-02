@@ -99,6 +99,26 @@
   color:color-mix(in srgb, var(--gold) 70%, white);
   text-transform:uppercase;
 }
+.desk-api-panel{
+  margin:8px 16px 0;
+  padding:12px;
+  border-radius:16px;
+  background:rgba(13,27,42,.88);
+  border:1px solid #1c355e;
+}
+.desk-api-panel__bar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:8px;
+}
+.desk-api-panel__hint{
+  margin:0 0 12px;
+  font-size:12px;
+  line-height:1.55;
+  color:var(--fg-muted);
+}
 @media (prefers-reduced-motion:reduce){
   .desk-board .noc-alert{animation:none}
 }
