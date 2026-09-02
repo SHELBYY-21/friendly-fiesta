@@ -6,6 +6,7 @@ import PinnedAccounts, { type PinnedAccount } from '@/components/PinnedAccounts'
 import { useVaultLive } from '@/lib/ct/realtime';
 import { QueueTape } from '@/components/ct/TransactionFlow';
 import StaffPlaybook from '@/components/ct/StaffPlaybook';
+import DeskApiPanel from '@/components/ct/DeskApiPanel';
 
 type TapeRow = {
   id: string;
@@ -60,6 +61,7 @@ export default function VaultDesk() {
   const [settling, setSettling] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [pinning, setPinning] = useState(false);
+  const [monitor, setMonitor] = useState(false);
   const [catalog, setCatalog] = useState<Array<{ id: string; bankName: string; last4: string; label?: string | null }>>([]);
   const [mode, setMode] = useState<'today' | 'pending'>('pending');
   const [flash, setFlash] = useState<Set<string>>(new Set());
@@ -271,6 +273,13 @@ export default function VaultDesk() {
               </button>
             ))}
           </span>
+          <button
+            type="button"
+            className={'qd-pill' + (monitor ? ' is-on' : '')}
+            onClick={() => setMonitor((v) => !v)}
+          >
+            มอนิเตอร์
+          </button>
           {settleDue > 0 && (
             <span className="font-mono text-sm text-gold">ต้องโอน {money(settleDue, 2)}</span>
           )}
@@ -279,6 +288,7 @@ export default function VaultDesk() {
       <div className="agent-rail" />
       {error && <div className="noc-alert" role="alert">{error}</div>}
       <StaffPlaybook />
+      <DeskApiPanel open={monitor} onClose={() => setMonitor(false)} />
       <div className="scan-ring" aria-hidden><span>{live ? 'scan live' : 'scan poll'}</span></div>
       <div className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <SummaryToday
