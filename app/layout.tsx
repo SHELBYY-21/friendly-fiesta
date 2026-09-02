@@ -1,12 +1,11 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono, Noto_Sans_Thai, Noto_Sans_Thai_Looped, Orbitron } from 'next/font/google';
+import { Geist, Geist_Mono, Noto_Sans_Thai_Looped, Orbitron } from 'next/font/google';
 import './globals.css';
 import './queue-desk.css';
 import './sum-desk.css';
 import './slip-card.css';
 import './desk-board.css';
 import { GrokPreviewBridge } from '@/components/ct/GrokPreviewBridge';
-import { ThaiFaceToggle } from '@/components/ct/ThaiFaceToggle';
 
 const sans = Geist({
   subsets: ['latin'],
@@ -14,17 +13,10 @@ const sans = Geist({
   display: 'swap',
 });
 
-const thaiSans = Noto_Sans_Thai({
+const thai = Noto_Sans_Thai_Looped({
   subsets: ['thai'],
   weight: ['400', '500', '600', '700'],
-  variable: '--font-thai-sans-next',
-  display: 'swap',
-});
-
-const thaiLooped = Noto_Sans_Thai_Looped({
-  subsets: ['thai'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-thai-looped-next',
+  variable: '--font-thai-next',
   display: 'swap',
 });
 
@@ -48,14 +40,9 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html
-      lang="th"
-      data-thai="looped"
-      className={`${sans.variable} ${thaiSans.variable} ${thaiLooped.variable} ${mono.variable} ${ops.variable} antialiased`}
-    >
+    <html lang="th" data-thai="looped" className={`${sans.variable} ${thai.variable} ${mono.variable} ${ops.variable} antialiased`}>
       <body className="min-h-screen bg-bg text-fg">
         <GrokPreviewBridge />
-        <ThaiFaceToggle />
         {children}
       </body>
     </html>
