@@ -17,11 +17,16 @@
   margin: 0 12px 24px;
 }
 .qd-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
-.qd-mark{font-size:11px;letter-spacing:.08em;color:var(--fg-muted)}
-.qd-clock{font-family:var(--font-mono),ui-monospace,monospace;font-size:11px;color:var(--fg-muted,#9aa89e)}
+.qd-mark{
+  font-family:var(--font-display),sans-serif;
+  font-size:11px;letter-spacing:.12em;color:var(--fg-muted);
+  font-feature-settings:normal;
+}
+.qd-clock{font-family:var(--font-mono),ui-monospace,monospace;font-size:11px;color:var(--fg-muted,#9aa89e);font-variant-numeric:tabular-nums}
 .qd-pills{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
 .qd-pill{
-  height:32px;padding:0 14px;border-radius:999px;font-size:12px;letter-spacing:0;
+  min-height:36px;padding:6px 14px;border-radius:999px;font-size:13px;line-height:1.4;letter-spacing:0;
+  font-family:var(--font-body),system-ui,sans-serif;
   color:var(--fg-muted,#9aa89e);border:1px solid var(--qd-line);background:transparent;
 }
 .qd-pill.is-on{
@@ -32,12 +37,13 @@
   background:var(--qd-card);border-radius:14px;padding:18px 16px;margin-bottom:14px;
   box-shadow:inset 0 0 0 1px var(--qd-line);
 }
-.qd-k{font-size:11px;letter-spacing:.06em;color:var(--fg-muted,#9aa89e)}
+.qd-k{font-size:12px;letter-spacing:0;color:var(--fg-muted,#9aa89e);font-family:var(--font-body),system-ui,sans-serif}
 .qd-amt{
   font-family:var(--font-mono),ui-monospace,monospace;font-size:36px;font-weight:650;
-  letter-spacing:-.04em;line-height:1.1;color:var(--qd-gold);margin-top:6px;
+  letter-spacing:-.04em;line-height:1.15;color:var(--qd-gold);margin-top:6px;
+  font-variant-numeric:tabular-nums lining-nums;
 }
-.qd-sub{margin-top:8px;font-size:12px;color:var(--fg-muted,#9aa89e);font-family:var(--font-body),system-ui,sans-serif}
+.qd-sub{margin-top:8px;font-size:13px;line-height:1.55;color:var(--fg-muted,#9aa89e);font-family:var(--font-body),system-ui,sans-serif}
 .qd-cols,
 .qd-row{
   display:grid;
@@ -57,23 +63,27 @@
 .qd-cols > :nth-child(5),
 .qd-row > :nth-child(5){grid-area:status}
 .qd-cols{
-  padding:0 2px 8px;font-size:11px;letter-spacing:0;color:var(--fg-subtle,#6b786f);
+  padding:0 2px 8px;font-size:12px;letter-spacing:0;color:var(--fg-subtle,#6b786f);
+  font-family:var(--font-body),system-ui,sans-serif;
 }
 .qd-cols span:nth-child(3),
 .qd-cols span:nth-child(4),
 .qd-cols span:nth-child(5){text-align:right}
-.qd-empty{padding:28px 0;text-align:center;color:var(--fg-subtle,#6b786f);grid-column:1/-1}
+.qd-empty{padding:28px 0;text-align:center;color:var(--fg-subtle,#6b786f);grid-column:1/-1;line-height:1.6}
 .qd-list{display:grid;gap:0}
 .qd-row{
   min-height:48px;padding:10px 2px;border-top:1px solid var(--qd-line);
-  font-family:var(--font-mono),ui-monospace,monospace;font-size:13px;
+  font-size:13px;
 }
 .qd-row.is-flash{animation:flash 1.1s var(--ease,ease) both}
-.qd-time{color:var(--fg-muted,#9aa89e);font-variant-numeric:tabular-nums}
-.qd-acct{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg,#e8eee9)}
-.qd-thb{font-weight:600;color:var(--fg,#e8eee9);text-align:right;font-variant-numeric:tabular-nums}
-.qd-usdt{color:var(--qd-gold);font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
-.st{display:block;width:100%;text-align:right;font-size:11px;font-weight:700;letter-spacing:0}
+.qd-time{color:var(--fg-muted,#9aa89e);font-family:var(--font-mono),ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.qd-acct{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg,#e8eee9);font-family:var(--font-mono),ui-monospace,monospace}
+.qd-thb{font-family:var(--font-mono),ui-monospace,monospace;font-weight:600;color:var(--fg,#e8eee9);text-align:right;font-variant-numeric:tabular-nums}
+.qd-usdt{font-family:var(--font-mono),ui-monospace,monospace;color:var(--qd-gold);font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
+.st{
+  display:block;width:100%;text-align:right;font-size:12px;font-weight:700;letter-spacing:0;line-height:1.4;
+  font-family:var(--font-body),system-ui,sans-serif;
+}
 .qd-dock{
   position:sticky;bottom:0;z-index:2;display:grid;grid-template-columns:1fr;gap:8px;
   padding:12px 0 calc(12px + env(safe-area-inset-bottom,0px));
@@ -81,7 +91,8 @@
   pointer-events:none;
 }
 .qd-send{
-  height:48px;border-radius:14px;font-weight:700;color:#14110a;
+  height:48px;border-radius:14px;font-weight:700;color:#14110a;line-height:1.4;
+  font-family:var(--font-body),system-ui,sans-serif;
   background:var(--qd-gold);
   pointer-events:auto;
 }
