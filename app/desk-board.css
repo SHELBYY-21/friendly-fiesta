@@ -1,14 +1,30 @@
 .desk-board{
   min-height:100vh;
   isolation:isolate;
+  position:relative;
   background:
-    radial-gradient(circle at 50% 38%, rgba(56, 98, 180, .32) 0%, transparent 42%),
-    radial-gradient(900px 480px at 8% -8%, rgba(139, 124, 255, .22), transparent 55%),
-    radial-gradient(800px 420px at 96% 8%, rgba(103, 232, 249, .14), transparent 50%),
-    radial-gradient(2px 2px at 20% 30%, rgba(255,255,255,.06), transparent 40%),
+    radial-gradient(circle at 50% 38%, rgba(0, 229, 200, .16) 0%, transparent 42%),
+    radial-gradient(circle at 50% 38%, rgba(56, 98, 180, .28) 0%, transparent 46%),
+    radial-gradient(900px 480px at 8% -8%, rgba(0, 229, 200, .10), transparent 55%),
     #0b0e18;
   color:var(--fg);
 }
+.desk-board::after{
+  content:"";
+  pointer-events:none;
+  position:fixed;
+  inset:0;
+  z-index:0;
+  background-image:
+    radial-gradient(1.5px 1.5px at 12% 22%, rgba(0,229,200,.55), transparent),
+    radial-gradient(1px 1px at 28% 68%, rgba(103,232,249,.4), transparent),
+    radial-gradient(1.5px 1.5px at 71% 18%, rgba(0,229,200,.45), transparent),
+    radial-gradient(1px 1px at 84% 54%, rgba(255,255,255,.28), transparent),
+    radial-gradient(1.5px 1.5px at 46% 82%, rgba(0,229,200,.35), transparent),
+    radial-gradient(1px 1px at 61% 41%, rgba(103,232,249,.35), transparent);
+  opacity:.55;
+}
+.desk-board > *{position:relative;z-index:1}
 .desk-board .nav.dense-nav{
   flex-wrap:wrap;
   gap:8px 12px;
@@ -71,7 +87,7 @@
 .desk-board .slip{position:relative;z-index:3}
 .desk-board .agent-rail{
   height:1px;
-  background:linear-gradient(90deg, transparent, rgba(139,124,255,.45), rgba(103,232,249,.45), transparent);
+  background:linear-gradient(90deg, transparent, rgba(0,229,200,.45), rgba(103,232,249,.45), transparent);
   box-shadow:none;
 }
 .desk-board .noc-alert{
@@ -91,13 +107,13 @@
   height:min(200px, 48vw);
   margin:12px auto 8px;
   border-radius:50%;
-  border:1px solid rgba(255,255,255,.18);
-  background:rgba(255,255,255,.04);
-  backdrop-filter:blur(12px) saturate(140%);
-  -webkit-backdrop-filter:blur(12px) saturate(140%);
+  border:1px solid rgba(0,229,200,.35);
+  background:
+    conic-gradient(from 210deg, transparent 0 72%, rgba(0,229,200,.35) 86%, transparent 100%),
+    radial-gradient(circle at 50% 50%, rgba(0,229,200,.12), transparent 68%);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,.28),
-    0 0 48px rgba(56,98,180,.22);
+    0 0 48px rgba(0,229,200,.18);
   display:flex;
   align-items:center;
   justify-content:center;
@@ -108,7 +124,7 @@
   position:absolute;
   inset:22%;
   border-radius:50%;
-  border:1px solid rgba(255,255,255,.12);
+  border:1px solid rgba(0,229,200,.22);
 }
 .desk-board .scan-ring span{
   font-family:var(--font-body);
@@ -151,6 +167,7 @@
     -webkit-backdrop-filter:none;
     background:rgba(18,22,36,.94);
   }
+  .desk-board::after{display:none}
 }
 @media (prefers-reduced-motion:reduce){
   .desk-board .noc-alert{animation:none}
