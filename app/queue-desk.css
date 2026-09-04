@@ -2,16 +2,16 @@
   container-type: inline-size;
   container-name: queue;
   --qd-bg: transparent;
-  --qd-gold: var(--gold, #5ee7ff);
-  --qd-emerald: var(--cyan, #1ee08a);
-  --qd-ok: var(--cyan, #1ee08a);
-  --qd-wait: var(--gold, #5ee7ff);
-  --qd-hold: #5ea8c2;
+  --qd-gold: #67e8f9;
+  --qd-emerald: #1ee08a;
+  --qd-ok: #1ee08a;
+  --qd-wait: #f5c14a;
+  --qd-hold: #8b7cff;
   --qd-card: color-mix(in srgb, #071018 72%, transparent);
-  --qd-line: var(--line, rgba(94,231,255,.18));
+  --qd-line: var(--line, rgba(255,255,255,.08));
   --qd-track: 4.5rem minmax(8rem,2fr) minmax(5.75rem,1fr) minmax(5.75rem,1fr) 3.4rem;
   background: var(--qd-bg);
-  color: var(--fg, #d7f4ff);
+  color: var(--fg, #e8edf7);
   padding: 16px 16px 88px;
   border-radius: 16px;
   margin: 0 12px 24px;
@@ -22,12 +22,12 @@
   font-size:11px;letter-spacing:.14em;color:var(--qd-gold);
   font-feature-settings:normal;
 }
-.qd-clock{font-family:var(--font-mono),ui-monospace,monospace;font-size:11px;color:var(--fg-muted,#7aa8b8);font-variant-numeric:tabular-nums}
+.qd-clock{font-family:var(--font-mono),ui-monospace,monospace;font-size:11px;color:var(--fg-muted,#8b95ad);font-variant-numeric:tabular-nums}
 .qd-pills{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
 .qd-pill{
   min-height:36px;padding:6px 14px;border-radius:999px;font-size:13px;line-height:1.4;letter-spacing:0;
   font-family:var(--font-body),system-ui,sans-serif;
-  color:var(--fg-muted,#7aa8b8);border:1px solid var(--qd-line);background:transparent;
+  color:var(--fg-muted,#8b95ad);border:1px solid var(--qd-line);background:transparent;
 }
 .qd-pill.is-on{
   color:#04140c;border-color:transparent;font-weight:700;
@@ -37,14 +37,14 @@
   background:var(--qd-card);border-radius:14px;padding:18px 16px;margin-bottom:14px;
   box-shadow:inset 0 0 0 1px var(--qd-line), 0 0 28px color-mix(in srgb, var(--qd-gold) 10%, transparent);
 }
-.qd-k{font-size:12px;letter-spacing:0;color:var(--fg-muted,#7aa8b8);font-family:var(--font-body),system-ui,sans-serif}
+.qd-k{font-size:12px;letter-spacing:0;color:var(--fg-muted,#8b95ad);font-family:var(--font-body),system-ui,sans-serif}
 .qd-amt{
   font-family:var(--font-mono),ui-monospace,monospace;font-size:36px;font-weight:650;
   letter-spacing:-.04em;line-height:1.15;color:var(--qd-gold);margin-top:6px;
   font-variant-numeric:tabular-nums lining-nums;
   text-shadow:0 0 18px color-mix(in srgb, var(--qd-gold) 35%, transparent);
 }
-.qd-sub{margin-top:8px;font-size:13px;line-height:1.55;color:var(--fg-muted,#7aa8b8);font-family:var(--font-body),system-ui,sans-serif}
+.qd-sub{margin-top:8px;font-size:13px;line-height:1.55;color:var(--fg-muted,#8b95ad);font-family:var(--font-body),system-ui,sans-serif}
 .qd-cols,
 .qd-row{
   display:grid;
@@ -64,22 +64,22 @@
 .qd-cols > :nth-child(5),
 .qd-row > :nth-child(5){grid-area:status}
 .qd-cols{
-  padding:0 2px 8px;font-size:12px;letter-spacing:0;color:var(--fg-subtle,#4d6f7c);
+  padding:0 2px 8px;font-size:12px;letter-spacing:0;color:var(--fg-subtle,#5c6680);
   font-family:var(--font-body),system-ui,sans-serif;
 }
 .qd-cols span:nth-child(3),
 .qd-cols span:nth-child(4),
 .qd-cols span:nth-child(5){text-align:right}
-.qd-empty{padding:28px 0;text-align:center;color:var(--fg-subtle,#4d6f7c);grid-column:1/-1;line-height:1.6}
+.qd-empty{padding:28px 0;text-align:center;color:var(--fg-subtle,#5c6680);grid-column:1/-1;line-height:1.6}
 .qd-list{display:grid;gap:0}
 .qd-row{
   min-height:48px;padding:10px 2px;border-top:1px solid var(--qd-line);
   font-size:13px;
 }
 .qd-row.is-flash{animation:flash 1.1s var(--ease,ease) both}
-.qd-time{color:var(--fg-muted,#7aa8b8);font-family:var(--font-mono),ui-monospace,monospace;font-variant-numeric:tabular-nums}
-.qd-acct{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg,#d7f4ff);font-family:var(--font-mono),ui-monospace,monospace}
-.qd-thb{font-family:var(--font-mono),ui-monospace,monospace;font-weight:600;color:var(--fg,#d7f4ff);text-align:right;font-variant-numeric:tabular-nums}
+.qd-time{color:var(--fg-muted,#8b95ad);font-family:var(--font-mono),ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.qd-acct{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg,#e8edf7);font-family:var(--font-mono),ui-monospace,monospace}
+.qd-thb{font-family:var(--font-mono),ui-monospace,monospace;font-weight:600;color:#f3efe6;text-align:right;font-variant-numeric:tabular-nums}
 .qd-usdt{font-family:var(--font-mono),ui-monospace,monospace;color:var(--qd-gold);font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
 .st{
   display:block;width:100%;text-align:right;font-size:12px;font-weight:700;letter-spacing:0;line-height:1.4;
@@ -88,7 +88,7 @@
 .qd-dock{
   position:sticky;bottom:0;z-index:2;display:grid;grid-template-columns:1fr;gap:8px;
   padding:12px 0 calc(12px + env(safe-area-inset-bottom,0px));
-  background:linear-gradient(180deg,transparent,var(--bg,#050814) 28%);
+  background:linear-gradient(180deg,transparent,var(--bg,#0b0e18) 28%);
   pointer-events:none;
 }
 .qd-send{
@@ -102,7 +102,7 @@
 
 @container style(--row-state: hold){
   .qd-row, &{
-    background:color-mix(in srgb, var(--qd-hold) 10%, transparent);
+    background:color-mix(in srgb, var(--qd-hold) 12%, transparent);
   }
   .st{color:var(--qd-hold)}
   .qd-usdt{opacity:.55}
@@ -118,17 +118,17 @@
   .qd-usdt{color:var(--qd-ok)}
 }
 @container style(--row-state: in){
-  .st{color:var(--qd-emerald)}
+  .st{color:var(--qd-gold)}
 }
 
-.qd-row[data-status='hold']{background:color-mix(in srgb, var(--qd-hold) 10%, transparent)}
+.qd-row[data-status='hold']{background:color-mix(in srgb, var(--qd-hold) 12%, transparent)}
 .qd-row[data-status='hold'] .st{color:var(--qd-hold)}
 .qd-row[data-status='hold'] .qd-usdt{opacity:.55}
 .qd-row[data-status='err'] .st{color:var(--danger,#ff3355)}
 .qd-row[data-status='wait'] .st{color:var(--qd-wait)}
 .qd-row[data-status='done'] .st{color:var(--qd-ok)}
 .qd-row[data-status='done'] .qd-usdt{color:var(--qd-ok)}
-.qd-row[data-status='in'] .st{color:var(--qd-emerald)}
+.qd-row[data-status='in'] .st{color:var(--qd-gold)}
 
 @container queue (max-width: 680px){
   .qd-cols,
