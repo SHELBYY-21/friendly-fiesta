@@ -56,17 +56,17 @@ export function matchReplyCommand(text: string): ReplyCmd | null {
   const t = (text || '').trim();
   const low = t.toLowerCase();
   if (
-    t === 'ยอดวันนี้' || t === 'ยอด' || t === 'วันนี้' || t === 'VAULT' || t === 'VAULT วันนี้' || t === '/vault' || t === '/today' ||
+    t === 'ยอดวันนี้' || t === 'VAULT' || t === 'VAULT วันนี้' || t === '/vault' || t === '/today' ||
     t === 'สรุปวันนี้'
   ) return 'vault';
-  if (t === 'รอส่ง' || t === 'คิว' || t === 'wait' || t === '/pending') return 'pending';
-  if (t === 'ตั้งค่า' || t === 'ตั้ง' || t === '/settings') return 'settings';
-  if (t === '/admin' || t === 'แอด' || t === '+แอด' || t === 'เพิ่มผู้ดูแล') return 'addadmin';
-  if (t === 'เมนู' || t === '/menu' || t === '/help' || low === 'menu' || t === 'ช่วย') return 'settings';
-  if (t === 'วันใหม่' || t === 'ใหม่' || t === '/newday' || low === 'new') return 'newday';
-  if (t === 'pin' || t === 'หมุด' || t === 'บัญชีรับ' || t === '/pin' || t === 'บัญชี') return 'pin';
+  if (t === 'รอส่ง' || t === '/pending') return 'pending';
+  if (t === 'ตั้งค่า' || t === '/settings') return 'settings';
+  if (t === '/admin' || t === '+แอด' || t === 'เพิ่มผู้ดูแล') return 'addadmin';
+  if (t === 'เมนู' || t === '/menu' || t === '/help' || low === 'menu') return 'settings';
+  if (t === 'วันใหม่' || t === '/newday') return 'newday';
+  if (t === 'pin' || t === 'หมุด' || t === 'บัญชีรับ' || t === '/pin') return 'pin';
   if (t === '/recent' || t === '/recent_slips') return 'recent';
-  if (/^(?:\/setrate(?:@[a-z0-9_]+)?|\/rate(?:@[a-z0-9_]+)?|setrate|rate|เรท|เรต|อัตรา|เรทตอนนี้|เรทวันนี้|เรตตอนนี้|อัตราแลกเปลี่ยน)\s*$/i.test(t)) {
+  if (/^(?:\/setrate(?:@[a-z0-9_]+)?|\/rate(?:@[a-z0-9_]+)?|setrate|เรทตอนนี้|เรทวันนี้|อัตราแลกเปลี่ยน)\s*$/i.test(t)) {
     return 'rate';
   }
   return null;
