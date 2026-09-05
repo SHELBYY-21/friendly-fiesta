@@ -108,9 +108,7 @@
   margin:12px auto 8px;
   border-radius:50%;
   border:1px solid rgba(0,229,200,.35);
-  background:
-    conic-gradient(from 210deg, transparent 0 72%, rgba(0,229,200,.35) 86%, transparent 100%),
-    radial-gradient(circle at 50% 50%, rgba(0,229,200,.12), transparent 68%);
+  background:radial-gradient(circle at 50% 50%, rgba(0,229,200,.12), transparent 68%);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,.28),
     0 0 48px rgba(0,229,200,.18);
@@ -118,6 +116,7 @@
   align-items:center;
   justify-content:center;
   position:relative;
+  overflow:hidden;
 }
 .desk-board .scan-ring::before{
   content:"";
@@ -126,12 +125,32 @@
   border-radius:50%;
   border:1px solid rgba(0,229,200,.22);
 }
+.desk-board .scan-ring::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius:50%;
+  background:conic-gradient(
+    from 0deg,
+    transparent 0 78%,
+    rgba(0,229,200,.18) 82%,
+    rgba(0,229,200,.5) 88%,
+    transparent 94% 100%
+  );
+  animation:desk-sweep 9s linear infinite;
+  pointer-events:none;
+}
 .desk-board .scan-ring span{
+  position:relative;
+  z-index:1;
   font-family:var(--font-body);
   font-size:11px;
   letter-spacing:.08em;
   color:var(--fg-muted);
   text-transform:none;
+}
+@keyframes desk-sweep{
+  to{transform:rotate(1turn)}
 }
 .desk-api-panel{
   margin:8px 16px 0;
@@ -170,7 +189,8 @@
   .desk-board::after{display:none}
 }
 @media (prefers-reduced-motion:reduce){
-  .desk-board .noc-alert{animation:none}
+  .desk-board .noc-alert,
+  .desk-board .scan-ring::after{animation:none}
 }
 @media (max-width:767px){
   .desk-board .seg{display:none}
