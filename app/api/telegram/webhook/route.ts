@@ -93,16 +93,25 @@ const parseNums = (s: string): number[] =>
   s.trim().split(/\s+/).map(Number).filter((n) => Number.isFinite(n));
 
 type NlIntent = 'today' | 'profit' | 'recent' | 'rate';
-/** จับ intent จากข้อความธรรมชาติ (ไม่ต้องมี /); คืน null ถ้าไม่ match */
+/** ทั้งข้อความต้องเป็นคำสั่งเท่านั้น — ห้ามจับคำในประโยคคุย */
 function matchNlIntent(text?: string): NlIntent | null {
   if (!text) return null;
   const t = text.trim().toLowerCase();
   if (t.startsWith('/')) return null;
-  if (/(^|\s)(ยอด|สรุป)?วันนี้(\s|$)|today|summary/i.test(t)) return 'today';
-  if (/กำไร|profit/i.test(t)) return 'profit';
-  if (/(ลูกค้า|รายการ)?ล่าสุด|recent|ผู้รับล่าสุด/i.test(t)) return 'recent';
-  if (/(เรท|เรต|rate|exchange)/i.test(t)) return 'rate';
-  return null;
+  const exact: Record<string, NlIntent> = {
+    'ยอดวันนี้': 'today',
+    'สรุปวันนี้': 'today',
+    today: 'today',
+    summary: 'today',
+    'กำไรวันนี้': 'profit',
+    profit: 'profit',
+    'ลูกค้าล่าสุด': 'recent',
+    'รายการล่าสุด': 'recent',
+    recent: 'recent',
+    'เรทตอนนี้': 'rate',
+    'เรทวันนี้': 'rate',
+  };
+  return exact[t] ?? null;
 }
 
 export async function POST(req: NextRequest) {
@@ -196,7 +205,9 @@ async function handleUpdate(update: any): Promise<void> {
   const admin = await getAdminByTelegramId(userId);
 
   if ((requiresAdminAccess(text) || Boolean(msg.photo)) && !admin) {
-    await sendMessage(chatId, UI.error('คำสั่งนี้ใช้ได้เฉพาะผู้ดูแลระบบ — ติดต่อ SuperAdmin เพื่อเพิ่มสิทธิ์'));
+    if (!isGroup) {
+      await sendMessage(chatId, UI.error('คำสั่งนี้ใช้ได้เฉพาะผู้ดูแลระบบ — ติดต่อ SuperAdmin เพื่อเพิ่มสิทธิ์'));
+    }
     return;
   }
 
@@ -205,8 +216,8 @@ async function handleUpdate(update: any): Promise<void> {
     if (handled) return;
   }
 
-  // ----- ภาษาธรรมชาติ (NL): พิมพ์ 'ยอดวันนี้' / 'กำไรวันนี้' / 'ลูกค้าล่าสุด' / 'เรทตอนนี้' -----
-  const intent = matchNlIntent(text);
+  // ----- ภาษาธรรมชาติ: ทั้งข้อความต้องตรงคำสั่ง — กลุ่มไม่ดักประโยคคุย -----
+  const intent = isGroup ? null : matchNlIntent(text);
   if (intent && !cmd) {
     if (intent === 'today' || intent === 'profit') { await sendLedger(chatId); return; }
     if (intent === 'recent') {
@@ -687,7 +698,7 @@ async function handleUpdate(update: any): Promise<void> {
       return;
     }
     if (amt.hasBareNumber) {
-      await sendMessage(chatId, UI.error('ห้ามเดาสกุลเงิน — ใช้ +500B สำหรับ THB IN หรือ -13.6U สำหรับ USDT OUT'));
+      // เลขในแชททั่วไป (เบอร์, เวลา, ราคาคุย) — เงียบ ไม่แทรก
       return;
     }
     if (amt.thb || amt.usdt) return;
