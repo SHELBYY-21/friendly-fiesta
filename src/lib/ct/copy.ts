@@ -174,7 +174,7 @@ export function cardOcrWeak(d: {
       kv('ผู้รับ', 'PAYEE', `${esc(d.bank)}  ${esc(maskAcct(d.last4))}`),
       kv('ชื่อ', 'NAME', esc(d.name || '—')),
       '',
-      'กรุณายืนยันยอด เช่น <code>+500B</code>',
+      'กรุณายืนยันยอด เช่น <code>เข้า 500</code> หรือ <code>+500B</code>',
     ].join('\n'),
     ik(rows),
   );
@@ -185,8 +185,8 @@ export function cardNeedUnit(d: { short: string }): OutgoingMessage {
     [
       head('เงินเข้า', 'กรุณาระบุหน่วยเงิน'),
       '',
-      'ตัวอย่างยอดเข้า  <code>+500B</code>',
-      'ตัวอย่างยอดออก  <code>-13.6U</code>',
+      'ยอดเข้า  <code>เข้า 500</code> หรือ <code>+500B</code>',
+      'ยอดออก  <code>ออก 13.6</code> หรือ <code>-13.6U</code>',
     ].join('\n'),
     ik([
       [btn('ยืนยันบาท', `slip:unit:${d.short}:+B`, 'success'), btn('ยืนยันUSDT', `slip:unit:${d.short}:-U`, 'primary')],
@@ -390,7 +390,7 @@ export function cardDetail(d: {
 }
 
 export function unitHelp(): OutgoingMessage {
-  return msg(`${head('เงินเข้า', 'หน่วยเงิน')}\nยอดเข้า  <code>+500B</code>\nยอดออก  <code>-13.6U</code>`);
+  return msg(`${head('เงินเข้า', 'หน่วยเงิน')}\nยอดเข้า  <code>เข้า 500</code> หรือ <code>+500B</code>\nยอดออก  <code>ออก 13.6</code> หรือ <code>-13.6U</code>`);
 }
 
 export type VaultRow = {
