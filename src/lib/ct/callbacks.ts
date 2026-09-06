@@ -335,7 +335,7 @@ export async function handleCtCallback(opts: {
     case 'edit':
       await answerCallback(id, 'กรุณาพิมพ์ยอด');
       await sendMessage(chatId, {
-        text: `กรุณาแก้ยอดของ <code>${p.short_ref}</code>\nพิมพ์เช่น <code>+500B</code>`,
+        text: `กรุณาแก้ยอดของ <code>${p.short_ref}</code>\nพิมพ์เช่น <code>เข้า 500</code>`,
       });
       return;
     case 'note':
