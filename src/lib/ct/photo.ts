@@ -127,6 +127,10 @@ export async function handleCtPhoto(opts: { chatId: number; userId: number; admi
     qr?.transRef ? `QR:${qr.transRef}` : null,
     qrVerified ? `QR_OK:${qr?.inquiry?.provider ?? 'ok'}` : null,
     qr?.inquiry && qr.inquiry.valid === false ? 'QR_INVALID' : null,
+    slip.transRef ? `REF:${slip.transRef}` : null,
+    slip.channel ? `CH:${slip.channel}` : null,
+    slip.senderName ? `FROM:${slip.senderName}` : null,
+    slip.feeThb != null ? `FEE:${slip.feeThb}` : null,
   ].filter(Boolean).join('|') || null;
   const pending = await insertPending({
     chat_id: chatId, admin_tg_id: userId, admin_name: admin.name,
@@ -151,6 +155,7 @@ export async function handleCtPhoto(opts: { chatId: number; userId: number; admi
     pinBank: matchedPin?.bank_name ?? todayPin?.bank_name ?? '—', pinLast4: accountLast4(matchedPin?.account_number ?? todayPin?.account_number) ?? 'ยังไม่หมุด',
     lead: admin.role === 'SuperAdmin' || admin.role === 'Admin',
     chips: thb ? [thb] : [500, 1000], fresh: Boolean(last4) && known.length === 0,
+    slip,
   }));
 }
 
@@ -167,9 +172,37 @@ async function tryQueue(pending: PendingSlip, ctx: { chatId: number; userId: num
   } catch { return false; }
 }
 
-export function renderGateCard(p: PendingSlip, extra: { gate: OcrGate; slipBank: string; slipLast4: string; pinBank: string; pinLast4: string; lead: boolean; chips: number[]; fresh?: boolean; }) {
+export function renderGateCard(p: PendingSlip, extra: {
+  gate: OcrGate; slipBank: string; slipLast4: string; pinBank: string; pinLast4: string;
+  lead: boolean; chips: number[]; fresh?: boolean; slip?: SlipExtract;
+}) {
+  const s = extra.slip;
   if (extra.gate === 'PIN_MISMATCH') return C.cardPinMismatch({ slipBank: extra.slipBank, slipLast4: extra.slipLast4, pinBank: extra.pinBank, pinLast4: extra.pinLast4, name: p.name, confidence: p.ocr_confidence ?? 0, short: p.short_ref, lead: extra.lead });
   if (extra.gate === 'NEED_UNIT') return C.cardNeedUnit({ short: p.short_ref });
   if (extra.gate === 'OCR_WEAK') return C.cardOcrWeak({ bank: extra.slipBank, last4: extra.slipLast4, name: p.name, confidence: p.ocr_confidence ?? 0, short: p.short_ref, chips: extra.chips });
-  return C.cardInReady({ review: extra.gate === 'IN_READY_REVIEW', thb: p.thb_in ?? 0, shouldSend: p.should_send ?? 0, desk: p.desk_rate ?? 0, mkt: p.mkt_rate, bank: extra.pinBank || extra.slipBank, last4: extra.pinLast4 || extra.slipLast4, name: p.name, confidence: p.ocr_confidence ?? 0, ledger: p.ledger_ref, adminName: p.admin_name ?? 'Admin', short: p.short_ref, fresh: extra.fresh });
+  return C.cardInReady({
+    review: extra.gate === 'IN_READY_REVIEW',
+    thb: p.thb_in ?? 0,
+    shouldSend: p.should_send ?? 0,
+    desk: p.desk_rate ?? 0,
+    mkt: p.mkt_rate,
+    bank: extra.pinBank || extra.slipBank,
+    last4: extra.pinLast4 || extra.slipLast4,
+    name: p.name,
+    confidence: p.ocr_confidence ?? 0,
+    ledger: p.ledger_ref,
+    adminName: p.admin_name ?? 'Admin',
+    short: p.short_ref,
+    fresh: extra.fresh,
+    time: s?.time ?? undefined,
+    date: s?.date,
+    senderName: s?.senderName,
+    senderLast4: s?.senderLast4,
+    senderBank: s?.senderBank,
+    receiverAccount: s?.receiverAccount,
+    transRef: s?.transRef,
+    feeThb: s?.feeThb,
+    channel: s?.channel,
+    promptpay: s?.promptpay,
+  });
 }
