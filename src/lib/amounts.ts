@@ -1,24 +1,27 @@
 // ============================================================
-// ตัวอ่านจำนวนเงินแบบ "ระบุชัดเจน" — ไม่เดาให้
-//   +500B   = บาทเข้า   (THB in)
-//   -300U   = USDT ออก  (USDT out)
-// ต้องมีเครื่องหมาย (+/-) และสกุล (B/U) เสมอ ถ้าไม่ครบ = ไม่รับ
-// รองรับ: B|บ|บาท|THB  และ  U|ยู|USDT  (พิมพ์เล็ก/ใหญ่ได้, มี comma ได้)
+// ยอดต้องมี keyword — ไม่เดาจากเลขลอย
+//   เข้า 500   | +500B | THB 500     = บาทเข้า
+//   ออก 13.6  | -13.6U | USDT 13.6  = USDT ออก
+// เลขเปล่า (500, เบอร์โทร, เวลา) = ไม่รับ
 // ============================================================
 
 export type Currency = 'THB' | 'USDT';
 
 export interface AmountToken {
-  sign: 1 | -1;      // +1 = เข้า, -1 = ออก
-  value: number;     // ค่าสัมบูรณ์ (บวกเสมอ)
+  sign: 1 | -1;
+  value: number;
   currency: Currency;
   raw: string;
 }
 
-// ([+-]) (ตัวเลข) (สกุล — บังคับ)
-// ห้ามอนุมานสกุลจากเครื่องหมายโดยเด็ดขาด
-const TOKEN_RE =
+const SIGNED_RE =
   /([+-])\s*(\d[\d,]*(?:\.\d+)?)\s*(THB|USDT|บาท|[BUบ])(?![\p{L}\p{N}_])/giu;
+
+const IN_KEY_RE =
+  /(?:^|[\s,;|/])(เข้า|รับ|in|thb|บาท)\s*:?\s*(\d[\d,]*(?:\.\d+)?)(?![\p{L}\p{N}])/giu;
+
+const OUT_KEY_RE =
+  /(?:^|[\s,;|/])(ออก|ส่ง|out|usdt)\s*:?\s*(\d[\d,]*(?:\.\d+)?)(?![\p{L}\p{N}])/giu;
 
 function toCurrency(unit: string): Currency {
   const u = unit.toUpperCase();
@@ -26,31 +29,48 @@ function toCurrency(unit: string): Currency {
   return 'USDT';
 }
 
-/** อ่าน token ทั้งหมดในข้อความ เช่น "+500B -13.6U" → 2 tokens */
+/** อ่าน token ที่ระบุชัด เช่น "เข้า 500" "+500B" "ออก 13.6" */
 export function parseAmountTokens(text: string): AmountToken[] {
   const out: AmountToken[] = [];
+  const seen = new Set<string>();
   const s = text || '';
-  TOKEN_RE.lastIndex = 0;
+
+  const add = (sign: 1 | -1, valueRaw: string, currency: Currency, raw: string) => {
+    const value = parseFloat(valueRaw.replace(/,/g, ''));
+    if (!Number.isFinite(value) || value <= 0) return;
+    const key = `${sign}:${currency}:${value}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ sign, value, currency, raw: raw.trim() });
+  };
+
+  SIGNED_RE.lastIndex = 0;
   let m: RegExpExecArray | null;
-  while ((m = TOKEN_RE.exec(s)) !== null) {
-    const sign: 1 | -1 = m[1] === '-' ? -1 : 1;
-    const value = parseFloat(m[2].replace(/,/g, ''));
-    if (!Number.isFinite(value) || value <= 0) continue;
-    out.push({ sign, value, currency: toCurrency(m[3]), raw: m[0] });
+  while ((m = SIGNED_RE.exec(s)) !== null) {
+    add(m[1] === '-' ? -1 : 1, m[2], toCurrency(m[3]), m[0]);
   }
+
+  IN_KEY_RE.lastIndex = 0;
+  while ((m = IN_KEY_RE.exec(s)) !== null) {
+    add(1, m[2], 'THB', m[0]);
+  }
+
+  OUT_KEY_RE.lastIndex = 0;
+  while ((m = OUT_KEY_RE.exec(s)) !== null) {
+    add(-1, m[2], 'USDT', m[0]);
+  }
+
   return out;
 }
 
 export interface ParsedAmounts {
   thb?: AmountToken;
   usdt?: AmountToken;
-  /** มีตัวเลขแต่ไม่ได้ใส่เครื่องหมาย/สกุลให้ครบ (เช่น "500" หรือ "500B") */
+  /** มีตัวเลขแต่ไม่มี keyword / สกุล — บอทต้องเงียบ */
   hasBareNumber: boolean;
-  /** มี token สกุลเดียวกันมากกว่าหนึ่งค่า จึงเลือกยอดให้ไม่ได้อย่างปลอดภัย */
   ambiguous: boolean;
 }
 
-/** สรุป token เป็นยอด THB / USDT + ตรวจว่ามีเลขลอยๆ ที่ไม่ระบุรูปแบบไหม */
 export function parseAmounts(text: string): ParsedAmounts {
   const tokens = parseAmountTokens(text);
   const thb = tokens.find((t) => t.currency === 'THB');
@@ -59,7 +79,6 @@ export function parseAmounts(text: string): ParsedAmounts {
     tokens.filter((t) => t.currency === 'THB').length > 1 ||
     tokens.filter((t) => t.currency === 'USDT').length > 1;
 
-  // เลขที่ "ไม่ได้" อยู่ใน token ที่ถูกต้อง → ถือว่าเป็นเลขลอย (บอทจะไม่เดา)
   let stripped = text || '';
   for (const t of tokens) stripped = stripped.replace(t.raw, ' ');
   const hasBareNumber = /\d/.test(stripped);
