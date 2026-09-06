@@ -1,4 +1,4 @@
-import { sendMessage, editMessage, sendChatAction, downloadTelegramFile, uploadSlipBuffer, getChatPinnedText } from '../telegram';
+import { sendMessage, editMessage, sendChatAction, downloadTelegramFile, uploadSlipBuffer, getChatPinnedText, sendPhoto, editPhoto, deleteMessage } from '../telegram';
 import { analyzeSlipFast, type SlipExtract } from '../ocr';
 import { listPinnedBanks, matchSlipPins, accountLast4, pinBankAccount, ensureTodayPins } from '../banks';
 import { findSlipByFingerprint } from '../transactions';
@@ -15,6 +15,7 @@ import { applyQrToOcr, type SlipQrResult } from './slipQr';
 import { inspectSlipImage } from './slipInquiry';
 import * as C from './copy';
 import { cardDuplicate, cardAlreadyQueued } from './notice';
+import { renderHeroPng } from './cardImage';
 import { AiTransition, aiReceived } from './aiTransition';
 import type { Admin } from '@/types/transactions';
 import type { PinnedBank } from '../banks';
@@ -91,6 +92,25 @@ async function readSlip(chatId: number, fileId: string, cardIdP: Promise<number>
   }
 }
 
+async function sendHero(
+  chatId: number,
+  messageId: number | undefined,
+  kind: 'vault' | 'locked' | 'settled',
+  card: { text: string; reply_markup?: unknown },
+  hero: string,
+  sub?: string,
+  meta?: string,
+): Promise<number> {
+  const png = renderHeroPng(kind, { hero, sub, meta });
+  if (messageId) {
+    const ok = await editPhoto(chatId, messageId, png, card);
+    if (ok) return messageId;
+  }
+  const id = await sendPhoto(chatId, png, card);
+  if (messageId) await deleteMessage(chatId, messageId);
+  return id;
+}
+
 export async function handleCtPhoto(opts: { chatId: number; userId: number; admin: Admin; fileId: string; fileUniqueId: string; }): Promise<void> {
   const { chatId, userId, admin, fileId, fileUniqueId } = opts;
   const [pins, rates] = await Promise.all([pinsForToday(chatId), opsRates(chatId)]);
@@ -131,6 +151,8 @@ export async function handleCtPhoto(opts: { chatId: number; userId: number; admi
     slip.channel ? `CH:${slip.channel}` : null,
     slip.senderName ? `FROM:${slip.senderName}` : null,
     slip.feeThb != null ? `FEE:${slip.feeThb}` : null,
+    (slip.receiverAccount || last4Early) ? `ACCT:${String(slip.receiverAccount || last4Early).replace(/\D/g, '')}` : null,
+    slip.bank ? `BANK:${slip.bank}` : null,
   ].filter(Boolean).join('|') || null;
   const pending = await insertPending({
     chat_id: chatId, admin_tg_id: userId, admin_name: admin.name,
@@ -150,13 +172,20 @@ export async function handleCtPhoto(opts: { chatId: number; userId: number; admi
     if (queued) return;
   }
   const known = last4 ? await findReceiversByLast4(last4) : [];
-  await editMessage(chatId, cardId, renderGateCard(pending, {
+  const card = renderGateCard(pending, {
     gate, slipBank: slip.bank ?? '—', slipLast4: last4Early ?? slip.receiverLast4 ?? '????',
     pinBank: matchedPin?.bank_name ?? todayPin?.bank_name ?? '—', pinLast4: accountLast4(matchedPin?.account_number ?? todayPin?.account_number) ?? 'ยังไม่หมุด',
     lead: admin.role === 'SuperAdmin' || admin.role === 'Admin',
     chips: thb ? [thb] : [500, 1000], fresh: Boolean(last4) && known.length === 0,
     slip,
-  }));
+    pins: pins.map((b) => ({ bank: b.bank_name, last4: accountLast4(b.account_number) ?? '????' })),
+  });
+  const hero = gate === 'PIN_MISMATCH'
+    ? 'MISMATCH'
+    : thb
+      ? `${thb.toLocaleString('en-US')} THB`
+      : 'SLIP';
+  await sendHero(chatId, cardId, gate === 'PIN_MISMATCH' ? 'vault' : 'locked', card, hero, gate === 'PIN_MISMATCH' ? 'PIN' : 'IN', pending.short_ref);
 }
 
 async function tryQueue(pending: PendingSlip, ctx: { chatId: number; userId: number; admin: Admin; cardId: number; last4: string | null; bank: string; }): Promise<boolean> {
@@ -175,9 +204,14 @@ async function tryQueue(pending: PendingSlip, ctx: { chatId: number; userId: num
 export function renderGateCard(p: PendingSlip, extra: {
   gate: OcrGate; slipBank: string; slipLast4: string; pinBank: string; pinLast4: string;
   lead: boolean; chips: number[]; fresh?: boolean; slip?: SlipExtract;
+  pins?: Array<{ bank: string; last4: string }>;
 }) {
   const s = extra.slip;
-  if (extra.gate === 'PIN_MISMATCH') return C.cardPinMismatch({ slipBank: extra.slipBank, slipLast4: extra.slipLast4, pinBank: extra.pinBank, pinLast4: extra.pinLast4, name: p.name, confidence: p.ocr_confidence ?? 0, short: p.short_ref, lead: extra.lead });
+  if (extra.gate === 'PIN_MISMATCH') return C.cardPinMismatch({
+    slipBank: extra.slipBank, slipLast4: extra.slipLast4, pinBank: extra.pinBank, pinLast4: extra.pinLast4,
+    name: p.name, confidence: p.ocr_confidence ?? 0, short: p.short_ref, lead: extra.lead,
+    slipAccount: s?.receiverAccount, pins: extra.pins,
+  });
   if (extra.gate === 'NEED_UNIT') return C.cardNeedUnit({ short: p.short_ref });
   if (extra.gate === 'OCR_WEAK') return C.cardOcrWeak({ bank: extra.slipBank, last4: extra.slipLast4, name: p.name, confidence: p.ocr_confidence ?? 0, short: p.short_ref, chips: extra.chips });
   return C.cardInReady({
