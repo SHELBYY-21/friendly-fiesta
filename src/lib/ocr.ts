@@ -14,7 +14,7 @@ export async function analyzeUsdtScreenshot(imageUrl: string): Promise<UsdtExtra
   try {
     return await Promise.race([
       analyzeUsdtWithGrok(imageUrl),
-      new Promise<UsdtExtract | null>((resolve) => setTimeout(() => resolve(null), 12000)),
+      new Promise<UsdtExtract | null>((resolve) => setTimeout(() => resolve(null), 18000)),
     ]);
   } catch (e) {
     console.warn('USDT OCR error:', e instanceof Error ? e.message : e);
@@ -30,19 +30,29 @@ function raceMs<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
 }
 
 function visionReady(s: SlipExtract | null): s is SlipExtract {
-  return s != null && s.thbAmount != null && Boolean(s.receiverLast4);
+  if (s == null) return false;
+  return s.thbAmount != null || Boolean(s.receiverLast4) || Boolean(s.transRef) || Boolean(s.receiverName);
 }
 
 function mergeSlip(grok: SlipExtract | null, ocr: ReturnType<typeof parseSlipText> | null): SlipExtract {
   return {
     thbAmount: grok?.thbAmount ?? ocr?.amount ?? null,
+    feeThb: grok?.feeThb ?? null,
     time: grok?.time ?? ocr?.time ?? null,
     date: grok?.date ?? ocr?.date ?? null,
     receiverLast4: grok?.receiverLast4 || ocr?.last4 || null,
     senderLast4: grok?.senderLast4 ?? null,
+    receiverAccount: grok?.receiverAccount ?? null,
+    senderAccount: grok?.senderAccount ?? null,
     bank: grok?.bank || ocr?.bank || null,
+    senderBank: grok?.senderBank ?? null,
     receiverName: grok?.receiverName || ocr?.receiverName || null,
     senderName: grok?.senderName ?? null,
+    transRef: grok?.transRef ?? null,
+    channel: grok?.channel ?? null,
+    promptpay: grok?.promptpay ?? null,
+    balanceThb: grok?.balanceThb ?? null,
+    slipType: grok?.slipType ?? null,
     confidence: grok?.confidence ?? (ocr?.amount ? 70 : null),
     raw: grok?.raw,
   };
@@ -53,9 +63,9 @@ export async function analyzeSlipFast(
   dataUrl: string,
   publicUrlP: Promise<string>,
 ): Promise<{ url: string; slip: SlipExtract }> {
-  const grokP = raceMs(analyzeSlipWithGrok(dataUrl), 7000, null).catch(() => null);
+  const grokP = raceMs(analyzeSlipWithGrok(dataUrl), 18000, null).catch(() => null);
   const ocrP = publicUrlP
-    .then((url) => raceMs(extractSlipTextFromOcrSpace(url), 5000, null).then((ocr) => ({ url, ocr })))
+    .then((url) => raceMs(extractSlipTextFromOcrSpace(url), 10000, null).then((ocr) => ({ url, ocr })))
     .catch(async () => ({ url: await publicUrlP, ocr: null }));
 
   const grok = await grokP;
@@ -68,8 +78,8 @@ export async function analyzeSlipFast(
 }
 
 export async function analyzeSlip(imageUrl: string): Promise<SlipExtract> {
-  const grokP = raceMs(analyzeSlipWithGrok(imageUrl), 7000, null).catch(() => null);
-  const ocrP = raceMs(extractSlipTextFromOcrSpace(imageUrl), 6000, null).catch(() => null);
+  const grokP = raceMs(analyzeSlipWithGrok(imageUrl), 18000, null).catch(() => null);
+  const ocrP = raceMs(extractSlipTextFromOcrSpace(imageUrl), 10000, null).catch(() => null);
   const grok = await grokP;
   if (visionReady(grok)) return grok;
   return mergeSlip(grok, await ocrP);
@@ -91,6 +101,7 @@ async function extractSlipTextFromOcrSpace(imageUrl: string): Promise<ReturnType
       OCREngine: '2',
       scale: 'true',
       isTable: 'true',
+      detectOrientation: 'true',
       language: 'tha',
     });
     const res = await fetch('https://api.ocr.space/parse/imageurl', {
