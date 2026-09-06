@@ -1,11 +1,12 @@
 // ============================================================
 // อ่านสลิป — ลำดับความสำคัญ:
 //   1) Grok Vision (ถ้ามี GROK_API_KEY) — คืนข้อมูล structured ทั้งชุด
-//   2) OCR.space (fallback) — คืนแค่ยอด THB
+//   2) OCR.space + smart-slip-verifier parser (goragodwiriya)
 // ============================================================
 import { analyzeSlipWithGrok, analyzeUsdtWithGrok, SlipExtract, UsdtExtract } from './grokVision';
 import { pickExplicitThbAmount } from './ocrAmount';
 import { parseSlipText } from '../bot/parse';
+import { parseSmartSlip } from './ct/smartSlip';
 
 export type { SlipExtract, UsdtExtract };
 
@@ -34,26 +35,26 @@ function visionReady(s: SlipExtract | null): s is SlipExtract {
   return s.thbAmount != null || Boolean(s.receiverLast4) || Boolean(s.transRef) || Boolean(s.receiverName);
 }
 
-function mergeSlip(grok: SlipExtract | null, ocr: ReturnType<typeof parseSlipText> | null): SlipExtract {
+function mergeSlip(grok: SlipExtract | null, ocr: ReturnType<typeof parseSlipText> | null, smart?: ReturnType<typeof parseSmartSlip> | null): SlipExtract {
   return {
-    thbAmount: grok?.thbAmount ?? ocr?.amount ?? null,
-    feeThb: grok?.feeThb ?? null,
-    time: grok?.time ?? ocr?.time ?? null,
-    date: grok?.date ?? ocr?.date ?? null,
-    receiverLast4: grok?.receiverLast4 || ocr?.last4 || null,
-    senderLast4: grok?.senderLast4 ?? null,
-    receiverAccount: grok?.receiverAccount ?? null,
+    thbAmount: grok?.thbAmount ?? smart?.amount ?? ocr?.amount ?? null,
+    feeThb: grok?.feeThb ?? smart?.fee ?? null,
+    time: grok?.time ?? smart?.time ?? ocr?.time ?? null,
+    date: grok?.date ?? smart?.date ?? ocr?.date ?? null,
+    receiverLast4: grok?.receiverLast4 || smart?.receiverLast4 || ocr?.last4 || null,
+    senderLast4: grok?.senderLast4 ?? smart?.senderLast4 ?? null,
+    receiverAccount: grok?.receiverAccount ?? smart?.receiverAccount ?? null,
     senderAccount: grok?.senderAccount ?? null,
-    bank: grok?.bank || ocr?.bank || null,
+    bank: grok?.bank || smart?.bank || ocr?.bank || null,
     senderBank: grok?.senderBank ?? null,
-    receiverName: grok?.receiverName || ocr?.receiverName || null,
-    senderName: grok?.senderName ?? null,
-    transRef: grok?.transRef ?? null,
+    receiverName: grok?.receiverName || smart?.receiverName || ocr?.receiverName || null,
+    senderName: grok?.senderName ?? smart?.senderName ?? null,
+    transRef: grok?.transRef ?? smart?.transRef ?? null,
     channel: grok?.channel ?? null,
     promptpay: grok?.promptpay ?? null,
     balanceThb: grok?.balanceThb ?? null,
     slipType: grok?.slipType ?? null,
-    confidence: grok?.confidence ?? (ocr?.amount ? 70 : null),
+    confidence: grok?.confidence ?? smart?.confidence ?? (ocr?.amount ? 70 : null),
     raw: grok?.raw,
   };
 }
@@ -69,20 +70,16 @@ export async function analyzeSlipFast(
     .catch(async () => ({ url: await publicUrlP, ocr: null }));
 
   const grok = await grokP;
-  if (visionReady(grok)) {
-    const url = await publicUrlP;
-    return { url, slip: grok };
-  }
   const { url, ocr } = await ocrP;
-  return { url, slip: mergeSlip(grok, ocr) };
+  return { url, slip: mergeSlip(grok, ocr?.legacy ?? null, ocr?.smart ?? null) };
 }
 
 export async function analyzeSlip(imageUrl: string): Promise<SlipExtract> {
   const grokP = raceMs(analyzeSlipWithGrok(imageUrl), 18000, null).catch(() => null);
   const ocrP = raceMs(extractSlipTextFromOcrSpace(imageUrl), 10000, null).catch(() => null);
   const grok = await grokP;
-  if (visionReady(grok)) return grok;
-  return mergeSlip(grok, await ocrP);
+  const pack = await ocrP;
+  return mergeSlip(grok, pack?.legacy ?? null, pack?.smart ?? null);
 }
 
 /** legacy helper — ใช้ในโค้ดเก่าที่รับแค่ยอด THB */
@@ -91,7 +88,10 @@ export async function extractThbAmount(imageUrl: string): Promise<number | null>
   return r.thbAmount;
 }
 
-async function extractSlipTextFromOcrSpace(imageUrl: string): Promise<ReturnType<typeof parseSlipText> | null> {
+async function extractSlipTextFromOcrSpace(imageUrl: string): Promise<{
+  legacy: ReturnType<typeof parseSlipText>;
+  smart: ReturnType<typeof parseSmartSlip>;
+} | null> {
   const key = process.env.OCR_SPACE_API_KEY;
   if (!key || !imageUrl) return null;
   try {
@@ -112,9 +112,9 @@ async function extractSlipTextFromOcrSpace(imageUrl: string): Promise<ReturnType
     const json: any = await res.json();
     const text: string | undefined = json?.ParsedResults?.[0]?.ParsedText;
     if (!text) return null;
-    const parsed = parseSlipText(text);
-    if (parsed.amount == null) parsed.amount = pickExplicitThbAmount(text);
-    return parsed;
+    const legacy = parseSlipText(text);
+    if (legacy.amount == null) legacy.amount = pickExplicitThbAmount(text);
+    return { legacy, smart: parseSmartSlip(text) };
   } catch {
     return null;
   }
@@ -122,5 +122,5 @@ async function extractSlipTextFromOcrSpace(imageUrl: string): Promise<ReturnType
 
 async function extractThbAmountFromOcrSpace(imageUrl: string): Promise<number | null> {
   const parsed = await extractSlipTextFromOcrSpace(imageUrl);
-  return parsed?.amount ?? null;
+  return parsed?.smart.amount ?? parsed?.legacy.amount ?? null;
 }
