@@ -148,16 +148,15 @@ export function cardInReady(d: {
     d.channel ? `ช่องทาง  ${esc(d.channel)}` : '',
     d.transRef ? `อ้างอิง  <code>${esc(d.transRef)}</code>` : '',
     d.feeThb != null ? `ค่าธรรมเนียม  ${thbInt(d.feeThb)} THB` : '',
-    '',
-    'ผู้รับ (PAYEE)',
+    '<blockquote>ผู้รับ',
     `${esc(d.bank)}  <code>${esc(payeeAcct)}</code>`,
     esc(d.name || '—'),
     d.promptpay ? `พร้อมเพย์  ${esc(d.promptpay)}` : '',
-    '',
-    'ผู้โอน (SENDER)',
+    '</blockquote>',
+    '<blockquote>ผู้โอน',
     `${esc(d.senderBank || '—')}  ${esc(d.senderLast4 ? maskAcct(d.senderLast4) : '—')}`,
     esc(d.senderName || '—'),
-    '',
+    '</blockquote>',
     `OCR  ${Math.round(d.confidence)}%`,
     d.review ? 'CAUSE  ยอดหรือบัญชียังไม่มั่นใจ' : 'CAUSE  สลิปตรงบัญชีแล้ว',
     'ACTION กด ยืนยัน เพื่อเข้าคิว',
@@ -226,20 +225,32 @@ export function cardPinMismatch(d: {
   confidence: number;
   short: string;
   lead: boolean;
+  slipAccount?: string | null;
+  pins?: Array<{ bank: string; last4: string }>;
 }): OutgoingMessage {
-  const rows: Array<Array<ReturnType<typeof btn>>> = [
-    [btn('ลองใหม่', `slip:retry:${d.short}`)],
-    [btn('บัญชีรับ', 'pin:view')],
-  ];
+  const rows: Array<Array<ReturnType<typeof btn>>> = [];
+  rows.push([btn('ปักบัญชีจากสลิป', `slip:pinthis:${d.short}`, 'success')]);
+  const pins = (d.pins ?? []).slice(0, 3);
+  if (pins.length) {
+    rows.push(pins.map((p, i) => btn(`แทนหมุด ${i + 1}`, `slip:pinslot:${d.short}:${i + 1}`)));
+  }
+  rows.push([btn('บัญชีรับ', 'pin:view'), btn('ลองใหม่', `slip:retry:${d.short}`)]);
   if (d.lead) rows.push([btn('บังคับ', `slip:forceask:${d.short}`, 'danger')]);
   rows.push([btn('ยกเลิก', `slip:cancel:${d.short}`, 'danger')]);
+  const payee = d.slipAccount || maskAcct(d.slipLast4);
   return msg(
     [
-      head('แจ้งเตือน', `บัญชีไม่ตรง (mismatch)  ${Math.round(d.confidence)}%`),
+      head('แจ้งเตือน', 'บัญชีบนสลิปไม่ตรงหมุดวันนี้'),
       tape('match'),
-      kv('บนสลิป', 'SLIP', `${esc(d.slipBank)}  ${esc(maskAcct(d.slipLast4))}`),
-      d.name ? kv('ชื่อผู้รับ', 'NAME', esc(d.name)) : '',
-      kv('ของเรา', 'PIN', `${esc(d.pinBank)}  ${esc(maskAcct(d.pinLast4))}`),
+      '<blockquote>บนสลิป',
+      `${esc(d.slipBank)}  <code>${esc(payee)}</code>`,
+      esc(d.name || '—'),
+      '</blockquote>',
+      '<blockquote>หมุดวันนี้',
+      `${esc(d.pinBank)}  ${esc(maskAcct(d.pinLast4))}`,
+      '</blockquote>',
+      'กด <b>ปักบัญชีจากสลิป</b> เพื่อใช้บัญชีนี้เป็นหมุด',
+      'หรือกดแทนหมุดช่องที่มีอยู่',
     ].filter(Boolean).join('\n'),
     ik(rows),
   );
@@ -525,19 +536,24 @@ export function cardRecent(d: {
   });
 }
 
-export function pinView(items: Array<{ bank: string; last4: string }>): OutgoingMessage {
-  const lines = [head('บัญชีรับ', 'บัญชีรับของวันนี้'), ''];
+export function pinView(items: Array<{ bank: string; last4: string; account?: string | null; name?: string | null }>): OutgoingMessage {
+  const lines = [head('บัญชีรับ', 'หมุดวันนี้'), ''];
   if (!items.length) {
-    lines.push('ยังไม่มีบัญชีรับวันนี้ครับ');
-    lines.push('กรุณาวางข้อความหมุดจากไลน์ได้เลย');
-    lines.push('หรือพิมพ์ <code>/pin BBL 0989887823</code>');
+    lines.push('ยังไม่มีบัญชีรับวันนี้');
+    lines.push('วางข้อความหมุดได้เลย เช่น');
+    lines.push('<blockquote>ธนาคาร : กสิกร(kbank)');
+    lines.push('เลข : 145-3-58306-2');
+    lines.push('ชื่อ : เอกรินทร์');
+    lines.push('วงเงิน : 50,000</blockquote>');
     return msg(lines.join('\n'));
   }
   items.forEach((it, i) => {
-    lines.push(`${i + 1}  ${esc(it.bank)}  ${esc(maskAcct(it.last4))}`);
+    lines.push(`<blockquote>${i + 1}. ${esc(it.bank)}`);
+    lines.push(`เลข  <code>${esc(it.account || maskAcct(it.last4))}</code>`);
+    lines.push(`ชื่อ  ${esc(it.name || '—')}</blockquote>`);
   });
-  lines.push('', 'กรุณากดยกเลิกบัญชี หากบัญชีนี้ไม่มีการใช้งานแล้ว');
-  const unpins = items.slice(0, 3).map((_, i) => btn(`ยกเลิกบัญชี ${i + 1}`, `pin:unpin:${i + 1}`));
+  lines.push('กดยกเลิกบัญชีหากวันนี้ไม่ใช้แล้ว');
+  const unpins = items.slice(0, 3).map((_, i) => btn(`ยกเลิก ${i + 1}`, `pin:unpin:${i + 1}`));
   return msg(lines.join('\n'), ik([unpins]));
 }
 
