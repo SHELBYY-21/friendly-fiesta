@@ -127,16 +127,38 @@ export function cardInReady(d: {
   short: string;
   fresh?: boolean;
   time?: string;
+  date?: string | null;
+  senderName?: string | null;
+  senderLast4?: string | null;
+  senderBank?: string | null;
+  receiverAccount?: string | null;
+  transRef?: string | null;
+  feeThb?: number | null;
+  channel?: string | null;
+  promptpay?: string | null;
 }): OutgoingMessage {
   const hasDesk = d.desk > 0;
+  const payeeAcct = d.receiverAccount || maskAcct(d.last4);
   const lines = [
     head('เงินเข้า', `<code>${esc(displayLedger(d.ledger))}</code>`),
     quoteBlock({ thb: d.thb, usdt: hasDesk ? d.shouldSend : 0, desk: d.desk, mkt: d.mkt ?? null }),
     tape('in'),
+    d.date ? `วันที่  ${esc(d.date)}` : '',
     d.time ? `เวลา  ${esc(d.time)}` : '',
-    'บัญชีปลายทาง (PAYEE)',
-    `${esc(d.bank)}  ${esc(maskAcct(d.last4))}`,
+    d.channel ? `ช่องทาง  ${esc(d.channel)}` : '',
+    d.transRef ? `อ้างอิง  <code>${esc(d.transRef)}</code>` : '',
+    d.feeThb != null ? `ค่าธรรมเนียม  ${thbInt(d.feeThb)} THB` : '',
+    '',
+    'ผู้รับ (PAYEE)',
+    `${esc(d.bank)}  <code>${esc(payeeAcct)}</code>`,
     esc(d.name || '—'),
+    d.promptpay ? `พร้อมเพย์  ${esc(d.promptpay)}` : '',
+    '',
+    'ผู้โอน (SENDER)',
+    `${esc(d.senderBank || '—')}  ${esc(d.senderLast4 ? maskAcct(d.senderLast4) : '—')}`,
+    esc(d.senderName || '—'),
+    '',
+    `OCR  ${Math.round(d.confidence)}%`,
     d.review ? 'CAUSE  ยอดหรือบัญชียังไม่มั่นใจ' : 'CAUSE  สลิปตรงบัญชีแล้ว',
     'ACTION กด ยืนยัน เพื่อเข้าคิว',
   ];
@@ -152,7 +174,7 @@ export function cardInReady(d: {
   rows.push([btn('แก้ไข', `slip:edit:${d.short}`), btn('พักรายการ', `slip:hold:${d.short}`)]);
   rows.push([btn('ยกเลิก', `slip:cancel:${d.short}`, 'danger')]);
   rows.push([urlBtn('เปิดโต๊ะ', deskUrl())]);
-  return msg(lines.join('\n'), ik(rows));
+  return msg(lines.filter(Boolean).join('\n'), ik(rows));
 }
 
 export function cardOcrWeak(d: {
