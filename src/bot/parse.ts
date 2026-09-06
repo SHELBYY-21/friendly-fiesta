@@ -107,16 +107,16 @@ export function parseSlipText(text: string): ParsedSlipText {
 }
 
 export function parseDeskPin(text: string): DeskPin | null {
-  const rawFull = text || '';
+  const rawFull = String(text || '').replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, ' ');
   const hadPinCmd = /^\/pin(?:@[a-z0-9_]+)?/i.test(rawFull.trim());
-  const labeled = /เลขบัญชี|บัญชี\s*[:：]|วงเงิน|ชื่อเต็ม|ชื่อ(?:\s*-?\s*สกุล)|ธนาคาร\s*[:：]/.test(rawFull);
+  const labeled = /เลขบัญชี|เลข\s*[:：]|บัญชี\s*[:：]|วงเงิน|ชื่อเต็ม|ชื่อ(?:\s*-?\s*สกุล)?\s*[:：]|ธนาคาร\s*[:：]/.test(rawFull);
   if (!hadPinCmd && !labeled) return null;
 
   const raw = rawFull.replace(/^\/pin(?:@[a-z0-9_]+)?/i, '').trim();
   if (!raw) return null;
 
   const acc =
-    raw.match(/(?:เลข)?บัญชี\s*[:：]?\s*([0-9Xxх*][\dXxх*\s-]{3,22})/i) ||
+    raw.match(/(?:เลข(?:ที่)?(?:บัญชี)?|บัญชี)\s*[:：]?\s*([0-9Xxх*][0-9Xxх* \-]{3,22})/i) ||
     raw.match(/\b(\d{10,15})\b/) ||
     raw.match(/(x{2,}[-x.]*\d{4}x?)/i);
   if (!acc) {
