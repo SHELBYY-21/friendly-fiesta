@@ -159,6 +159,7 @@ export function applyQrToOcr(ocr: SlipExtract, qr: SlipQrResult): SlipExtract {
     receiverName: iq?.receiverName ?? ocr.receiverName,
     senderName: iq?.senderName ?? ocr.senderName,
     confidence: iq?.valid ? 99 : ocr.confidence,
+    transRef: ocr.transRef ?? qr.transRef ?? null,
   };
 }
 
