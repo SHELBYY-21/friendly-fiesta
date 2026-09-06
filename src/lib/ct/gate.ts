@@ -23,7 +23,7 @@ export function gateOcr(input: {
   const conf = input.confidence;
   if (thb == null || !Number.isFinite(thb) || thb <= 0) return 'NEED_UNIT';
   if (input.qrVerified) return 'IN_READY';
-  if (conf == null || !Number.isFinite(conf) || conf < 80) return 'OCR_WEAK';
-  if (conf < 95) return 'IN_READY_REVIEW';
+  if (conf == null || !Number.isFinite(conf) || conf < 40) return 'OCR_WEAK';
+  if (conf < 70) return 'IN_READY_REVIEW';
   return 'IN_READY';
 }
