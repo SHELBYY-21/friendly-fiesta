@@ -1,7 +1,7 @@
 import { answerCallback, editMessage, sendMessage, sendPhoto, editPhoto, deleteMessage } from '../telegram';
 import { parseAmounts } from '../amounts';
 import { parseDeskPin, parseDeskRate, hasRatePrefix, isBareDeskRate, parseTelegramId } from '../../bot/parse';
-import { listPinnedBanks, accountLast4, pinBankAccount, unpinBankAccount } from '../banks';
+import { listPinnedBanks, accountLast4, pinBankAccount, unpinBankAccount, matchSlipPins } from '../banks';
 import {
   recordOutgoing,
   deleteTransaction,
@@ -44,6 +44,7 @@ export function isCtCallback(data: string): boolean {
 export const SLIP_ACTIONS = new Set([
   'lock', 'queue', 'force', 'forceask', 'settle', 'undo', 'delask', 'delete',
   'open', 'copy', 'hold', 'cancel', 'retry', 'edit', 'note', 'amt', 'unit',
+  'pinthis', 'pinslot',
 ]);
 
 export const VAULT_ACTIONS = new Set(['today', 'pending', 'rateask', 'newday', 'recent', 'all', 'set', 'batch']);
@@ -70,6 +71,15 @@ export function matchReplyCommand(text: string): ReplyCmd | null {
     return 'rate';
   }
   return null;
+}
+
+function pinCard(pinned: Awaited<ReturnType<typeof listPinnedBanks>>) {
+  return C.pinView(pinned.map((b) => ({
+    bank: b.bank_name,
+    last4: accountLast4(b.account_number) ?? '????',
+    account: b.account_number,
+    name: b.label,
+  })));
 }
 
 function isLead(admin: Admin): boolean {
@@ -217,10 +227,7 @@ export async function handleCtCallback(opts: {
   if (cb.domain === 'pin' && cb.action === 'view') {
     await answerCallback(id, 'บัญชีรับ');
     const pinned = await listPinnedBanks(chatId);
-    await redraw(chatId, messageId, C.pinView(pinned.map((b) => ({
-      bank: b.bank_name,
-      last4: accountLast4(b.account_number) ?? '????',
-    }))));
+    await redraw(chatId, messageId, pinCard(pinned));
     return;
   }
 
@@ -229,10 +236,7 @@ export async function handleCtCallback(opts: {
     await unpinBankAccount(chatId, slot);
     await answerCallback(id, 'ยกเลิกบัญชีแล้ว');
     const pinned = await listPinnedBanks(chatId);
-    await redraw(chatId, messageId, C.pinView(pinned.map((b) => ({
-      bank: b.bank_name,
-      last4: accountLast4(b.account_number) ?? '????',
-    }))));
+    await redraw(chatId, messageId, pinCard(pinned));
     return;
   }
 
@@ -331,6 +335,12 @@ export async function handleCtCallback(opts: {
       await answerCallback(id, 'กรุณาส่งสลิปใหม่');
       await patchSlip(p.id, { status: 'DELETED' });
       await redraw(chatId, messageId, { text: 'กรุณาส่งสลิปใหม่อีกครั้งครับ' });
+      return;
+    case 'pinthis':
+      await doPinFromSlip(id, chatId, userId, admin, p, messageId, 0);
+      return;
+    case 'pinslot':
+      await doPinFromSlip(id, chatId, userId, admin, p, messageId, Number(cb.extra) || 0);
       return;
     case 'edit':
       await answerCallback(id, 'กรุณาพิมพ์ยอด');
@@ -574,6 +584,61 @@ async function doDelete(
   await redraw(chatId, messageId, { text: `ลบ <code>${displayLedger(p.ledger_ref)}</code> แล้ว` });
 }
 
+async function doPinFromSlip(
+  cbId: string,
+  chatId: number,
+  userId: number,
+  admin: Admin,
+  p: PendingSlip,
+  messageId: number | undefined,
+  slot: number,
+) {
+  const acct = (p.note?.match(/ACCT:([0-9]{4,20})/) || [])[1]
+    || String(p.account_masked || '').replace(/\D/g, '');
+  const bank = (p.note?.match(/BANK:([A-Z0-9]+)/) || [])[1] || p.bank;
+  if (!bank || acct.length < 4) {
+    await answerCallback(cbId, 'อ่านเลขบัญชีจากสลิปไม่ครบ');
+    return;
+  }
+  if (slot >= 1) {
+    await unpinBankAccount(chatId, String(slot));
+  }
+  try {
+    const result = await pinBankAccount(chatId, bank, acct, p.name);
+    const matched = matchSlipPins(bank, acct.slice(-4), null, result.pinned);
+    await answerCallback(cbId, matched ? `ปักหมุดแล้ว · ${p.short_ref}` : 'ปักแล้ว ยังไม่ตรง');
+    const next = await patchSlip(p.id, {
+      pin_match: Boolean(matched),
+      bank: matched?.bank_name ?? bank,
+      bank_account_id: matched?.id ?? result.bank.id,
+      account_masked: acct,
+      status: matched && p.thb_in ? 'IN_READY' : p.status,
+    });
+    if (matched && next.thb_in) {
+      const owed = shouldSend(next.thb_in, next.desk_rate || 0);
+      await redraw(chatId, messageId, C.cardInReady({
+        review: false,
+        thb: next.thb_in,
+        shouldSend: owed,
+        desk: next.desk_rate ?? 0,
+        mkt: next.mkt_rate,
+        bank: next.bank ?? bank,
+        last4: acct.slice(-4),
+        name: next.name,
+        confidence: next.ocr_confidence ?? 90,
+        ledger: next.ledger_ref,
+        adminName: next.admin_name ?? admin.name,
+        short: next.short_ref,
+      }));
+      return;
+    }
+    await redraw(chatId, messageId, pinCard(result.pinned));
+  } catch (e: any) {
+    const full = e?.message === 'PIN_LIMIT_REACHED';
+    await answerCallback(cbId, full ? 'หมุดเต็ม — กดแทนหมุด 1/2/3' : 'ปักหมุดไม่สำเร็จ');
+  }
+}
+
 export async function handleCtText(opts: {
   chatId: number;
   userId: number;
@@ -608,20 +673,14 @@ export async function handleCtText(opts: {
     if (pasted) {
       try {
         const result = await pinBankAccount(opts.chatId, pasted.bank, pasted.account, pasted.name);
-        await sendMessage(opts.chatId, C.pinView(result.pinned.map((b) => ({
-          bank: b.bank_name,
-          last4: accountLast4(b.account_number) ?? '????',
-        }))));
+        await sendMessage(opts.chatId, pinCard(result.pinned));
       } catch (e: any) {
         await sendMessage(opts.chatId, { text: e?.message === 'PIN_LIMIT_REACHED' ? 'หมุดครบ 3 บัญชีแล้วครับ' : 'หมุดบัญชีไม่สำเร็จครับ' });
       }
       return true;
     }
     const pinned = await listPinnedBanks(opts.chatId);
-    await sendMessage(opts.chatId, C.pinView(pinned.map((b) => ({
-      bank: b.bank_name,
-      last4: accountLast4(b.account_number) ?? '????',
-    }))));
+    await sendMessage(opts.chatId, pinCard(pinned));
     return true;
   }
 
@@ -629,10 +688,7 @@ export async function handleCtText(opts: {
   if (deskPin) {
     try {
       const result = await pinBankAccount(opts.chatId, deskPin.bank, deskPin.account, deskPin.name);
-      await sendMessage(opts.chatId, C.pinView(result.pinned.map((b) => ({
-        bank: b.bank_name,
-        last4: accountLast4(b.account_number) ?? '????',
-      }))));
+      await sendMessage(opts.chatId, pinCard(result.pinned));
     } catch (e: any) {
       await sendMessage(opts.chatId, { text: e?.message === 'PIN_LIMIT_REACHED' ? 'pin ครบ 3' : 'pin ไม่ติด' });
     }
