@@ -1,0 +1,7 @@
+docs
+.grok
+test
+coverage
+*.md
+!README.md
+.git

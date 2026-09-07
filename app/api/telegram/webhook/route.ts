@@ -89,7 +89,7 @@ function sticker(chatId: number, key: StickerState): void {
 }
 
 export const runtime = 'nodejs';
-export const maxDuration = 30; // serverless function timeout budget (seconds)
+export const maxDuration = 60;
 
 // Validate sticker config at cold-start (logs warning, never crashes the webhook)
 try { validateStickers(); } catch (e: any) { console.warn(`[sticker config] ${e.message}`); }

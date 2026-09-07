@@ -32,6 +32,15 @@ const nextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: path.join(__dirname),
   serverExternalPackages: ['slipverify', 'promptparse', 'jpeg-js', 'jsqr'],
+  outputFileTracingExcludes: {
+    '*': [
+      'docs/**',
+      'test/**',
+      '.grok/**',
+      'node_modules/@jest/**',
+      'node_modules/jest/**',
+    ],
+  },
   allowedDevOrigins: ['127.0.0.1', 'localhost', '0.0.0.0'],
   images: {
     formats: ['image/avif', 'image/webp'],
