@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 
 export default function PinGate({ nextPath = '/dashboard' }: { nextPath?: string }) {
   const [digits, setDigits] = useState<string[]>(['', '', '', '', '', '']);
@@ -46,19 +47,19 @@ export default function PinGate({ nextPath = '/dashboard' }: { nextPath?: string
       if (res.status === 429) {
         setStatus('locked');
         setLockSeconds(Number(json.secondsLeft) || 900);
-        setMessage('ใส่ผิดหลายครั้ง รอสักครู่');
+        setMessage('ใส่ผิดหลายครั้ง — รอแล้วค่อยลองใหม่');
       } else if (res.status === 503) {
         window.location.href = nextPath;
         return;
       } else {
         setStatus('error');
-        setMessage('รหัสไม่ถูก');
+        setMessage('รหัสไม่ตรง ใส่ใหม่ 6 หลัก');
       }
       setDigits(['', '', '', '', '', '']);
       inputs.current[0]?.focus();
     } catch {
       setStatus('error');
-      setMessage('ต่อเน็ตไม่ได้ ลองใหม่');
+      setMessage('ต่อเน็ตไม่ได้ ตรวจสัญญาณแล้วใส่ใหม่');
     }
   };
 
@@ -87,12 +88,16 @@ export default function PinGate({ nextPath = '/dashboard' }: { nextPath?: string
     if (next.join('').length === 6) void submit(next.join(''));
   };
 
+  const busy = status === 'locked' || status === 'checking';
+
   return (
-    <section className="card w-full max-w-sm text-center">
-      <p className="text-2xl text-gold">◈</p>
-      <h1 className="mt-4 text-sm tracking-[0.22em]">CT โต๊ะ</h1>
-      <p className="mt-2 text-xs text-muted">พนักงานใส่รหัส 6 หลักจากหัวหน้ากะ</p>
-      <div className="mt-8 flex justify-center gap-2">
+    <section className="pin-gate" aria-labelledby="pin-gate-title">
+      <span className="ce-mark">
+        <Image src="/brand/ce-mark-512.png" width={48} height={48} alt="" priority unoptimized />
+      </span>
+      <h1 id="pin-gate-title">CE Vault</h1>
+      <p>ใส่รหัส 6 หลักจากหัวหน้ากะ เพื่อเปิดโต๊ะ</p>
+      <div className="pin-gate__row">
         {digits.map((d, i) => (
           <input
             key={i}
@@ -100,20 +105,22 @@ export default function PinGate({ nextPath = '/dashboard' }: { nextPath?: string
               inputs.current[i] = el;
             }}
             inputMode="numeric"
+            autoComplete={i === 0 ? 'one-time-code' : 'off'}
             maxLength={6}
-            disabled={status === 'locked' || status === 'checking'}
+            disabled={busy}
             value={d}
             onChange={(e) => setDigit(i, e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Backspace' && !digits[i] && i > 0) inputs.current[i - 1]?.focus();
             }}
-            className="field h-14 w-11 px-0 text-center text-xl"
+            className={'pin-gate__cell' + (status === 'error' ? ' is-bad' : '')}
+            aria-invalid={status === 'error'}
             aria-label={`หลักที่ ${i + 1}`}
           />
         ))}
       </div>
-      <p className="mt-5 min-h-5 text-sm text-muted">
-        {status === 'checking' ? 'กำลังเข้าโต๊ะ' : message}
+      <p className={'pin-gate__hint' + (status === 'error' || status === 'locked' ? ' is-bad' : '')} role="status" aria-live="polite">
+        {status === 'checking' ? 'กำลังเปิดโต๊ะ…' : message}
         {status === 'locked' && lockSeconds > 0 ? ` ${lockSeconds} วินาที` : ''}
       </p>
     </section>

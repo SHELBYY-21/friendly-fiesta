@@ -43,9 +43,9 @@ export default function DeskApiPanel({ open, onClose }: { open: boolean; onClose
       if (!res.ok || json?.error) throw new Error(json?.error?.message || 'save failed');
       setTyphoonReady(true);
       setTyphoonKey('');
-      setNote('บันทึก Typhoon แล้ว');
+      setNote('เปิดอ่านสลิปแล้ว');
     } catch {
-      setNote('บันทึกไม่สำเร็จ');
+      setNote('คีย์ไม่ผ่าน ตรวจแล้ววางใหม่');
     } finally {
       setSaving(false);
     }
@@ -67,19 +67,20 @@ export default function DeskApiPanel({ open, onClose }: { open: boolean; onClose
         }}
       >
         <label>
-          Typhoon OCR
-          <span className={typhoonReady ? 'ok' : 'wait'}>{typhoonReady ? 'พร้อม' : 'ยังไม่มีคีย์'}</span>
+          คีย์ Typhoon สำหรับอ่านสลิป
+          <span className={typhoonReady ? 'ok' : 'wait'}>{typhoonReady ? 'พร้อมอ่าน' : 'ยังไม่มีคีย์'}</span>
         </label>
         <div className="desk-api-panel__row">
           <input
             type="password"
             autoComplete="off"
-            placeholder="วาง TYPHOON_API_KEY แล้วบันทึก"
+            placeholder="sk-…"
             value={typhoonKey}
             onChange={(e) => setTyphoonKey(e.target.value)}
+            aria-label="คีย์ Typhoon"
           />
           <button type="submit" className="qd-pill" disabled={saving || !typhoonKey.trim()}>
-            {saving ? 'กำลังบันทึก' : 'บันทึกคีย์'}
+            {saving ? 'กำลังเปิด OCR' : 'เปิดอ่านสลิป'}
           </button>
         </div>
         {note ? <p>{note}</p> : null}

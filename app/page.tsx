@@ -11,7 +11,7 @@ export default async function Home() {
     const ok = await verifySessionToken(store.get(SESSION_COOKIE)?.value);
     if (!ok) {
       return (
-        <main className="grid min-h-screen place-items-center px-6 py-12">
+        <main className="desk-board grid min-h-screen place-items-center px-6 py-12">
           <PinGate nextPath="/" />
         </main>
       );
