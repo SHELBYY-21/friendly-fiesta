@@ -49,4 +49,7 @@ npx tsc --noEmit
 NODE_OPTIONS='--require /tmp/ws-polyfill.cjs' npx ts-node --project test/tsconfig.json test/run-test.ts
 ```
 
-Push `main` — Vercel project `ce-vault` auto-deploys.
+## Indexes
+
+Apply in SQL editor, in order: `patch-v17-vault-poll.sql` then `patch-v18-covering-vault.sql`.
+Check with `explain-v17-vault-poll.sql` and `selectivity-v17.sql`. Want Index Only Scan on `idx_tx_chat_type_created`.

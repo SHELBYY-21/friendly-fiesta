@@ -1,8 +1,8 @@
 -- Read these plans after patch-v17-vault-poll.sql.
 -- Paste in Supabase SQL editor. Safe: EXPLAIN ANALYZE runs the SELECT but does not write.
 --
--- Healthy: Index Scan / Index Only Scan on idx_tx_chat_type_created or idx_pending_slips_*.
--- Unhealthy: Seq Scan on transactions / pending_slips, or Filter: (chat_id = ...) after a type-only index.
+-- Healthy after v18: Index Only Scan on idx_tx_chat_type_created
+-- (Heap Fetches: 0). Unhealthy: Seq Scan, or Index Scan with many heap fetches.
 -- Ignore the sample chat_id if empty — pick one from the CTE.
 
 with sample as (
