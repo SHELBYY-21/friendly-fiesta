@@ -547,4 +547,30 @@ assert(publicAppHost('vercel.app') === '', 'bare vercel.app blocked for og');
 assert(publicAppHost('preview.grok.me') === 'preview.grok.me', 'public host allowed for og');
 assert(publicAppHost('127.0.0.1') === '', 'ip blocked for og');
 
+const { parseTelegramUpdate, largestPhotoFileId } = require('../src/lib/telegram/update');
+assert(parseTelegramUpdate({}) === null, 'update without id is invalid');
+assert(parseTelegramUpdate({ update_id: 3 }).kind === 'ignored', 'unknown update is ignored');
+assert(
+  largestPhotoFileId([
+    { file_id: 'small', width: 90, height: 90 },
+    { file_id: 'big', width: 1280, height: 720 },
+  ]) === 'big',
+  'ocr uses largest photo',
+);
+const slip = parseTelegramUpdate({
+  update_id: 8,
+  message: {
+    chat: { id: -1001, type: 'supergroup' },
+    from: { id: 55 },
+    photo: [{ file_id: 'small', width: 90, height: 90 }, { file_id: 'big', width: 1280, height: 720 }],
+    caption: 'กสิกร 145-3-58306-2',
+  },
+});
+assert(slip.kind === 'message' && slip.photoFileId === 'big' && slip.chatId === -1001, 'slip message parsed');
+const tap = parseTelegramUpdate({
+  update_id: 9,
+  callback_query: { id: 'cq', from: { id: 55 }, data: 'ct:keep:CE-1042', message: { chat: { id: -1001 } } },
+});
+assert(tap.kind === 'callback' && tap.callbackData === 'ct:keep:CE-1042', 'callback parsed');
+
 console.log('🎉 ALL TESTS PASSED SUCCESSFULLY!');

@@ -1,0 +1,94 @@
+export type TelegramUpdateKind = 'message' | 'callback' | 'ignored';
+
+export type ParsedTelegramUpdate = {
+  updateId: number;
+  kind: TelegramUpdateKind;
+  chatId: number | null;
+  userId: number | null;
+  text: string | null;
+  caption: string | null;
+  photoFileId: string | null;
+  livePhoto: boolean;
+  callbackId: string | null;
+  callbackData: string | null;
+};
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function asId(value: unknown): number | null {
+  const n = Number(value);
+  return Number.isSafeInteger(n) && n !== 0 ? n : null;
+}
+
+export function largestPhotoFileId(photo: unknown): string | null {
+  if (!Array.isArray(photo) || photo.length === 0) return null;
+  const ranked = photo
+    .map((item) => asRecord(item))
+    .filter((item): item is Record<string, unknown> => Boolean(item?.file_id))
+    .sort((a, b) => Number(b.width ?? 0) * Number(b.height ?? 0) - Number(a.width ?? 0) * Number(a.height ?? 0));
+  const id = ranked[0]?.file_id;
+  return typeof id === 'string' && id ? id : null;
+}
+
+export function parseTelegramUpdate(body: unknown): ParsedTelegramUpdate | null {
+  const root = asRecord(body);
+  if (!root) return null;
+  const updateId = Number(root.update_id);
+  if (!Number.isSafeInteger(updateId) || updateId < 0) return null;
+
+  const callback = asRecord(root.callback_query);
+  if (callback) {
+    const msg = asRecord(callback.message);
+    const chat = asRecord(msg?.chat);
+    const from = asRecord(callback.from);
+    return {
+      updateId,
+      kind: 'callback',
+      chatId: asId(chat?.id),
+      userId: asId(from?.id),
+      text: null,
+      caption: null,
+      photoFileId: null,
+      livePhoto: false,
+      callbackId: typeof callback.id === 'string' ? callback.id : null,
+      callbackData: typeof callback.data === 'string' ? callback.data : null,
+    };
+  }
+
+  const msg = asRecord(root.message);
+  if (!msg) {
+    return {
+      updateId,
+      kind: 'ignored',
+      chatId: null,
+      userId: null,
+      text: null,
+      caption: null,
+      photoFileId: null,
+      livePhoto: false,
+      callbackId: null,
+      callbackData: null,
+    };
+  }
+
+  const chat = asRecord(msg.chat);
+  const from = asRecord(msg.from);
+  const text = typeof msg.text === 'string' ? msg.text.trim() : null;
+  const caption = typeof msg.caption === 'string' ? msg.caption.trim() : null;
+  return {
+    updateId,
+    kind: 'message',
+    chatId: asId(chat?.id),
+    userId: asId(from?.id),
+    text: text || null,
+    caption: caption || null,
+    photoFileId: largestPhotoFileId(msg.photo),
+    livePhoto: Boolean(msg.live_photo) || Boolean(msg.video),
+    callbackId: null,
+    callbackData: null,
+  };
+}

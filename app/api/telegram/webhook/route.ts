@@ -65,6 +65,7 @@ import {
   pinBankAccount,
   unpinBankAccount,
 } from '@/lib/banks';
+import { parseTelegramUpdate } from '@/lib/telegram/update';
 
 // ตรวจ USDT (OCR vs พิมพ์เอง) ต้องตรงกันในระดับ 0.0001 (req 13)
 const USDT_TOLERANCE = 0.0001;
@@ -146,11 +147,12 @@ export async function POST(req: NextRequest) {
   let failureChatId: number | null = null;
   try {
     const update = await req.json();
-    failureChatId = Number(update?.callback_query?.message?.chat?.id ?? update?.message?.chat?.id) || null;
-    const updateId = Number(update?.update_id);
-    if (!Number.isSafeInteger(updateId) || updateId < 0) {
+    const parsed = parseTelegramUpdate(update);
+    if (!parsed) {
       return NextResponse.json({ ok: false, error: 'invalid_update' }, { status: 400 });
     }
+    failureChatId = parsed.chatId;
+    const updateId = parsed.updateId;
     const { data: claimed, error: claimError } = await supabaseAdmin.rpc('claim_telegram_update', {
       p_update_id: updateId,
     });
