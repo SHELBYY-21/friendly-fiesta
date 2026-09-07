@@ -50,3 +50,8 @@ tsconfig.tsbuildinfo
 # Circle entity-secret recovery files (never commit)
 *-recovery-file.json
 *entity-secret*recovery*
+
+# npx skills installer copies
+.claude/
+agent/
+
