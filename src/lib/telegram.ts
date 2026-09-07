@@ -23,10 +23,31 @@ async function tg<T = any>(method: string, payload: Record<string, any>): Promis
 export interface OutgoingMessage {
   text: string;
   reply_markup?: unknown;
+  rich?: { blocks: Array<Record<string, unknown>> } | { html: string };
+}
+
+export async function sendRichMessage(
+  chatId: number,
+  rich: { blocks: Array<Record<string, unknown>> } | { html: string },
+  replyMarkup?: unknown,
+): Promise<number> {
+  const r = await tg<{ message_id: number }>('sendRichMessage', {
+    chat_id: chatId,
+    rich_message: rich,
+    reply_markup: replyMarkup,
+  });
+  return r.message_id;
 }
 
 /** ส่งข้อความ → คืน message_id */
 export async function sendMessage(chatId: number, m: OutgoingMessage): Promise<number> {
+  if (m.rich) {
+    try {
+      return await sendRichMessage(chatId, m.rich, m.reply_markup);
+    } catch (e) {
+      console.warn('sendRichMessage fallback', e instanceof Error ? e.message : e);
+    }
+  }
   const r = await tg<{ message_id: number }>('sendMessage', {
     chat_id: chatId,
     text: m.text,

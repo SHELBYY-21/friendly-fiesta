@@ -352,6 +352,15 @@ assert(inReady.text.includes('OCR') || inReady.text.includes('MATCH'), 'IN_READY
 assert(inReady.text.includes('<blockquote'), 'IN_READY amount quote');
 assert(inReady.text.includes('#CE-20260826-A4F2'), 'ledger id with hash');
 assert(JSON.stringify(inReady.reply_markup).includes('slip:lock:A4F2'), 'lock callback present');
+assert(inReady.rich && Array.isArray(inReady.rich.blocks), 'IN_READY includes rich JSON');
+assert(inReady.rich.blocks.some((b: { type: string }) => b.type === 'table'), 'IN_READY rich table');
+assert(inReady.rich.blocks.some((b: { type: string }) => b.type === 'heading'), 'IN_READY rich heading');
+assert(inReady.rich.blocks.some((b: { type: string }) => b.type === 'buttons'), 'IN_READY rich buttons');
+const { cardExamples } = require('../src/lib/ct/cardJson');
+const pack = cardExamples();
+assert(pack.sendRichMessage.method === 'sendRichMessage', 'example method sendRichMessage');
+assert(pack.sendPhoto.wait.photo.includes('webhook-wait'), 'example wait photo');
+assert(pack.sendRichMessage.pin.blocks.some((b: { type: string }) => b.type === 'table'), 'pin card json table');
 assert(hasBalancedTelegramHtml(inReady.text), 'IN_READY html balanced');
 assert(!/[👑✨🌿💎🤍🟢🔴💰📈🎯💵🏦👤⚠❤🔥⚡]/.test(inReady.text), 'IN_READY has no public emoji');
 

@@ -4,9 +4,10 @@ import {
 } from './format';
 import { head as tokenHead, progress, rule, NODE, kv, quote } from './tokens';
 import type { FlowStep } from './tokens';
+import { richDone, richInReady, richStart, richWait, richVault } from './cardJson';
 
-function msg(text: string, keyboard?: unknown): OutgoingMessage {
-  return { text, reply_markup: keyboard };
+function msg(text: string, keyboard?: unknown, rich?: OutgoingMessage['rich']): OutgoingMessage {
+  return { text, reply_markup: keyboard, rich };
 }
 
 function head(status: string, meta: string): string {
@@ -49,6 +50,8 @@ export function welcome(name: string): OutgoingMessage {
       '',
       '<blockquote>เขียว = ฝาก (IN)   แดง = โอน (OUT)\nส่งสลิปได้เลย</blockquote>',
     ].join('\n'),
+    undefined,
+    richStart(name),
   );
 }
 
@@ -232,7 +235,14 @@ export function cardInReady(d: {
   rows.push([btn('แก้ไข', `slip:edit:${d.short}`), btn('พักรายการ', `slip:hold:${d.short}`)]);
   rows.push([btn('ยกเลิก', `slip:cancel:${d.short}`, 'danger')]);
   rows.push([urlBtn('เปิดโต๊ะ', deskUrl())]);
-  return msg(lines.filter(Boolean).join('\n'), ik(rows));
+  return msg(lines.filter(Boolean).join('\n'), ik(rows), richInReady({
+    thb: d.thb,
+    usdt: hasDesk ? d.shouldSend : 0,
+    desk: d.desk,
+    mkt: d.mkt ?? null,
+    ledger: d.ledger,
+    short: d.short,
+  }));
 }
 
 export function cardOcrWeak(d: {
@@ -391,6 +401,14 @@ ${esc(d.name || d.adminName)}${batchLines.join('\n')}</blockquote>`,
       ready ? 'กด <b>บันทึกส่งรวม</b>' : 'โอน USDT แล้วกด <b>บันทึกส่งรวม</b>',
     ].filter(Boolean).join('\n'),
     ik(rows),
+    richWait({
+      thb: d.thb,
+      usdt: d.shouldSend,
+      desk: d.desk,
+      mkt: d.mkt ?? null,
+      ledger: d.ledger,
+      short: d.short,
+    }),
   );
 }
 
@@ -452,6 +470,14 @@ export function cardSettled(d: {
       [btn('ดูรายการ', `slip:open:${d.short}`), btn('คัดลอกเลขที่', `slip:copy:${d.short}`)],
       [btn('ดูยอด', 'vault:today', 'primary')],
     ]),
+    richDone({
+      thb: d.thb,
+      usdt: d.usdtOut,
+      desk: d.desk,
+      mkt: null,
+      ledger: d.ledger,
+      short: d.short,
+    }),
   );
 }
 
@@ -572,7 +598,11 @@ export function vaultBanner(d: {
     const p = Math.round(d.pendingUsdt * (d.desk - d.mkt));
     lines.push(`ส่วนต่าง (PNL)     <b>${p >= 0 ? '+' : ''}${thbInt(p)}</b>`);
   }
-  return msg(lines.join('\n'), vaultButtons(d.pendingShorts));
+  return msg(lines.join('\n'), vaultButtons(d.pendingShorts), richVault({
+    inThb: d.inThb,
+    outUsdt: d.outUsdt,
+    pendingUsdt: d.pendingUsdt,
+  }));
 }
 
 function vaultButtons(pendingShorts: string[]) {

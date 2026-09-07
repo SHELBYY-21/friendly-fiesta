@@ -1,0 +1,476 @@
+{
+  "sendRichMessage": {
+    "method": "sendRichMessage",
+    "chat_id": "{{chat_id}}",
+    "start": {
+      "blocks": [
+        {
+          "type": "heading",
+          "size": 2,
+          "text": "CT DESK"
+        },
+        {
+          "type": "paragraph",
+          "text": "LIVE · CT"
+        },
+        {
+          "type": "blockquote",
+          "text": "เขียว = ฝาก\nแดง = โอน\nส่งสลิปได้เลย"
+        },
+        {
+          "type": "buttons",
+          "align": "left",
+          "buttons": [
+            {
+              "text": "เลือกห้อง",
+              "style": "primary",
+              "callback_data": "room:list"
+            },
+            {
+              "text": "เปิดโต๊ะ",
+              "style": "link",
+              "url": "https://ce-vault.vercel.app"
+            }
+          ]
+        }
+      ]
+    },
+    "in_ready": {
+      "blocks": [
+        {
+          "type": "heading",
+          "size": 2,
+          "text": "ยอดรับเข้า"
+        },
+        {
+          "type": "paragraph",
+          "text": "#CE-20260908-A4F2"
+        },
+        {
+          "type": "table",
+          "is_bordered": true,
+          "is_compact": true,
+          "is_striped": true,
+          "caption": "ใบเสนอราคาห้องนี้",
+          "cells": [
+            [
+              {
+                "text": "รายการ",
+                "is_header": true
+              },
+              {
+                "text": "ยอด",
+                "is_header": true
+              }
+            ],
+            [
+              {
+                "text": "ฝาก"
+              },
+              {
+                "text": "10,000.00 THB"
+              }
+            ],
+            [
+              {
+                "text": "USDT @ 36.70"
+              },
+              {
+                "text": "272.48 USDT"
+              }
+            ],
+            [
+              {
+                "text": "กำไร"
+              },
+              {
+                "text": "+136 THB"
+              }
+            ],
+            [
+              {
+                "text": "เราขาย"
+              },
+              {
+                "text": "36.70"
+              }
+            ],
+            [
+              {
+                "text": "เรทอ้างอิง"
+              },
+              {
+                "text": "36.20"
+              }
+            ]
+          ]
+        },
+        {
+          "type": "buttons",
+          "align": "left",
+          "buttons": [
+            {
+              "text": "ยืนยัน",
+              "style": "success",
+              "callback_data": "slip:lock:A4F2"
+            },
+            {
+              "text": "บันทึกไว้ก่อน",
+              "style": "primary",
+              "callback_data": "slip:queue:A4F2"
+            }
+          ]
+        },
+        {
+          "type": "buttons",
+          "align": "left",
+          "buttons": [
+            {
+              "text": "แก้ไข",
+              "callback_data": "slip:edit:A4F2"
+            },
+            {
+              "text": "พักรายการ",
+              "callback_data": "slip:hold:A4F2"
+            },
+            {
+              "text": "ยกเลิก",
+              "style": "danger",
+              "callback_data": "slip:cancel:A4F2"
+            }
+          ]
+        }
+      ]
+    },
+    "wait": {
+      "blocks": [
+        {
+          "type": "heading",
+          "size": 2,
+          "text": "รอโอน"
+        },
+        {
+          "type": "paragraph",
+          "text": "#CE-20260908-A4F2"
+        },
+        {
+          "type": "table",
+          "is_bordered": true,
+          "is_compact": true,
+          "is_striped": true,
+          "caption": "รอส่ง USDT",
+          "cells": [
+            [
+              {
+                "text": "รายการ",
+                "is_header": true
+              },
+              {
+                "text": "ยอด",
+                "is_header": true
+              }
+            ],
+            [
+              {
+                "text": "ฝาก"
+              },
+              {
+                "text": "10,000.00 THB"
+              }
+            ],
+            [
+              {
+                "text": "USDT @ 36.70"
+              },
+              {
+                "text": "272.48 USDT"
+              }
+            ],
+            [
+              {
+                "text": "กำไร"
+              },
+              {
+                "text": "+136 THB"
+              }
+            ],
+            [
+              {
+                "text": "เราขาย"
+              },
+              {
+                "text": "36.70"
+              }
+            ],
+            [
+              {
+                "text": "เรทอ้างอิง"
+              },
+              {
+                "text": "36.20"
+              }
+            ]
+          ]
+        },
+        {
+          "type": "buttons",
+          "align": "left",
+          "buttons": [
+            {
+              "text": "บันทึกส่ง",
+              "style": "danger",
+              "callback_data": "slip:settle:A4F2"
+            },
+            {
+              "text": "บันทึกส่งรวม",
+              "style": "danger",
+              "callback_data": "vault:batch"
+            }
+          ]
+        }
+      ]
+    },
+    "done": {
+      "blocks": [
+        {
+          "type": "heading",
+          "size": 2,
+          "text": "โอนสำเร็จ"
+        },
+        {
+          "type": "paragraph",
+          "text": "#CE-20260908-A4F2"
+        },
+        {
+          "type": "table",
+          "is_bordered": true,
+          "is_compact": true,
+          "is_striped": true,
+          "caption": "ปิดรายการ",
+          "cells": [
+            [
+              {
+                "text": "รายการ",
+                "is_header": true
+              },
+              {
+                "text": "ยอด",
+                "is_header": true
+              }
+            ],
+            [
+              {
+                "text": "ฝาก"
+              },
+              {
+                "text": "10,000.00 THB"
+              }
+            ],
+            [
+              {
+                "text": "USDT @ 36.70"
+              },
+              {
+                "text": "272.48 USDT"
+              }
+            ],
+            [
+              {
+                "text": "กำไร"
+              },
+              {
+                "text": "+136 THB"
+              }
+            ],
+            [
+              {
+                "text": "เราขาย"
+              },
+              {
+                "text": "36.70"
+              }
+            ],
+            [
+              {
+                "text": "เรทอ้างอิง"
+              },
+              {
+                "text": "36.20"
+              }
+            ]
+          ]
+        },
+        {
+          "type": "buttons",
+          "align": "left",
+          "buttons": [
+            {
+              "text": "ดูยอด",
+              "style": "primary",
+              "callback_data": "vault:today"
+            },
+            {
+              "text": "เปิดโต๊ะ",
+              "style": "link",
+              "url": "https://ce-vault.vercel.app"
+            }
+          ]
+        }
+      ]
+    },
+    "vault": {
+      "blocks": [
+        {
+          "type": "heading",
+          "size": 2,
+          "text": "ผลรวมวันนี้"
+        },
+        {
+          "type": "table",
+          "is_bordered": true,
+          "is_compact": true,
+          "is_striped": true,
+          "cells": [
+            [
+              {
+                "text": "รายการ",
+                "is_header": true
+              },
+              {
+                "text": "ยอด",
+                "is_header": true
+              }
+            ],
+            [
+              {
+                "text": "ฝาก"
+              },
+              {
+                "text": "10,000 THB"
+              }
+            ],
+            [
+              {
+                "text": "ส่งแล้ว"
+              },
+              {
+                "text": "0.00 USDT"
+              }
+            ],
+            [
+              {
+                "text": "ค้างเคลียร์"
+              },
+              {
+                "text": "272.48 USDT"
+              }
+            ]
+          ]
+        },
+        {
+          "type": "buttons",
+          "align": "left",
+          "buttons": [
+            {
+              "text": "เลือกห้อง",
+              "style": "primary",
+              "callback_data": "room:list"
+            },
+            {
+              "text": "เปิดโต๊ะ",
+              "style": "link",
+              "url": "https://ce-vault.vercel.app"
+            }
+          ]
+        }
+      ]
+    },
+    "pin": {
+      "blocks": [
+        {
+          "type": "heading",
+          "size": 2,
+          "text": "บัญชีรับ"
+        },
+        {
+          "type": "table",
+          "is_bordered": true,
+          "is_compact": true,
+          "is_striped": true,
+          "cells": [
+            [
+              {
+                "text": "ฟิลด์",
+                "is_header": true
+              },
+              {
+                "text": "ค่า",
+                "is_header": true
+              }
+            ],
+            [
+              {
+                "text": "ชื่อ"
+              },
+              {
+                "text": "เรืองรอง ชมขวัญ"
+              }
+            ],
+            [
+              {
+                "text": "ธนาคาร"
+              },
+              {
+                "text": "SCB"
+              }
+            ],
+            [
+              {
+                "text": "เลขบัญชี"
+              },
+              {
+                "text": "4371699895"
+              }
+            ],
+            [
+              {
+                "text": "วงเงิน"
+              },
+              {
+                "text": "???"
+              }
+            ]
+          ]
+        },
+        {
+          "type": "details",
+          "summary": "วางข้อความหมุด",
+          "is_open": false,
+          "blocks": [
+            {
+              "type": "paragraph",
+              "text": "ชื่อ : เรืองรอง ชมขวัญ\nเลขบัญชี : 4371699895\nธนาคาร : ไทยพาณิชย\nวงเงิน : ???"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "sendPhoto": {
+    "method": "sendPhoto",
+    "chat_id": "{{chat_id}}",
+    "parse_mode": "HTML",
+    "start": {
+      "photo": "attach://og-1200x630.png",
+      "caption": "CT DESK LIVE"
+    },
+    "wait": {
+      "photo": "attach://webhook-wait-1080x560.png",
+      "caption": "รอโอน (waiting)"
+    },
+    "done": {
+      "photo": "attach://webhook-success-1080x560.png",
+      "caption": "โอนสำเร็จ (sent)"
+    }
+  }
+}
