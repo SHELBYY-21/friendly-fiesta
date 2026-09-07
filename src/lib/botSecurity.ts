@@ -85,9 +85,38 @@ export function isLowConfidence(value: number | null | undefined, threshold = 90
   return value == null || !Number.isFinite(value) || value < threshold;
 }
 
+/** BOT 3-digit FI codes on Thai slip QR / EasySlip. */
+export const BOT_BANK: Record<string, string> = {
+  '002': 'BBL',
+  '004': 'KBANK',
+  '006': 'KTB',
+  '011': 'TTB',
+  '014': 'SCB',
+  '022': 'CIMB',
+  '024': 'UOB',
+  '025': 'BAY',
+  '030': 'GSB',
+  '033': 'GHB',
+  '034': 'BAAC',
+  '066': 'ISLAM',
+  '067': 'TISCO',
+  '069': 'KKP',
+  '073': 'LH',
+};
+
+export function botBank(code: string | null | undefined): string | null {
+  return normalizeBankCode(code);
+}
+
 export function normalizeBankCode(value: string | null | undefined): string | null {
   const raw = (value ?? '').trim();
   if (!raw) return null;
+  const digits = raw.replace(/\D/g, '');
+  if (/^\d{2,3}$/.test(digits)) {
+    const fi = digits.padStart(3, '0');
+    if (BOT_BANK[fi]) return BOT_BANK[fi];
+    if (!/[A-Za-zก-๙]/.test(raw)) return null;
+  }
   if (/พร้อมเพย์|prompt\s*pay/i.test(raw)) return 'PROMPTPAY';
   if (/ทรูมันนี่|true\s*money|wallet/i.test(raw)) return 'TRUEMONEY';
   if (/กสิกร|ไลน์\s*bk|line\s*bk|k\s*plus/i.test(raw)) return 'KBANK';

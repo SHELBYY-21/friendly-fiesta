@@ -1,38 +1,14 @@
 import jpeg from 'jpeg-js';
 import jsQR from 'jsqr';
 import { isOcrJunkAmount } from './settleGuard';
-import { normalizeBankCode } from '../botSecurity';
+import { botBank, normalizeBankCode } from '../botSecurity';
 import type { SlipExtract } from '../grokVision';
 
 const { slipVerify } = require('promptparse/validate') as {
   slipVerify: (payload: string) => { sendingBank?: string; transRef?: string } | null;
 };
 
-/** BOT 3-digit codes on slip-verify mini QR (sending bank). */
-export const BOT_BANK: Record<string, string> = {
-  '002': 'BBL',
-  '004': 'KBANK',
-  '006': 'KTB',
-  '011': 'TTB',
-  '014': 'SCB',
-  '022': 'CIMB',
-  '024': 'UOB',
-  '025': 'BAY',
-  '030': 'GSB',
-  '033': 'GHB',
-  '034': 'BAAC',
-  '067': 'TISCO',
-  '069': 'KKP',
-  '073': 'LH',
-};
-
-export function botBank(code: string | null | undefined): string | null {
-  const raw = String(code ?? '').trim();
-  if (!raw) return null;
-  if (BOT_BANK[raw]) return BOT_BANK[raw];
-  if (/^[A-Z]{2,12}$/.test(raw.toUpperCase())) return raw.toUpperCase();
-  return null;
-}
+export { BOT_BANK, botBank } from '../botSecurity';
 
 export type SlipQrParse = {
   payload: string;

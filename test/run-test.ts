@@ -161,6 +161,11 @@ assert(normalizeBankCode('ยูโอบี') === 'UOB', 'ยูโอบี ma
 assert(normalizeBankCode('ธนชาต') === 'TTB', 'ธนชาต maps to TTB');
 assert(bankLabel('กสิกรไทย') === 'กสิกร (KBANK)', 'label กสิกร (KBANK)');
 assert(bankLabel('SCB') === 'ไทยพาณิชย์ (SCB)', 'label ไทยพาณิชย์ (SCB)');
+assert(normalizeBankCode('004') === 'KBANK', 'BOT 004 maps to KBANK');
+assert(normalizeBankCode('14') === 'SCB', 'BOT 14 pads to 014 SCB');
+assert(normalizeBankCode('006') === 'KTB', 'BOT 006 maps to KTB');
+assert(normalizeBankCode('999') === null, 'unknown BOT code is not a bank');
+assert(bankLabel('004') === 'กสิกร (KBANK)', 'label from BOT code');
 const livePins = [{ id: 's', bank_name: 'KTB', account_number: '6661260343', label: 'สุพัตรา' }];
 assert(accountLast4Candidates('6661260343').includes('0343'), 'true last4 0343');
 assert(accountLast4Candidates('6661260343').includes('6034'), 'KTB mask 6034');
