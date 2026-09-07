@@ -32,7 +32,7 @@ export function brandCard(
   return renderHeroPng(mapped, {
     hero: d?.hero || (kind === 'success' ? 'DONE' : kind === 'wait' ? 'WAIT' : 'CE VAULT'),
     sub: d?.sub,
-    meta: d?.meta || 'CT',
+    meta: d?.meta || 'CE',
   });
 }
 

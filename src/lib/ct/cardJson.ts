@@ -72,7 +72,7 @@ function quoteRows(d: QuoteNums): string[][] {
   ];
 }
 
-export function richStart(name = 'CT'): InputRichMessage {
+export function richStart(name = 'CE'): InputRichMessage {
   return {
     blocks: [
       heading('CE VAULT'),
@@ -179,7 +179,7 @@ export function cardExamples() {
     sendRichMessage: {
       method: 'sendRichMessage',
       chat_id: '{{chat_id}}',
-      start: richStart('CT'),
+      start: richStart('CE'),
       in_ready: richInReady(slip),
       wait: richWait(slip),
       done: richDone(slip),

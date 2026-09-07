@@ -241,7 +241,7 @@ export async function handleCtCallback(opts: {
       const name = await activateRoom(userId, target);
       await answerCallback(id, `ใช้ ${name}`);
       const view = await renderVault(target, 'today');
-      await sendHero(chatId, messageId, 'vault', view, name, 'ROOM', 'CT');
+      await sendHero(chatId, messageId, 'vault', view, name, 'ROOM', 'CE');
       return;
     }
     await answerCallback(id, 'ปุ่มนี้หมดอายุแล้วครับ');
@@ -270,7 +270,7 @@ export async function handleCtCallback(opts: {
         usdt: done.usdt,
         adminName: admin.name,
       });
-      await sendHero(chatId, messageId, 'settled', card, `${usdt(done.usdt)} USDT`, `${done.count} TX`, 'CT');
+      await sendHero(chatId, messageId, 'settled', card, `${usdt(done.usdt)} USDT`, `${done.count} TX`, 'CE');
       return;
     }
     if (cb.action === 'rateask') {
@@ -756,12 +756,12 @@ export async function handleCtText(opts: {
   }
   if (cmd === 'vault') {
     const vault = await renderVault(room, 'today');
-    await sendHero(view, undefined, 'vault', vault, 'VAULT', 'TODAY', 'CT');
+    await sendHero(view, undefined, 'vault', vault, 'VAULT', 'TODAY', 'CE');
     return true;
   }
   if (cmd === 'pending') {
     const vault = await renderVault(room, 'pending');
-    await sendHero(view, undefined, 'vault', vault, 'WAIT', 'DUE', 'CT');
+    await sendHero(view, undefined, 'vault', vault, 'WAIT', 'DUE', 'CE');
     return true;
   }
   if (cmd === 'menu' || cmd === 'settings') {

@@ -1,6 +1,6 @@
 # CE Vault
 
-Crown Tether ops desk. Telegram bot + live vault. Not a customer bot.
+CE Vault ops desk. Telegram bot + live vault. Not a customer bot.
 
 **Prod:** https://ce-vault.vercel.app
 

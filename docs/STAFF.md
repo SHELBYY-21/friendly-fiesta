@@ -1,4 +1,4 @@
-# คู่มือพนักงาน CT Desk
+# คู่มือพนักงาน CE Vault
 
 เปิดโต๊ะ: https://ce-vault.vercel.app
 

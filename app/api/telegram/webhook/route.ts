@@ -80,7 +80,7 @@ function sticker(chatId: number, key: StickerState): void {
   }
   const kind = stickerKind(key);
   if (!kind || kind === 'wait' && key === 'PROCESSING') return;
-  const png = brandCard(kind, { hero: key, sub: kind === 'success' ? 'DONE' : 'WAIT', meta: 'CT' });
+  const png = brandCard(kind, { hero: key, sub: kind === 'success' ? 'DONE' : 'WAIT', meta: 'CE' });
   sendPhoto(chatId, png, {
     text: kind === 'success' ? 'โอนสำเร็จ (sent)' : kind === 'wait' ? 'รอโอน (waiting)' : 'CE VAULT',
   }).catch(() => undefined);

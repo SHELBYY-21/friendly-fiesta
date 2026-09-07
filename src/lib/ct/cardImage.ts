@@ -246,7 +246,7 @@ export function renderHeroPng(kind: 'vault' | 'locked' | 'settled', d: {
   const buf = canvas();
   const accent = kind === 'settled' ? MINT : kind === 'locked' ? AMBER : CYAN;
   chrome(buf, accent);
-  text(buf, 'CT', 108, 42, 5, INK);
+  text(buf, 'CE', 108, 42, 5, INK);
   const tag = kind === 'vault' ? 'VAULT' : kind === 'locked' ? 'WAIT' : 'DONE';
   fill(buf, 108, 88, tag.length * 14 + 20, 28, accent);
   text(buf, tag, 118, 92, 2, BG);
@@ -280,7 +280,7 @@ export function renderScanPng(opts: {
   const buf = canvas();
   const accent = opts.live ? MINT : CYAN;
   chrome(buf, accent);
-  text(buf, 'CT', 108, 42, 5, INK);
+  text(buf, 'CE', 108, 42, 5, INK);
   const tag = opts.live ? 'LIVE' : 'SCAN';
   fill(buf, 108, 88, tag.length * 14 + 20, 28, accent);
   text(buf, tag, 118, 92, 2, BG);
