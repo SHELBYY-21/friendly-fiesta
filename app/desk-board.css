@@ -99,23 +99,27 @@
   width:36px;
   height:36px;
   border-radius:10px;
-  object-fit:cover;
-  box-shadow:0 0 18px color-mix(in oklch, #d4af56 42%, transparent);
+  overflow:hidden;
   flex:none;
+  display:block;
+  background:#050814;
+  box-shadow:
+    0 0 18px color-mix(in oklch, #d4af56 42%, transparent),
+    inset 0 0 0 1px rgba(212,175,88,.45);
 }
-.desk-board .mark-glow{
-  font-family:var(--font-display);
-  color:var(--gold);
-  letter-spacing:.16em;
-  text-shadow:0 0 18px color-mix(in srgb, var(--gold) 40%, transparent);
+.desk-board .ce-mark img{
+  width:36px;
+  height:36px;
+  object-fit:cover;
+  display:block;
 }
 .desk-board .ops-title{
   font-family:var(--font-body);
   font-size:13px;
-  letter-spacing:.02em;
+  letter-spacing:.04em;
   text-transform:none;
-  color:var(--fg);
-  font-weight:600;
+  color:#e8d5a3;
+  font-weight:700;
 }
 .desk-board .sum-desk,
 .desk-board .queue-desk,
