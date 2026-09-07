@@ -23,6 +23,7 @@
   --border-strong: rgba(94, 231, 255, 0.42);
   --brand-1: var(--gold);
   --good: var(--cyan);
+  --surface: var(--bg-subtle);
 
   --radius-xs: 4px;
   --radius-sm: 8px;

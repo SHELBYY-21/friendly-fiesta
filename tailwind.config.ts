@@ -17,7 +17,7 @@ const config: Config = {
       },
       fontFamily: {
         sans: ['var(--font-sans-next)', 'var(--font-thai-next)', 'system-ui', 'sans-serif'],
-        display: ['var(--font-display-next)', 'Georgia', 'serif'],
+        display: ['var(--font-ops-next)', 'Georgia', 'serif'],
         mono: ['var(--font-mono-next)', 'ui-monospace', 'monospace'],
       },
     },
