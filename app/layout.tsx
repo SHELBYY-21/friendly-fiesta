@@ -6,6 +6,7 @@ import './sum-desk.css';
 import './slip-card.css';
 import './desk-board.css';
 import { GrokPreviewBridge } from '@/components/ct/GrokPreviewBridge';
+import { ShareMeta } from '@/components/ct/ShareMeta';
 
 const sans = Geist({
   subsets: ['latin'],
@@ -40,11 +41,17 @@ export const metadata: Metadata = {
     icon: '/brand/ce-mark-512.png',
     apple: '/brand/apple-touch-icon.png',
   },
+  twitter: {
+    card: 'summary_large_image',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="th" data-thai="looped" className={`${sans.variable} ${thai.variable} ${mono.variable} ${ops.variable} antialiased`}>
+      <head>
+        <ShareMeta />
+      </head>
       <body className="min-h-screen bg-bg text-fg">
         <GrokPreviewBridge />
         {children}
