@@ -5,6 +5,7 @@ import {
 import { head as tokenHead, progress, rule, NODE, kv, quote } from './tokens';
 import type { FlowStep } from './tokens';
 import { richDone, richInReady, richStart, richWait, richVault } from './cardJson';
+import { bankLabel } from '../botSecurity';
 
 function msg(text: string, keyboard?: unknown, rich?: OutgoingMessage['rich']): OutgoingMessage {
   return { text, reply_markup: keyboard, rich };
@@ -204,12 +205,12 @@ export function cardInReady(d: {
     d.balanceThb != null ? `คงเหลือ  ${thbCard(d.balanceThb)} THB` : '',
     '',
     'ผู้รับ',
-    `${esc(d.bank)}  <code>${esc(payeeAcct)}</code>`,
+    `${esc(bankLabel(d.bank))}  <code>${esc(payeeAcct)}</code>`,
     esc(d.name || '—'),
     d.promptpay ? `พร้อมเพย์  <code>${esc(d.promptpay)}</code>` : '',
     '',
     'ผู้โอน',
-    `${esc(d.senderBank || '—')}  <code>${esc(payerAcct)}</code>`,
+    `${esc(bankLabel(d.senderBank || '—'))}  <code>${esc(payerAcct)}</code>`,
     esc(d.senderName || '—'),
     '',
     `OCR  ${Math.round(d.confidence)}%`,
@@ -222,7 +223,7 @@ export function cardInReady(d: {
     `<blockquote expandable>${detail.filter(Boolean).join('\n')}</blockquote>`,
     'กด <b>ยืนยัน</b> เพื่อรับฝาก',
   ];
-  if (d.fresh) lines.push(`บัญชีใหม่  ${esc(d.bank)}  <code>${esc(payeeAcct)}</code>`);
+  if (d.fresh) lines.push(`บัญชีใหม่  ${esc(bankLabel(d.bank))}  <code>${esc(payeeAcct)}</code>`);
   if (!hasDesk) lines.push('กรุณาตั้งอัตราห้องก่อน เช่น <code>36.65</code>');
   if (d.raw) lines.push(rawBlock(d.raw));
   const rows: Array<Array<Record<string, unknown>>> = [];
@@ -270,9 +271,9 @@ export function cardOcrWeak(d: {
     [
       head('แจ้งเตือน', `อ่านสลิปไม่ชัด (OCR weak)  ${Math.round(d.confidence)}%`),
       tape('scan'),
-      kv('ผู้รับ', 'PAYEE', `${esc(d.bank)}  <code>${esc(showAcct(d.account || d.last4))}</code>`),
+      kv('ผู้รับ', 'PAYEE', `${esc(bankLabel(d.bank))}  <code>${esc(showAcct(d.account || d.last4))}</code>`),
       kv('ชื่อ', 'NAME', esc(d.name || '—')),
-      d.senderName || d.senderAccount ? kv('ผู้โอน', 'PAYER', `${esc(d.senderBank || '—')}  <code>${esc(showAcct(d.senderAccount || ''))}</code>\n${esc(d.senderName || '—')}`) : '',
+      d.senderName || d.senderAccount ? kv('ผู้โอน', 'PAYER', `${esc(bankLabel(d.senderBank))}  <code>${esc(showAcct(d.senderAccount || ''))}</code>\n${esc(d.senderName || '—')}`) : '',
       d.date ? `วันที่ (DATE)     ${esc(d.date)}` : '',
       d.time ? `เวลา (TIME)      ${esc(d.time)}` : '',
       d.channel ? `ช่องทาง (CHANNEL)  ${esc(d.channel)}` : '',
@@ -396,7 +397,7 @@ export function cardLocked(d: {
       quoteBlock({ thb: d.thb, usdt: d.shouldSend, desk: d.desk, mkt: d.mkt ?? null }),
       tape('wait'),
       `<blockquote expandable>${esc(d.time)}
-${[d.bank, showAcct(d.account || d.last4)].filter((x) => x && x !== '—').join('  ')}
+${[bankLabel(d.bank), showAcct(d.account || d.last4)].filter((x) => x && x !== '—').join('  ')}
 ${esc(d.name || d.adminName)}${batchLines.join('\n')}</blockquote>`,
       ready ? 'กด <b>บันทึกส่งรวม</b>' : 'โอน USDT แล้วกด <b>บันทึกส่งรวม</b>',
     ].filter(Boolean).join('\n'),
@@ -508,7 +509,7 @@ export function cardDetail(d: {
       `ยอดรับเข้า (IN)      ${thbCard(d.thb)} THB`,
       `เงินออก (OUT)     ${d.usdtOut != null ? `${usdt(d.usdtOut)} USDT` : '—'}`,
       `เราขาย (DESK)  <code>${rateCode(d.desk)}</code>   เรทอ้างอิง (MKT) <code>${rateCode(d.mkt)}</code>`,
-      kv('ผู้รับ', 'PAYEE', `${esc(d.bank)}  <code>${esc(showAcct(d.account || d.last4))}</code>`),
+      kv('ผู้รับ', 'PAYEE', `${esc(bankLabel(d.bank))}  <code>${esc(showAcct(d.account || d.last4))}</code>`),
       kv('ชื่อ', 'NAME', esc(d.name || '—')),
       `บัญชีรับ (PIN)    ${d.pinMatch ? 'ตรง (match)' : 'ไม่ตรง (mismatch)'}`,
       `ความมั่นใจ (OCR)  ${d.confidence != null ? `${Math.round(d.confidence)}%` : '—'}`,

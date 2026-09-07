@@ -12,6 +12,7 @@ const {
   slipFingerprint,
   requiresAdminAccess,
   normalizeBankCode,
+  bankLabel,
 } = require('../src/lib/botSecurity');
 const { pickExplicitThbAmount } = require('../src/lib/ocrAmount');
 const UI = require('../src/lib/botUi');
@@ -155,6 +156,11 @@ assert(scbPin?.account === '4371699895', `scb pin account (got ${scbPin?.account
 assert(scbPin?.name === 'เรืองรอง ชมขวัญ', `scb pin name (got ${scbPin?.name})`);
 assert(scbPin?.limit == null, 'วงเงิน ??? is unknown not a number');
 assert(normalizeBankCode('ไทยพาณิชย') === 'SCB', 'ธนาคารไทยพาณิช without ์');
+assert(normalizeBankCode('เกียรตินาคินภัทร') === 'KKP', 'เกียรตินาคิน maps to KKP');
+assert(normalizeBankCode('ยูโอบี') === 'UOB', 'ยูโอบี maps to UOB');
+assert(normalizeBankCode('ธนชาต') === 'TTB', 'ธนชาต maps to TTB');
+assert(bankLabel('กสิกรไทย') === 'กสิกร (KBANK)', 'label กสิกร (KBANK)');
+assert(bankLabel('SCB') === 'ไทยพาณิชย์ (SCB)', 'label ไทยพาณิชย์ (SCB)');
 const livePins = [{ id: 's', bank_name: 'KTB', account_number: '6661260343', label: 'สุพัตรา' }];
 assert(accountLast4Candidates('6661260343').includes('0343'), 'true last4 0343');
 assert(accountLast4Candidates('6661260343').includes('6034'), 'KTB mask 6034');

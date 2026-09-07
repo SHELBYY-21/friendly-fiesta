@@ -9,6 +9,7 @@ import { analyzeSlipWithTyphoon } from './typhoon';
 import { pickExplicitThbAmount } from './ocrAmount';
 import { parseSlipText } from '../bot/parse';
 import { parseSmartSlip } from './ct/smartSlip';
+import { normalizeBankCode } from './botSecurity';
 
 export type { SlipExtract, UsdtExtract };
 
@@ -52,8 +53,8 @@ function mergeSlip(
     senderLast4: typhoon?.senderLast4 ?? grok?.senderLast4 ?? smart?.senderLast4 ?? null,
     receiverAccount: typhoon?.receiverAccount ?? grok?.receiverAccount ?? smart?.receiverAccount ?? null,
     senderAccount: typhoon?.senderAccount ?? grok?.senderAccount ?? null,
-    bank: typhoon?.bank || grok?.bank || smart?.bank || ocr?.bank || null,
-    senderBank: typhoon?.senderBank ?? grok?.senderBank ?? null,
+    bank: normalizeBankCode(typhoon?.bank || grok?.bank || smart?.bank || ocr?.bank) ?? null,
+    senderBank: normalizeBankCode(typhoon?.senderBank ?? grok?.senderBank) ?? null,
     receiverName: typhoon?.receiverName || grok?.receiverName || smart?.receiverName || ocr?.receiverName || null,
     senderName: typhoon?.senderName ?? grok?.senderName ?? smart?.senderName ?? null,
     transRef: typhoon?.transRef ?? grok?.transRef ?? smart?.transRef ?? null,

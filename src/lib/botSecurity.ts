@@ -88,23 +88,64 @@ export function isLowConfidence(value: number | null | undefined, threshold = 90
 export function normalizeBankCode(value: string | null | undefined): string | null {
   const raw = (value ?? '').trim();
   if (!raw) return null;
-  if (/กสิกร|ไลน์\s*bk|line\s*bk/i.test(raw)) return 'KBANK';
-  if (/กรุงเทพ|บางกอก/i.test(raw)) return 'BBL';
+  if (/พร้อมเพย์|prompt\s*pay/i.test(raw)) return 'PROMPTPAY';
+  if (/ทรูมันนี่|true\s*money|wallet/i.test(raw)) return 'TRUEMONEY';
+  if (/กสิกร|ไลน์\s*bk|line\s*bk|k\s*plus/i.test(raw)) return 'KBANK';
+  if (/กรุงศรี|อยุธยา/i.test(raw)) return 'BAY';
   if (/กรุงไทย/i.test(raw)) return 'KTB';
+  if (/กรุงเทพ|บางกอก/i.test(raw)) return 'BBL';
   if (/ไทยพาณิช|พาณิชย์|scb/i.test(raw)) return 'SCB';
-  if (/กรุงศรี/i.test(raw)) return 'BAY';
   if (/ออมสิน/i.test(raw)) return 'GSB';
-  if (/ทหารไทย|ทีทีบี/i.test(raw)) return 'TTB';
+  if (/ทหารไทย|ธนชาต|ทีทีบี|ttb/i.test(raw)) return 'TTB';
+  if (/เกียรตินาคิน|kkp/i.test(raw)) return 'KKP';
+  if (/ซีไอเอ็มบี|cimb/i.test(raw)) return 'CIMB';
+  if (/ยูโอบี|uob/i.test(raw)) return 'UOB';
+  if (/ทิสโก้|tisco/i.test(raw)) return 'TISCO';
+  if (/แลนด์|lh\s*bank|lhbank/i.test(raw)) return 'LH';
+  if (/ธ\.?\s*ก\.?\s*ส|เพื่อการเกษตร|baac/i.test(raw)) return 'BAAC';
+  if (/อาคารสงเคราะห์|ghb/i.test(raw)) return 'GHB';
+  if (/อิสลาม|ibank/i.test(raw)) return 'ISLAM';
   const compact = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
   if (!compact) return null;
   const aliases: Record<string, string> = {
     KASIKORN: 'KBANK', KASIKORNBANK: 'KBANK', KBANK: 'KBANK', KBANKTH: 'KBANK',
-    LINEBK: 'KBANK',
+    LINEBK: 'KBANK', KPLUS: 'KBANK',
     SIAMCOMMERCIALBANK: 'SCB', SCB: 'SCB',
     KRUNGTHAI: 'KTB', KTB: 'KTB',
     BANGKOKBANK: 'BBL', BBL: 'BBL',
-    KRUNGSRI: 'BAY', BAY: 'BAY',
-    TTB: 'TTB', CIMB: 'CIMB', GSB: 'GSB', BAAC: 'BAAC', TMN: 'TMN',
+    KRUNGSRI: 'BAY', BAY: 'BAY', AYUDHYA: 'BAY',
+    TTB: 'TTB', THANACHART: 'TTB',
+    CIMB: 'CIMB', GSB: 'GSB', BAAC: 'BAAC', TMN: 'TRUEMONEY', TRUEMONEY: 'TRUEMONEY',
+    KKP: 'KKP', UOB: 'UOB', TISCO: 'TISCO', LH: 'LH', LHBANK: 'LH',
+    GHB: 'GHB', ISLAM: 'ISLAM', IBANK: 'ISLAM',
+    PROMPTPAY: 'PROMPTPAY',
   };
   return aliases[compact] ?? compact.slice(0, 32);
+}
+
+const BANK_TH: Record<string, string> = {
+  KBANK: 'กสิกร',
+  SCB: 'ไทยพาณิชย์',
+  KTB: 'กรุงไทย',
+  BBL: 'กรุงเทพ',
+  BAY: 'กรุงศรี',
+  TTB: 'ทีทีบี',
+  GSB: 'ออมสิน',
+  KKP: 'เกียรตินาคิน',
+  CIMB: 'ซีไอเอ็มบี',
+  UOB: 'ยูโอบี',
+  LH: 'แลนด์แอนด์เฮ้าส์',
+  TISCO: 'ทิสโก้',
+  BAAC: 'ธ.ก.ส.',
+  GHB: 'อาคารสงเคราะห์',
+  ISLAM: 'อิสลาม',
+  TRUEMONEY: 'ทรูมันนี่',
+  PROMPTPAY: 'พร้อมเพย์',
+};
+
+export function bankLabel(value: string | null | undefined): string {
+  const code = normalizeBankCode(value);
+  if (!code) return '—';
+  const th = BANK_TH[code];
+  return th ? `${th} (${code})` : code;
 }
