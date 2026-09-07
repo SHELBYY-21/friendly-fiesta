@@ -34,7 +34,13 @@
 .desk-banner article{
   padding:10px 12px;
   border-radius:14px;
-  box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);
+  background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(8,18,34,.28));
+  backdrop-filter:blur(16px) saturate(150%);
+  -webkit-backdrop-filter:blur(16px) saturate(150%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.28),
+    inset 0 0 0 1px rgba(212,175,88,.35),
+    0 10px 28px rgba(0,0,0,.22);
 }
 .desk-banner p{margin:0;font-size:11px;font-weight:700;letter-spacing:.02em}
 .desk-banner strong{
@@ -246,7 +252,9 @@
   .desk-board .slip,
   .desk-board .desk-pin > *,
   .desk-api-panel,
-  .desk-board .scan-ring{
+  .desk-board .scan-ring,
+  .desk-board .kpi,
+  .desk-board .desk-banner article{
     background:rgba(18,22,36,.92);
   }
 }
@@ -257,7 +265,9 @@
   .desk-board .slip,
   .desk-board .desk-pin > *,
   .desk-api-panel,
-  .desk-board .scan-ring{
+  .desk-board .scan-ring,
+  .desk-board .kpi,
+  .desk-board .desk-banner article{
     backdrop-filter:none;
     -webkit-backdrop-filter:none;
     background:rgba(18,22,36,.94);

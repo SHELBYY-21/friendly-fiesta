@@ -8,8 +8,13 @@
 }
 .kpi{
   padding:14px 14px 12px;border-radius:16px;
-  background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
-  box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);
+  background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(8,18,34,.28));
+  backdrop-filter:blur(16px) saturate(150%);
+  -webkit-backdrop-filter:blur(16px) saturate(150%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.28),
+    inset 0 0 0 1px rgba(94,231,255,.22),
+    0 10px 28px rgba(0,0,0,.22);
 }
 .kpi.is-in{background:linear-gradient(180deg, rgba(30,224,138,.18), rgba(18,22,36,.22))}
 .kpi.is-due{background:linear-gradient(180deg, rgba(94,231,255,.16), rgba(18,22,36,.22))}
