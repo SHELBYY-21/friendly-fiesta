@@ -210,6 +210,11 @@ assert(parseAmounts('+500B +600B').ambiguous === true, 'rejects multiple THB amo
 assert(parseAmountTokens('+500USDX').length === 0, 'rejects partial currency suffix matches');
 
 assert(commandName('/recent_slips@cevault_bot 10') === 'recent_slips', 'parses command with bot mention');
+const { isPrivateOnlyCommand, GROUP_COMMANDS, PRIVATE_COMMANDS } = require('../src/lib/telegram/botCommands');
+assert(isPrivateOnlyCommand('start') === true, 'start is private-only');
+assert(isPrivateOnlyCommand('rate') === false, 'rate is allowed in groups');
+assert(GROUP_COMMANDS.every((c: { command: string }) => c.command !== 'start'), 'group menu hides start');
+assert(PRIVATE_COMMANDS.some((c: { command: string }) => c.command === 'start'), 'private menu shows start');
 assert(requiresAdminAccess('/recent_slips 10') === true, 'recent ledger requires admin access');
 assert(requiresAdminAccess('/ยอด') === true, 'Thai ledger alias requires admin access');
 assert(parseRecentLimit('/recent_slips') === 5, 'recent slips default limit is 5');

@@ -39,6 +39,7 @@ import { stillFromTelegram } from '@/lib/ct/livePhoto';
 import { handleCtCallback, handleCtText, isCtCallback, adminKeyboard } from '@/lib/ct/callbacks';
 import { brandCard, stickerKind } from '@/lib/ct/brandCards';
 import * as C from '@/lib/ct/copy';
+import { ensureBotCommandScopes, isPrivateOnlyCommand } from '@/lib/telegram/botCommands';
 import { findReceiversByLast4, upsertReceiverOnDeposit } from '@/lib/receivers';
 import { getSticker, validateStickers, type StickerState } from '@/config/stickers';
 import {
@@ -216,6 +217,10 @@ async function handleUpdate(update: any): Promise<void> {
   const isGroup = chatType === 'group' || chatType === 'supergroup';
   const cmd = commandName(text);
   const admin = await getAdminByTelegramId(userId);
+
+  void ensureBotCommandScopes().catch((e) => console.warn('setMyCommands', e instanceof Error ? e.message : e));
+
+  if (isGroup && isPrivateOnlyCommand(cmd)) return;
 
   if ((requiresAdminAccess(text) || Boolean(msg.photo)) && !admin) {
     if (!isGroup) {

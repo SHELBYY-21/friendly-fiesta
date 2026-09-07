@@ -20,6 +20,14 @@ async function tg<T = any>(method: string, payload: Record<string, any>): Promis
   return json.result as T;
 }
 
+export async function setMyCommands(
+  commands: Array<{ command: string; description: string }>,
+  scope?: { type: string },
+): Promise<boolean> {
+  await tg('setMyCommands', { commands, ...(scope ? { scope } : {}) });
+  return true;
+}
+
 export interface OutgoingMessage {
   text: string;
   reply_markup?: unknown;
