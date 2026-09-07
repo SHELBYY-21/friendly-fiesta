@@ -2,6 +2,7 @@ import { last4FromPayeeMask, nameFromPayee } from '../bot/parse';
 import { parseSmartSlip } from './ct/smartSlip';
 import type { SlipExtract } from './grokVision';
 import { getTyphoonSetting } from './systemSettings';
+import { normalizeBankCode } from './botSecurity';
 
 const BASE = () => (process.env.TYPHOON_BASE_URL || 'https://api.opentyphoon.ai/v1').replace(/\/$/, '');
 const OCR_MODEL = () => process.env.TYPHOON_OCR_MODEL || 'typhoon-ocr';
@@ -156,8 +157,8 @@ export function slipFromTyphoonJson(text: string, markdown?: string): SlipExtrac
     senderLast4,
     receiverAccount: str(data.receiverAccount) ?? smart?.receiverAccount ?? null,
     senderAccount: str(data.senderAccount),
-    bank: str(data.bank)?.toUpperCase() ?? smart?.bank ?? null,
-    senderBank: str(data.senderBank)?.toUpperCase() ?? null,
+    bank: normalizeBankCode(str(data.bank)) ?? smart?.bank ?? null,
+    senderBank: normalizeBankCode(str(data.senderBank)) ?? null,
     receiverName: str(data.receiverName) || nameFromPayee(text) || smart?.receiverName || null,
     senderName: str(data.senderName) ?? smart?.senderName ?? null,
     transRef: str(data.transRef) ?? smart?.transRef ?? null,

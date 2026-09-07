@@ -99,6 +99,15 @@ assert(ty.receiverName === 'เอกรินทร์', 'typhoon payee name');
 assert(ty.balanceThb === 50000, 'typhoon balance open');
 assert(ty.bank === 'KBANK', 'typhoon bank KBANK');
 
+const named = slipFromTyphoonJson(`{"thbAmount":1020,"bank":"กสิกรไทย","senderBank":"กรุงไทย","receiverLast4":"8306"}`);
+assert(named.bank === 'KBANK', 'thai bank name maps to KBANK');
+assert(named.senderBank === 'KTB', 'thai sender bank maps to KTB');
+const masked = slipFromTyphoonJson(
+  `{"receiverLast4":"0343","senderLast4":"0343"}`,
+  `ไปยัง บจก. พิมพ์ใจ กสิกรไทย xxx-x-x8306-x\nจาก น.ส. มาลัย xxx-x-x0343-x`,
+);
+assert(masked.receiverLast4 === '8306', 'payee mask beats swapped last4');
+
 assert(last4FromPayeeMask(`จาก น.ส. มาลัย กสิกรไทย xxx-x-x9434-x
 ไปยัง บจก. พิมพ์ใจ กสิกรไทย xxx-x-x5012-x`) === '5012', 'payee mask ignores sender');
 assert(last4FromPayeeMask(`กรุงไทย
