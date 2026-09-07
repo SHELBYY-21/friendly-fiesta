@@ -258,7 +258,7 @@ export function amountFormatHelp(): OutgoingMessage {
 }
 
 export function wrongDirection(cur: 'THB' | 'USDT'): OutgoingMessage {
-  const msg = cur === 'THB' ? 'บาทในดีลนี้คือเงินเข้า — ใช้ +500B' : 'USDT ในดีลนี้คือเหรียญออก — ใช้ -13.6U';
+  const msg = cur === 'THB' ? 'บาทในดีลนี้คือยอดรับเข้า — ใช้ +500B' : 'USDT ในดีลนี้คือเหรียญออก — ใช้ -13.6U';
   return card({
     icon: '⚠️',
     titleTh: 'ทิศทางไม่ถูกต้อง',

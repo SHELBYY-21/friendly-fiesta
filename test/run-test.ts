@@ -317,10 +317,35 @@ assert(JSON.stringify(inReady.reply_markup).includes('slip:lock:A4F2'), 'lock ca
 assert(hasBalancedTelegramHtml(inReady.text), 'IN_READY html balanced');
 assert(!/[👑✨🌿💎🤍🟢🔴💰📈🎯💵🏦👤⚠❤🔥⚡]/.test(inReady.text), 'IN_READY has no public emoji');
 
-const { stillFromTelegram } = require('../src/lib/ct/livePhoto');
+const { stillFromTelegram, decodeStillFrame, isLivePhoto } = require('../src/lib/ct/livePhoto');
 assert(stillFromTelegram({ live_photo: { photo: [{ file_id: 'lp1', file_unique_id: 'u1' }] }, photo: [{ file_id: 'p1' }] }).fileId === 'lp1', 'live photo prefers still frame');
 assert(stillFromTelegram({ photo: [{ file_id: 'a' }, { file_id: 'b', file_unique_id: 'ub' }] }).fileId === 'b', 'plain photo uses largest size');
 assert(stillFromTelegram({ live_photo: { file_id: 'clip-only' } }) == null, 'live clip without still is ignored');
+assert(isLivePhoto({ live_photo: { photo: [{ file_id: 'x' }] } }) === true, 'isLivePhoto true');
+assert(isLivePhoto({ photo: [{ file_id: 'x' }] }) === false, 'plain photo is not live');
+assert(decodeStillFrame(Buffer.from('not-a-jpeg')) == null, 'decode still rejects junk');
+assert(decodeStillFrame(Buffer.alloc(0)) == null, 'decode still rejects empty');
+
+const { aiReceived } = require('../src/lib/ct/aiTransition');
+const liveOpen = aiReceived({ live: true });
+assert(liveOpen.text.includes('LIVE PHOTO'), 'live opening names still frame');
+assert(liveOpen.text.includes('ภาพนิ่ง'), 'live opening Thai still copy');
+assert(liveOpen.text.includes('<blockquote'), 'live opening uses quote effect');
+assert(hasBalancedTelegramHtml(liveOpen.text), 'live opening html balanced');
+const slipOpen = aiReceived({ live: false });
+assert(slipOpen.text.includes('SLIP PHOTO'), 'plain slip opening');
+
+const { renderHeroPng, renderScanPng } = require('../src/lib/ct/cardImage');
+const pngMagic = Buffer.from([137, 80, 78, 71]);
+const hero = renderHeroPng('locked', { hero: '500 THB', sub: 'IN', meta: 'A4F2' });
+assert(hero.slice(0, 4).equals(pngMagic), 'hero png signature');
+assert(hero.length > 800, 'hero png has body');
+const scan = renderScanPng({ sweep: 0.4, live: true });
+assert(scan.slice(0, 4).equals(pngMagic), 'scan png signature');
+assert(scan.length > 800, 'scan png has body');
+const scanB = renderScanPng({ sweep: 0.8, live: true });
+assert(!scan.equals(scanB), 'scan beam moves between frames');
+
 const vault = CT.vaultBanner({
   mode: 'today', dateLabel: '26 Aug', clock: '03:59',
   inThb: 0, inCount: 0, inRows: [], outUsdt: 0, outCount: 0, outRows: [],

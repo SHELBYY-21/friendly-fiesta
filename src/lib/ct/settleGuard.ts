@@ -15,7 +15,7 @@ export type SettleSkip =
   | 'NO_PIN';
 
 export const SKIP_TH: Record<SettleSkip, string> = {
-  ALREADY_SETTLED: 'โอนแล้ว',
+  ALREADY_SETTLED: 'โอนสำเร็จ',
   NOT_LOCKED: 'ยังไม่ล็อก',
   NO_AMOUNT: 'ยังไม่มียอด',
   AMOUNT_TOO_LARGE: 'ยอดเกินเพดาน',

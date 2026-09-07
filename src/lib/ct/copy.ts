@@ -76,8 +76,8 @@ export function settingsCard(d: {
     [
       head('ตั้งค่า', 'ห้องนี้'),
       '',
-      `อัตราห้อง (DESK)   <code>${rateCode(d.desk)}</code>`,
-      `ตลาด (MKT)         <code>${rateCode(d.mkt)}</code>`,
+      `เราขาย (DESK)   <code>${rateCode(d.desk)}</code>`,
+      `เรทอ้างอิง (MKT)         <code>${rateCode(d.mkt)}</code>`,
       pinLine,
       '',
       'ผู้ดูแล (ADMINS)',
@@ -146,7 +146,7 @@ export function cardInReady(d: {
     d.date ? `วันที่  ${esc(d.date)}` : '',
     d.time ? `เวลา  ${esc(d.time)}` : '',
     d.channel ? `ช่องทาง  ${esc(d.channel)}` : '',
-    d.transRef ? `อ้างอิง  <code>${esc(d.transRef)}</code>` : '',
+    d.transRef ? `รหัสอ้างอิง  <code>${esc(d.transRef)}</code>` : '',
     d.feeThb != null ? `ค่าธรรมเนียม  ${thbInt(d.feeThb)} THB` : '',
     '<blockquote>ผู้รับ',
     `${esc(d.bank)}  <code>${esc(payeeAcct)}</code>`,
@@ -286,7 +286,7 @@ export function cardLocked(d: {
   if (d.batch && d.batch.count > 0) {
     rows.push([btn('บันทึกส่งรวม', 'vault:batch', 'primary')]);
   }
-  rows.push([btn('บันทึกส่ง', `slip:settle:${d.short}`)]);
+  rows.push([btn('บันทึกส่ง', `slip:settle:${d.short}`, 'success')]);
   rows.push([btn('แก้ไข', `slip:edit:${d.short}`), btn('พัก', `slip:open:${d.short}`)]);
   if (d.canUndo) rows.push([btn('ยกเลิก', `slip:undo:${d.short}`, 'danger')]);
   else rows.push([btn('ลบ', `slip:delask:${d.short}`, 'danger')]);
@@ -367,7 +367,7 @@ export function cardSettled(d: {
       tape('done'),
       `ยอดรับเข้า (IN)      ${thbCard(d.thb)} THB`,
       `เงินออก (OUT)     <b>${usdt(d.usdtOut)} USDT</b>`,
-      `อัตราโต๊ะ (DESK)  <code>${rateCode(d.desk)}</code>`,
+      `เราขาย (DESK)  <code>${rateCode(d.desk)}</code>`,
       '',
       `<code>${esc(displayLedger(d.ledger))}</code>`,
       `${esc(d.adminName)}  ${esc(d.inTime)} → ${esc(d.outTime)}`,
@@ -376,7 +376,7 @@ export function cardSettled(d: {
     ].join('\n'),
     ik([
       [btn('ดูรายการ', `slip:open:${d.short}`), btn('คัดลอกเลขที่', `slip:copy:${d.short}`)],
-      [btn('ดูยอด', 'vault:today')],
+      [btn('ดูยอด', 'vault:today', 'primary')],
     ]),
   );
 }
@@ -406,7 +406,7 @@ export function cardDetail(d: {
       '',
       `ยอดรับเข้า (IN)      ${thbCard(d.thb)} THB`,
       `เงินออก (OUT)     ${d.usdtOut != null ? `${usdt(d.usdtOut)} USDT` : '—'}`,
-      `อัตราโต๊ะ (DESK)  <code>${rateCode(d.desk)}</code>   ตลาด (MKT) <code>${rateCode(d.mkt)}</code>`,
+      `เราขาย (DESK)  <code>${rateCode(d.desk)}</code>   เรทอ้างอิง (MKT) <code>${rateCode(d.mkt)}</code>`,
       kv('ผู้รับ', 'PAYEE', `${esc(d.bank)}  ${esc(maskAcct(d.last4))}`),
       kv('ชื่อ', 'NAME', esc(d.name || '—')),
       `บัญชีรับ (PIN)    ${d.pinMatch ? 'ตรง (match)' : 'ไม่ตรง (mismatch)'}`,
@@ -417,7 +417,7 @@ export function cardDetail(d: {
     ].join('\n'),
     ik([
       [btn('หมายเหตุ', `slip:note:${d.short}`), btn('คัดลอกเลขที่', `slip:copy:${d.short}`)],
-      [btn('ดูยอด', 'vault:today')],
+      [btn('ดูยอด', 'vault:today', 'primary')],
     ]),
   );
 }
@@ -573,10 +573,10 @@ export function askDeskRate(current?: number | null): OutgoingMessage {
 export function deskRateSet(desk: number, mkt: number | null): OutgoingMessage {
   return msg(
     [
-      head('อัตราแลกเปลี่ยน', 'บันทึกแล้ว'),
+      head('อัตราแลกเปลี่ยน', 'บันทึกเรียบร้อย'),
       '',
-      `อัตราโต๊ะ (DESK)   <code>${desk.toFixed(2)}</code>  THB / USDT`,
-      `ตลาด (MKT)         <code>${mkt && mkt > 0 ? mkt.toFixed(2) : '—'}</code>`,
+      `เราขาย (DESK)   <code>${desk.toFixed(2)}</code>  THB / USDT`,
+      `เรทอ้างอิง (MKT)         <code>${mkt && mkt > 0 ? mkt.toFixed(2) : '—'}</code>`,
       'สลิปใบใหม่จะใช้อัตรานี้ ส่วนสลิปเก่าจะไม่ถูกนำมาคิดคำนวณ',
     ].join('\n'),
   );

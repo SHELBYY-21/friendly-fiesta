@@ -127,7 +127,7 @@ export default function SummaryToday({
       <div className="sum-rule" />
       <div className="sum-block">
         <Row label="เราขาย" hint="อัตราขายให้ลูกค้า" value={desk ? n(desk, 2) + ' บาท / U' : '—'} />
-        <Row label="เรทอ้างอิง" hint="ราคาตลาดอ้างอิง" tone="muted" value={mkt ? n(mkt, 2) : '—'} />
+        <Row label="เรทอ้างอิง" hint="ราคาตลาดอ้างอิง" value={mkt ? n(mkt, 2) : '—'} />
         <Row label="อัปเดตล่าสุด" tone="muted" value={clock ?? '—'} />
         {owner ? <Row label="ผู้รับผิดชอบ" value={owner.name + ' · ' + owner.count} /> : null}
       </div>

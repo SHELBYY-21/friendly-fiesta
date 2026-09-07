@@ -27,7 +27,7 @@
 .qd-pill{
   min-height:36px;padding:6px 14px;border-radius:999px;font-size:13px;line-height:1.4;letter-spacing:0;
   font-family:var(--font-body),system-ui,sans-serif;
-  color:var(--fg-muted,#8b95ad);border:1px solid var(--qd-line);background:transparent;
+  color:var(--fg,#e8edf7);border:1px solid var(--qd-line);background:transparent;font-weight:600;
 }
 .qd-pill.is-on{
   color:#04140c;border-color:transparent;font-weight:700;

@@ -15,8 +15,9 @@ import { applyQrToOcr, type SlipQrResult } from './slipQr';
 import { inspectSlipImage } from './slipInquiry';
 import * as C from './copy';
 import { cardDuplicate, cardAlreadyQueued } from './notice';
-import { renderHeroPng } from './cardImage';
+import { renderHeroPng, renderScanPng } from './cardImage';
 import { AiTransition, aiReceived } from './aiTransition';
+import { decodeStillFrame } from './livePhoto';
 import type { Admin } from '@/types/transactions';
 import type { PinnedBank } from '../banks';
 
@@ -56,14 +57,13 @@ async function rejectDuplicate(chatId: number, fingerprint: string): Promise<boo
   return false;
 }
 
-async function readSlip(chatId: number, fileId: string, cardIdP: Promise<number>): Promise<{
+async function ingestSlip(chatId: number, fileId: string, buffer: Buffer, cardIdP: Promise<number>): Promise<{
   cardId: number;
   url: string;
   slip: SlipExtract;
   qr: SlipQrResult | null;
 } | null> {
   try {
-    const buffer = await downloadTelegramFile(fileId);
     const dataUrl = `data:image/jpeg;base64,${buffer.toString('base64')}`;
     const qrP = inspectSlipImage(buffer).catch(() => null);
     const [cardId, analyzed, qr] = await Promise.all([
@@ -103,9 +103,19 @@ export async function handleCtPhoto(opts: { chatId: number; userId: number; admi
   const { chatId, userId, admin, fileId, fileUniqueId, livePhoto } = opts;
   const [pins, rates] = await Promise.all([pinsForToday(chatId), opsRates(chatId)]);
   const todayPin = pins[0];
-  await sendChatAction(chatId, livePhoto ? 'upload_photo' : 'typing');
-  const cardIdP = sendMessage(chatId, aiReceived({ live: Boolean(livePhoto) }));
-  const read = await readSlip(chatId, fileId, cardIdP);
+  await sendChatAction(chatId, 'upload_photo');
+  let buffer: Buffer;
+  try {
+    buffer = await downloadTelegramFile(fileId);
+  } catch (e: any) {
+    await sendMessage(chatId, { text: `อ่านสลิปไม่สำเร็จ — ${e?.message ?? 'ลองส่งใหม่'}` });
+    return;
+  }
+  const still = decodeStillFrame(buffer);
+  const opening = aiReceived({ live: Boolean(livePhoto) });
+  const scanPng = renderScanPng({ still, sweep: 0.16, live: Boolean(livePhoto) });
+  const cardIdP = sendPhoto(chatId, scanPng, opening).catch(() => sendMessage(chatId, opening));
+  const read = await ingestSlip(chatId, fileId, buffer, cardIdP);
   if (!read) return;
   const { cardId, url, slip, qr } = read;
 
@@ -118,7 +128,7 @@ export async function handleCtPhoto(opts: { chatId: number; userId: number; admi
   }
   const fingerprint = fingerprints[0];
 
-  const ai = new AiTransition(chatId, cardId, Boolean(livePhoto));
+  const ai = new AiTransition(chatId, cardId, Boolean(livePhoto), still);
   await ai.step('ocr');
   const matchedPin = matchSlipPins(slip.bank, slip.receiverLast4, slip.senderLast4, pins);
   const pinMatch = Boolean(matchedPin);
@@ -180,11 +190,20 @@ async function tryQueue(pending: PendingSlip, ctx: { chatId: number; userId: num
   try {
     const locked = await commitIncomingLock(pending, { chatId: ctx.chatId, userId: ctx.userId, admin: ctx.admin, force: false, queued: true });
     const batch = await dueSummary(ctx.chatId);
-    await editMessage(ctx.chatId, ctx.cardId, C.cardLocked({
+    const card = C.cardLocked({
       thb: locked.thb_in ?? 0, shouldSend: locked.should_send ?? 0, desk: locked.desk_rate ?? 0, mkt: locked.mkt_rate,
       ledger: locked.ledger_ref, adminName: ctx.admin.name, time: clockBkk(), short: locked.short_ref,
       canUndo: true, queued: true, batch, bank: locked.bank ?? ctx.bank, last4: ctx.last4 ?? '????', name: locked.name,
-    }));
+    });
+    await sendHero(
+      ctx.chatId,
+      ctx.cardId,
+      'locked',
+      card,
+      `${(locked.thb_in ?? 0).toLocaleString('en-US')} THB`,
+      'WAIT',
+      locked.short_ref,
+    );
     return true;
   } catch { return false; }
 }

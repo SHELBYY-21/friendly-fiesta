@@ -384,7 +384,7 @@ async function handleUpdate(update: any): Promise<void> {
       const sell = nums[0];
       const market = Number(r.marketUsdtRate);
       if (!Number.isFinite(market) || market <= 0) {
-        await sendMessage(chatId, UI.error('ดึงเรทตลาดไม่ได้ — ลองใหม่'));
+        await sendMessage(chatId, UI.error('ดึงเรทอ้างอิงไม่ได้ — ลองใหม่'));
         return;
       }
       await insertRate(admin.id, sell, market);

@@ -324,7 +324,7 @@ export default function AdminConsole() {
                 />
               </label>
               <label className="text-xs">
-                <span className="mb-1 block text-[color:var(--muted)]">เรทตลาด (฿/USDT)</span>
+                <span className="mb-1 block text-[color:var(--muted)]">เรทอ้างอิง (฿/USDT)</span>
                 <input
                   value={marketInput}
                   onChange={(e) => setMarketInput(e.target.value)}

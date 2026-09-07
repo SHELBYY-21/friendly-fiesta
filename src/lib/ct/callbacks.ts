@@ -185,7 +185,7 @@ export async function handleCtCallback(opts: {
         ? ` · ข้าม ${done.skipped.map((s) => `${s.short} ${SKIP_TH[s.reason] ?? s.reason}`).join(' · ')}`
         : '';
       if (!done.count) {
-        await answerCallback(id, done.skipped.length ? `ยังไม่ส่ง${skipBit}` : 'ยังไม่มีคิวรอส่ง');
+        await answerCallback(id, done.skipped.length ? `ยังไม่ได้โอน${skipBit}` : 'ยังไม่มีคิวรอส่ง');
         return;
       }
       await answerCallback(id, `โอนรวม ${done.count} ใบ${skipBit}`);
@@ -362,7 +362,7 @@ export async function handleCtCallback(opts: {
         await answerCallback(id, 'ยอดไม่ถูกต้องครับ');
         return;
       }
-      await answerCallback(id, `บันทึกแล้ว · ${p.short_ref}`);
+      await answerCallback(id, `บันทึกเรียบร้อย · ${p.short_ref}`);
       const desk = p.desk_rate || (await opsRates(chatId)).desk;
       const owed = shouldSend(thb, desk);
       const next = await patchSlip(p.id, {
@@ -432,13 +432,13 @@ async function doLock(
   queued: boolean,
 ) {
   if (p.status === 'LOCKED' || p.status === 'SETTLED') {
-    await answerCallback(cbId, `บันทึกแล้ว · ${p.short_ref}`);
+    await answerCallback(cbId, `บันทึกเรียบร้อย · ${p.short_ref}`);
     return;
   }
   try {
     const next = await commitIncomingLock(p, { chatId, userId, admin, force, queued });
     const batch = await dueSummary(chatId);
-    await answerCallback(cbId, queued ? `เก็บไว้แล้ว · ${p.short_ref}` : `บันทึกแล้ว · ${p.short_ref}`);
+    await answerCallback(cbId, queued ? `เก็บไว้แล้ว · ${p.short_ref}` : `บันทึกเรียบร้อย · ${p.short_ref}`);
     const card = C.cardLocked({
       thb: next.thb_in ?? 0,
       shouldSend: next.should_send ?? 0,

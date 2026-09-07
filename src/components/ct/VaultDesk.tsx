@@ -269,7 +269,7 @@ export default function VaultDesk() {
                 className={'qd-pill' + (mode === m ? ' is-on' : '')}
                 onClick={() => setMode(m)}
               >
-                {m === 'today' ? 'วันนี้' : 'รอดำเนินการ'}
+                {m === 'today' ? 'ดูยอดวันนี้' : 'เปิดคิวโอน'}
               </button>
             ))}
           </span>
@@ -279,6 +279,13 @@ export default function VaultDesk() {
             onClick={() => setMonitor((v) => !v)}
           >
             ตรวจสอบรายการ
+          </button>
+          <button
+            type="button"
+            className="qd-pill"
+            onClick={() => document.getElementById('desk-accounts')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          >
+            ดูบัญชี
           </button>
           {settleDue > 0 && (
             <span className="font-mono text-sm text-gold">รอโอน {money(settleDue, 2)}</span>
@@ -311,7 +318,7 @@ export default function VaultDesk() {
           lastSync={data ? new Date() : null}
           syncStatus={error ? 'error' : live ? 'live' : data ? 'syncing' : 'syncing'}
         />
-        <div className="desk-pin">
+        <div className="desk-pin" id="desk-accounts">
           <PinnedAccounts accounts={pinCards} catalog={catalog} onPin={pinAccount} pinning={pinning} lastSync={data ? new Date() : null} syncStatus={error ? 'error' : live ? 'live' : 'syncing'} />
         </div>
       </div>

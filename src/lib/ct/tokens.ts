@@ -52,8 +52,8 @@ export function progress(step: FlowStep): string {
 export function head(status: string, meta?: string): string {
   const chip = CHIP[status] ?? status;
   return meta
-    ? `${MARK}  <b>CT</b>\n[ ${chip} ]  ${meta}`
-    : `${MARK}  <b>CT</b>\n[ ${chip} ]`;
+    ? `${MARK}  <b>CT</b>  ·  <b>${chip}</b>\n${meta}`
+    : `${MARK}  <b>CT</b>  ·  <b>${chip}</b>`;
 }
 
 export function rule(): string {

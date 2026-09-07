@@ -21,7 +21,7 @@
   font-variant-numeric:tabular-nums;letter-spacing:-.03em;line-height:1.2;color:var(--fg);
   text-shadow:0 0 16px color-mix(in srgb, var(--gold) 28%, transparent);
 }
-.kpi span{display:block;margin-top:4px;font-size:12px;color:var(--fg-muted);font-weight:500}
+.kpi span{display:block;margin-top:4px;font-size:12px;color:var(--fg-muted);font-weight:600}
 .kpi.is-due strong{color:var(--gold)}
 .kpi.is-in strong{color:#1ee08a;text-shadow:0 0 14px color-mix(in srgb, #1ee08a 40%, transparent)}
 .kpi.is-out strong{color:#1ee08a;text-shadow:0 0 14px color-mix(in srgb, #1ee08a 40%, transparent)}

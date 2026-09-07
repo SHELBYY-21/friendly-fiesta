@@ -9,6 +9,9 @@ const MINT = [30, 224, 138];
 const AMBER = [245, 193, 74];
 const INK = [245, 245, 247];
 const MUTED = [134, 140, 148];
+const PANEL = [16, 20, 28];
+
+export type StillFrame = { data: Uint8Array | Buffer; width: number; height: number };
 
 function crc32(buf: Buffer): number {
   let c = ~0;
@@ -91,6 +94,72 @@ function diamond(buf: Buffer, cx: number, cy: number, r: number, rgb: number[]) 
   }
 }
 
+function ring(buf: Buffer, cx: number, cy: number, r: number, rgb: number[], a: number) {
+  const r2 = (r + 1.6) * (r + 1.6);
+  const inner = Math.max(0, r - 1.6);
+  const inner2 = inner * inner;
+  for (let y = -r - 2; y <= r + 2; y++) {
+    for (let x = -r - 2; x <= r + 2; x++) {
+      const d2 = x * x + y * y;
+      if (d2 > r2 || d2 < inner2) continue;
+      blend(buf, cx + x, cy + y, rgb, a);
+    }
+  }
+}
+
+function scanBeam(buf: Buffer, y: number, rgb: number[], x0 = 40, x1 = W - 40) {
+  for (let x = x0; x < x1; x++) {
+    const edge = 1 - Math.abs((x - (x0 + x1) / 2) / ((x1 - x0) / 2));
+    blend(buf, x, y - 10, rgb, 0.06 * edge);
+    blend(buf, x, y - 6, rgb, 0.12 * edge);
+    blend(buf, x, y - 2, rgb, 0.28 * edge);
+    blend(buf, x, y, rgb, 0.75 * edge);
+    blend(buf, x, y + 2, rgb, 0.28 * edge);
+    blend(buf, x, y + 6, rgb, 0.12 * edge);
+  }
+}
+
+function blitStill(buf: Buffer, still: StillFrame, dx: number, dy: number, dw: number, dh: number) {
+  const src = still.data;
+  const sw = still.width;
+  const sh = still.height;
+  if (sw < 2 || sh < 2 || dw < 2 || dh < 2) return;
+  const srcRatio = sw / sh;
+  const boxRatio = dw / dh;
+  let rw = dw;
+  let rh = dh;
+  if (srcRatio > boxRatio) rh = Math.round(dw / srcRatio);
+  else rw = Math.round(dh * srcRatio);
+  const ox = dx + Math.floor((dw - rw) / 2);
+  const oy = dy + Math.floor((dh - rh) / 2);
+  for (let y = 0; y < rh; y++) {
+    const sy = Math.min(sh - 1, Math.floor((y * sh) / rh));
+    for (let x = 0; x < rw; x++) {
+      const sx = Math.min(sw - 1, Math.floor((x * sw) / rw));
+      const si = (sy * sw + sx) * 4;
+      px(buf, ox + x, oy + y, [src[si], src[si + 1], src[si + 2]]);
+    }
+  }
+}
+
+function canvas(): Buffer {
+  const buf = Buffer.alloc(W * H * 3);
+  for (let i = 0; i < buf.length; i += 3) {
+    buf[i] = BG[0]; buf[i + 1] = BG[1]; buf[i + 2] = BG[2];
+  }
+  return buf;
+}
+
+function chrome(buf: Buffer, accent: number[]) {
+  glow(buf, 540, -30, 460, accent, 0.26);
+  glow(buf, 980, 70, 300, GOLD, 0.16);
+  glow(buf, 90, 80, 90, accent, 0.5);
+  fill(buf, 0, 0, W, 4, accent);
+  fill(buf, 0, 0, 7, H, GOLD);
+  fill(buf, 0, H - 4, W, 4, accent);
+  diamond(buf, 72, 64, 16, accent);
+}
+
 // 5x7 glyphs, bit rows
 const G: Record<string, number[]> = {
   '0': [14, 17, 19, 21, 25, 17, 14],
@@ -122,6 +191,11 @@ const G: Record<string, number[]> = {
   T: [31, 4, 4, 4, 4, 4, 4],
   U: [17, 17, 17, 17, 17, 17, 14],
   V: [17, 17, 17, 17, 17, 10, 4],
+  I: [14, 4, 4, 4, 4, 4, 14],
+  F: [31, 16, 16, 30, 16, 16, 16],
+  H: [17, 17, 17, 31, 17, 17, 17],
+  G: [14, 17, 16, 19, 17, 17, 14],
+  X: [17, 17, 10, 4, 10, 17, 17],
   '.': [0, 0, 0, 0, 0, 4, 4],
   ',': [0, 0, 0, 0, 0, 4, 8],
   ':': [0, 4, 4, 0, 4, 4, 0],
@@ -152,24 +226,64 @@ export function renderHeroPng(kind: 'vault' | 'locked' | 'settled', d: {
   sub?: string;
   meta?: string;
 }): Buffer {
-  const buf = Buffer.alloc(W * H * 3);
-  for (let i = 0; i < buf.length; i += 3) {
-    buf[i] = BG[0]; buf[i + 1] = BG[1]; buf[i + 2] = BG[2];
-  }
+  const buf = canvas();
   const accent = kind === 'settled' ? MINT : kind === 'locked' ? AMBER : CYAN;
-  glow(buf, 540, -20, 420, accent, 0.22);
-  glow(buf, 980, 80, 280, GOLD, 0.14);
-  glow(buf, 72, 72, 70, accent, 0.55);
-  fill(buf, 0, 0, W, 3, accent);
-  fill(buf, 0, 0, 6, H, GOLD);
-  diamond(buf, 72, 72, 18, accent);
-  text(buf, 'CT', 108, 48, 5, INK);
+  chrome(buf, accent);
+  text(buf, 'CT', 108, 42, 5, INK);
   const tag = kind === 'vault' ? 'VAULT' : kind === 'locked' ? 'WAIT' : 'DONE';
-  text(buf, tag, 108, 92, 2, accent);
-  fill(buf, 48, 138, W - 96, 1, accent);
-  glow(buf, 220, 250, 220, accent, 0.28);
-  text(buf, d.hero.replace(/,/g, ''), 48, 188, 10, kind === 'settled' ? MINT : GOLD);
-  if (d.sub) text(buf, d.sub.replace(/,/g, ''), 48, 318, 4, INK);
-  if (d.meta) text(buf, d.meta.replace(/,/g, ''), 48, 460, 3, MUTED);
+  fill(buf, 108, 88, tag.length * 14 + 20, 28, accent);
+  text(buf, tag, 118, 92, 2, BG);
+  fill(buf, 40, 132, W - 80, 2, accent);
+  fill(buf, 48, 168, W - 96, 250, PANEL);
+  glow(buf, 240, 250, 240, accent, 0.32);
+  glow(buf, 240, 250, 90, GOLD, 0.18);
+  scanBeam(buf, 300, accent);
+  text(buf, d.hero.replace(/,/g, ''), 64, 196, 10, kind === 'settled' ? MINT : GOLD);
+  if (d.sub) text(buf, d.sub.replace(/,/g, ''), 64, 330, 4, INK);
+  if (d.meta) text(buf, d.meta.replace(/,/g, ''), 64, 468, 3, MUTED);
+  return encodePng(buf, W, H);
+}
+
+/** Wallet-News-style scan: still frame of the slip + sweeping cyan beam. */
+export function renderScanPng(opts: {
+  still?: StillFrame | null;
+  sweep: number;
+  live?: boolean;
+}): Buffer {
+  const buf = canvas();
+  const accent = opts.live ? MINT : CYAN;
+  chrome(buf, accent);
+  text(buf, 'CT', 108, 42, 5, INK);
+  const tag = opts.live ? 'LIVE' : 'SCAN';
+  fill(buf, 108, 88, tag.length * 14 + 20, 28, accent);
+  text(buf, tag, 118, 92, 2, BG);
+  fill(buf, 40, 132, W - 80, 2, accent);
+
+  const panelX = 48;
+  const panelY = 150;
+  const panelW = W - 96;
+  const panelH = 360;
+  fill(buf, panelX, panelY, panelW, panelH, PANEL);
+  if (opts.still) {
+    blitStill(buf, opts.still, panelX + 8, panelY + 8, panelW - 16, panelH - 16);
+    for (let y = panelY; y < panelY + panelH; y++) {
+      const edgeY = Math.min(y - panelY, panelY + panelH - y);
+      const a = edgeY < 28 ? (1 - edgeY / 28) * 0.35 : 0.08;
+      for (let x = panelX; x < panelX + panelW; x++) blend(buf, x, y, BG, a);
+    }
+  } else {
+    const cx = 540;
+    const cy = 330;
+    glow(buf, cx, cy, 220, accent, 0.28);
+    ring(buf, cx, cy, 70, accent, 0.35);
+    ring(buf, cx, cy, 120, accent, 0.22);
+    ring(buf, cx, cy, 170, accent, 0.14);
+    diamond(buf, cx, cy, 14, accent);
+  }
+
+  const t = Math.max(0, Math.min(1, opts.sweep));
+  const beamY = panelY + 12 + Math.round(t * (panelH - 24));
+  scanBeam(buf, beamY, accent, panelX + 4, panelX + panelW - 4);
+  text(buf, opts.live ? 'STILL FRAME' : 'READING SLIP', 64, 524, 2, MUTED);
   return encodePng(buf, W, H);
 }

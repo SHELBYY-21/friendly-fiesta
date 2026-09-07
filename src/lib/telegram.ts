@@ -151,8 +151,8 @@ export async function editPhoto(
   png: Buffer,
   caption: OutgoingMessage,
 ): Promise<boolean> {
-  if (!TOKEN) throw new Error('BOT_TOKEN_NOT_CONFIGURED');
   try {
+    if (!TOKEN) throw new Error('BOT_TOKEN_NOT_CONFIGURED');
     const form = new FormData();
     form.append('chat_id', String(chatId));
     form.append('message_id', String(messageId));

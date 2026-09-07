@@ -41,12 +41,12 @@ export const OPS_ERRORS: Record<string, OpsError> = {
   },
   DUPLICATE: {
     code: 'DUPLICATE',
-    cause: 'สลิปนี้บันทึกแล้ว',
+    cause: 'สลิปนี้บันทึกเรียบร้อย',
     action: 'เปิดรายการเดิมจาก REF ห้ามบันทึกซ้ำ',
   },
   NO_DESK_RATE: {
     code: 'NO_DESK_RATE',
-    cause: 'ยังไม่มีอัตราโต๊ะของห้องนี้',
+    cause: 'ยังไม่มีอัตราขายของห้องนี้',
     action: 'ตั้งเรทด้วย /setrate หรือปุ่มตั้งเรท',
   },
   UNAUTHORIZED: {
