@@ -51,7 +51,7 @@ export function welcome(name: string): OutgoingMessage {
       '',
       '<blockquote>เขียว = ฝาก (IN)   แดง = โอน (OUT)\nส่งสลิปได้เลย</blockquote>',
     ].join('\n'),
-    undefined,
+    ik([[btn('เลือกห้อง', 'room:list', 'primary'), urlBtn('เปิดโต๊ะ', deskUrl())]]),
     richStart(name),
   );
 }

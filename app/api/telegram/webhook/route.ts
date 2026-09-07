@@ -36,7 +36,7 @@ import { parseAmounts } from '@/lib/amounts';
 import { routeIncomingSlip, routeOutgoingSlip } from '@/lib/actions';
 import { handleCtPhoto } from '@/lib/ct/photo';
 import { stillFromTelegram } from '@/lib/ct/livePhoto';
-import { handleCtCallback, handleCtText, isCtCallback, adminKeyboard } from '@/lib/ct/callbacks';
+import { handleCtCallback, handleCtText, isCtCallback } from '@/lib/ct/callbacks';
 import { brandCard, stickerKind } from '@/lib/ct/brandCards';
 import * as C from '@/lib/ct/copy';
 import { ensureBotCommandScopes, isPrivateOnlyCommand } from '@/lib/telegram/botCommands';
@@ -380,10 +380,7 @@ async function handleUpdate(update: any): Promise<void> {
       return;
     }
     const png = brandCard('start', { hero: 'CE VAULT', sub: 'LIVE', meta: existing.name });
-    await sendPhoto(chatId, png, {
-      text: C.welcome(existing.name).text,
-      reply_markup: adminKeyboard(),
-    });
+    await sendPhoto(chatId, png, C.welcome(existing.name));
     return;
   }
 

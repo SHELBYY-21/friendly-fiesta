@@ -542,6 +542,8 @@ const pinFull = CT.pinView([{ bank: 'KBANK', last4: '8306', account: '145-3-5830
 assert(pinFull.text.includes('เอกรินทร์') && pinFull.text.includes('145-3-58306-2'), 'pin shows name and full account');
 assert(pinFull.text.includes('วงเงิน') && pinFull.text.includes('ใช้แล้ว') && pinFull.text.includes('3 รายการ'), 'pin shows limit used count');
 assert(!CT.welcome('RAZEN').text.includes('1. '), 'start card is not a tutorial');
+assert(collectCbs(CT.welcome('RAZEN')).includes('room:list'), 'private start has เลือกห้อง');
+assert(collectBtns(CT.welcome('RAZEN')).some((b) => b.text === 'เปิดโต๊ะ'), 'private start has เปิดโต๊ะ');
 assert(matchReplyCommand('36.70') === null, 'bare rate number is not a pad command');
 assert(hasRatePrefix('36.70') === false, 'bare number is not an explicit rate command');
 assert(hasRatePrefix('/setrate 36.70') === true, 'setrate is explicit');
