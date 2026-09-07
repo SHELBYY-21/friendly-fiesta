@@ -78,6 +78,7 @@ export default function VaultDesk() {
   const [error, setError] = useState<string | null>(null);
   const [deskDraft, setDeskDraft] = useState('');
   const [saving, setSaving] = useState(false);
+  const [rateNote, setRateNote] = useState<string | null>(null);
   const [settling, setSettling] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [pinning, setPinning] = useState(false);
@@ -229,8 +230,13 @@ export default function VaultDesk() {
   const saveDesk = async (e: React.FormEvent) => {
     e.preventDefault();
     const sellRate = Number(deskDraft);
-    if (!Number.isFinite(sellRate) || sellRate <= 0) return;
+    if (!Number.isFinite(sellRate) || sellRate <= 0) {
+      setRateNote('ใส่เรทขาย เช่น 36.70');
+      return;
+    }
     setSaving(true);
+    setRateNote(null);
+    setError(null);
     try {
       const res = await fetch('/api/admin/rate', {
         method: 'POST',
@@ -238,9 +244,11 @@ export default function VaultDesk() {
         body: JSON.stringify({ sellRate, chatId: roomId }),
       });
       if (!res.ok) throw new Error('rate failed');
-      setDeskDraft('');
+      setDeskDraft(String(sellRate));
+      setRateNote(`ใช้เรท ${sellRate} แล้ว`);
       await load();
     } catch (err: any) {
+      setRateNote('ตั้งเรทไม่ติด ลองอีกครั้ง');
       setError(err?.message ?? 'rate failed');
     } finally {
       setSaving(false);
@@ -402,12 +410,32 @@ export default function VaultDesk() {
         </div>
       </div>
       {error && <p className="sr-only">{error}</p>}
-      <form onSubmit={saveDesk} className="flex gap-2 border-b border-[var(--line)] px-4 py-3">
-        <input value={deskDraft} onChange={(e) => setDeskDraft(e.target.value)} placeholder="เราขาย เช่น 36.70" inputMode="decimal" aria-label="เราขาย" className="field" />
-        <button type="submit" disabled={saving} className="keep px-4 text-xs">ตั้งเรท</button>
-        <button type="button" disabled={resetting} className="keep px-4 text-xs" onClick={() => void resetCycle()}>
-          {resetting ? '…' : 'เริ่มรอบใหม่'}
-        </button>
+      <form onSubmit={saveDesk} className="desk-rate">
+        <label htmlFor="desk-rate">เราขาย{desk ? ` ตอนนี้ ${desk}` : ''}</label>
+        <div className="desk-rate__row">
+          <input
+            id="desk-rate"
+            value={deskDraft}
+            onChange={(e) => {
+              setDeskDraft(e.target.value);
+              setRateNote(null);
+            }}
+            placeholder="36.70"
+            inputMode="decimal"
+            autoComplete="off"
+            aria-invalid={Boolean(rateNote && rateNote.startsWith('ใส่'))}
+            className="field"
+          />
+          <button type="submit" disabled={saving} className="keep px-4 text-xs">
+            {saving ? 'กำลังใช้เรท' : 'ใช้เรทนี้'}
+          </button>
+          <button type="button" disabled={resetting} className="desk-rate__reset" onClick={() => void resetCycle()}>
+            {resetting ? 'กำลังพักคิว' : 'เริ่มรอบใหม่'}
+          </button>
+        </div>
+        <p className={'desk-rate__hint' + (rateNote && !rateNote.startsWith('ใช้เรท') ? ' is-bad' : '')} role="status">
+          {rateNote}
+        </p>
       </form>
       <QueueTape
         rows={tape}
