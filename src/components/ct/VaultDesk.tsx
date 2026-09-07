@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import SummaryToday from '@/components/SummaryToday';
 import PinnedAccounts, { type PinnedAccount } from '@/components/PinnedAccounts';
 import { useVaultLive } from '@/lib/ct/realtime';
@@ -300,7 +301,7 @@ export default function VaultDesk() {
     <div className="desk-board">
       <header className="nav dense-nav">
         <div className="flex min-w-0 items-center gap-3">
-          <img className="ce-mark" src="/brand/ce-mark-512.png" width={36} height={36} alt="" />
+          <Image className="ce-mark" src="/brand/ce-mark-512.png" width={36} height={36} alt="" sizes="36px" priority />
           <span className="ops-title">CE Vault</span>
           <span className={`pill hidden sm:inline-flex ${live ? 'pill-done' : 'pill-wait'}`}>
             {live ? 'สด' : 'รีเฟรช'}

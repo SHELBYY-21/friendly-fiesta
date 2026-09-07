@@ -33,7 +33,12 @@ const nextConfig = {
   outputFileTracingRoot: path.join(__dirname),
   serverExternalPackages: ['slipverify', 'promptparse', 'jpeg-js', 'jsqr'],
   allowedDevOrigins: ['127.0.0.1', 'localhost', '0.0.0.0'],
-  images: imageHosts.length ? { remotePatterns: imageHosts } : undefined,
+  images: {
+    formats: ['image/avif', 'image/webp'],
+    deviceSizes: [390, 430, 768, 1200],
+    imageSizes: [36, 48, 96, 180, 256, 384],
+    ...(imageHosts.length ? { remotePatterns: imageHosts } : {}),
+  },
 };
 
 module.exports = nextConfig;
