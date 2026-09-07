@@ -129,15 +129,15 @@ export function normalizeBankCode(value: string | null | undefined): string | nu
   if (/กรุงเทพ|บางกอก/i.test(raw)) return 'BBL';
   if (/ไทยพาณิช|พาณิชย์/i.test(raw)) return 'SCB';
   if (/ออมสิน/i.test(raw)) return 'GSB';
-  if (/ทหารไทย|ธนชาต|ทีทีบี|ttb/i.test(raw)) return 'TTB';
-  if (/เกียรตินาคิน|kkp/i.test(raw)) return 'KKP';
-  if (/ซีไอเอ็มบี|cimb/i.test(raw)) return 'CIMB';
-  if (/ยูโอบี|uob/i.test(raw)) return 'UOB';
-  if (/ทิสโก้|tisco/i.test(raw)) return 'TISCO';
-  if (/แลนด์|lh\s*bank|lhbank/i.test(raw)) return 'LH';
-  if (/ธ\.?\s*ก\.?\s*ส|เพื่อการเกษตร|baac/i.test(raw)) return 'BAAC';
-  if (/อาคารสงเคราะห์|ghb/i.test(raw)) return 'GHB';
-  if (/อิสลาม|ibank/i.test(raw)) return 'ISLAM';
+  if (/ทหารไทย|ธนชาต|ทีทีบี/i.test(raw)) return 'TTB';
+  if (/เกียรตินาคิน/i.test(raw)) return 'KKP';
+  if (/ซีไอเอ็มบี/i.test(raw)) return 'CIMB';
+  if (/ยูโอบี/i.test(raw)) return 'UOB';
+  if (/ทิสโก้/i.test(raw)) return 'TISCO';
+  if (/แลนด์แอนด์เฮ้าส์|แลนด์\s*แอนด์/i.test(raw)) return 'LH';
+  if (/ธ\.?\s*ก\.?\s*ส|เพื่อการเกษตร/i.test(raw)) return 'BAAC';
+  if (/อาคารสงเคราะห์/i.test(raw)) return 'GHB';
+  if (/อิสลาม/i.test(raw)) return 'ISLAM';
   if (!compact) return null;
   const aliases: Record<string, string> = {
     KASIKORN: 'KBANK', KASIKORNBANK: 'KBANK', KBANK: 'KBANK', KBANKTH: 'KBANK',
