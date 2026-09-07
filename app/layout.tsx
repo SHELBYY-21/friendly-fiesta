@@ -41,8 +41,15 @@ export const metadata: Metadata = {
     icon: '/brand/ce-mark-512.png',
     apple: '/brand/apple-touch-icon.png',
   },
+  openGraph: {
+    title: 'CE EMPIRE',
+    description: 'Exchange · Finance · Digital Assets',
+    type: 'website',
+  },
   twitter: {
     card: 'summary_large_image',
+    title: 'CE EMPIRE',
+    description: 'Exchange · Finance · Digital Assets',
   },
 };
 

@@ -9,6 +9,8 @@ export async function ShareMeta() {
   const xBanner = `https://${host}/x-banner.jpg`;
   return (
     <>
+      <meta property="og:title" content="CE EMPIRE" />
+      <meta property="og:description" content="Exchange · Finance · Digital Assets" />
       <meta property="og:image" content={ogImage} />
       <meta property="og:image:width" content="1200" />
       <meta property="og:image:height" content="630" />
