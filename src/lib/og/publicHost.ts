@@ -1,11 +1,6 @@
-/** Hostname suitable for absolute og:image URLs. Mirrors grok-pwa-shared. */
-function isVercelSystemHost(host: string): boolean {
-  return (
-    host === 'vercel.app' ||
-    host.endsWith('.vercel.app') ||
-    host === 'vercel.com' ||
-    host.endsWith('.vercel.com')
-  );
+/** Hostname suitable for absolute og:image URLs. */
+function isVercelDashboard(host: string): boolean {
+  return host === 'vercel.com' || host.endsWith('.vercel.com');
 }
 
 export function publicAppHost(hostHeader?: string | null): string {
@@ -16,7 +11,7 @@ export function publicAppHost(hostHeader?: string | null): string {
     .toLowerCase();
   if (!host || !/^[a-z0-9.-]+$/.test(host) || !host.includes('.')) return '';
   if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) return '';
-  if (isVercelSystemHost(host)) return '';
+  if (isVercelDashboard(host) || host === 'vercel.app') return '';
   return host;
 }
 

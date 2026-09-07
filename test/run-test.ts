@@ -542,7 +542,8 @@ assert(parseTelegramId('โอน 5676959274 แล้ว') === null, 'id inside
 assert(collectCbs(CT.settingsCard({ desk: 36.7, mkt: 32.7, pins: [], admins: [] })).includes('admin:add'), 'settings has add-admin');
 
 const { publicAppHost } = require('../src/lib/og/publicHost');
-assert(publicAppHost('ce-vault.vercel.app') === '', 'vercel system host blocked for og');
+assert(publicAppHost('ce-vault.vercel.app') === 'ce-vault.vercel.app', 'project vercel host allowed for og');
+assert(publicAppHost('vercel.app') === '', 'bare vercel.app blocked for og');
 assert(publicAppHost('preview.grok.me') === 'preview.grok.me', 'public host allowed for og');
 assert(publicAppHost('127.0.0.1') === '', 'ip blocked for og');
 
