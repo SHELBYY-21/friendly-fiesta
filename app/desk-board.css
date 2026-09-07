@@ -95,6 +95,17 @@
   min-width:0;
   flex:1 1 220px;
 }
+.desk-board .nav .qd-pill{
+  border:1px solid rgba(212,175,88,.48);
+  background:linear-gradient(180deg, rgba(212,175,88,.14), rgba(8,18,34,.4));
+  color:#e8d5a3;
+}
+.desk-board .nav .qd-pill.is-on{
+  color:#1a1408;
+  background:linear-gradient(180deg, #f0d48a, #c9a227);
+  border-color:rgba(240,212,138,.9);
+  box-shadow:0 0 16px color-mix(in oklch, #d4af56 40%, transparent);
+}
 .desk-board .ce-mark{
   width:36px;
   height:36px;
