@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import ApiMonitor, { type ApiEndpoint } from '@/components/ApiMonitor';
+import { saveTyphoonKey } from '@/lib/desk/actions';
 
 const SEED: ApiEndpoint[] = [
   { id: 'health', name: 'สุขภาพ', url: '/api/health', method: 'GET', category: 'core' },
@@ -34,13 +35,8 @@ export default function DeskApiPanel({ open, onClose }: { open: boolean; onClose
     setSaving(true);
     setNote('');
     try {
-      const res = await fetch('/api/admin/settings', {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ key: 'typhoon_api_key', value }),
-      });
-      const json = await res.json();
-      if (!res.ok || json?.error) throw new Error(json?.error?.message || 'save failed');
+      const result = await saveTyphoonKey(value);
+      if (!result.ok) throw new Error(result.error);
       setTyphoonReady(true);
       setTyphoonKey('');
       setNote('เปิดอ่านสลิปแล้ว');

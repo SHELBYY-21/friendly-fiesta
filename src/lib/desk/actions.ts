@@ -4,9 +4,12 @@ import { cookies, headers } from 'next/headers';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { fetchMktRate } from '@/lib/mkt';
 import { pinBankAccount, ensureTodayPins } from '@/lib/banks';
-import { rematchOpenSlips } from '@/lib/ct/queue';
+import { commitIncomingLock, rematchOpenSlips, settleAllDue } from '@/lib/ct/queue';
 import { opsChatId } from '@/lib/ct/deskChat';
 import { resetDesk } from '@/lib/ct/deskReset';
+import { findSlipByShort, patchSlip } from '@/lib/ct/store';
+import { HIGH_VALUE_THB, isOcrJunkAmount } from '@/lib/ct/settleGuard';
+import { invalidateBotGateCache, saveTyphoonSetting } from '@/lib/systemSettings';
 import {
   SESSION_COOKIE,
   SESSION_TTL_SECONDS,
@@ -103,4 +106,90 @@ export async function pinDeskAccount(
   await rematchOpenSlips(target);
   await ensureTodayPins(target);
   return { ok: true };
+}
+
+export async function keepDeskSlip(
+  short: string,
+  opts?: { force?: boolean; confirmHigh?: boolean },
+): Promise<{ ok: true; short: string } | { ok: false; error: string }> {
+  const session = await assertDeskSession();
+  if (!session.ok) return session;
+  const ref = String(short || '').trim();
+  if (!ref) return { ok: false, error: 'NO_REF' };
+  const slip = await findSlipByShort(ref);
+  if (!slip) return { ok: false, error: 'NOT_FOUND' };
+  if (isOcrJunkAmount(slip.thb_in)) {
+    const note = String(slip.note || '');
+    const nextNote = note.includes('OCR_JUNK:AMOUNT_TOO_LARGE')
+      ? note
+      : [note, 'OCR_JUNK:AMOUNT_TOO_LARGE'].filter(Boolean).join('|');
+    await patchSlip(slip.id, { status: 'OCR_WEAK', should_send: 0, note: nextNote });
+    return { ok: false, error: 'AMOUNT_TOO_LARGE' };
+  }
+  const chatId = await opsChatId(slip.chat_id);
+  const admin = {
+    id: 'desk',
+    name: slip.admin_name || 'Desk',
+    telegram_user_id: slip.admin_tg_id,
+    holding_usdt: 0,
+    role: 'Admin' as const,
+  };
+  try {
+    const force = Boolean(opts?.force) || slip.status === 'PIN_MISMATCH';
+    const locked = await commitIncomingLock(slip, {
+      chatId: chatId ?? slip.chat_id,
+      userId: slip.admin_tg_id,
+      admin,
+      force,
+      queued: true,
+      confirmHigh: Boolean(opts?.confirmHigh) || (slip.thb_in ?? 0) < HIGH_VALUE_THB,
+    });
+    return { ok: true, short: locked.short_ref };
+  } catch (e: unknown) {
+    return { ok: false, error: e instanceof Error ? e.message : 'keep_failed' };
+  }
+}
+
+function actorTg(): number | null {
+  const raw = process.env.ADMIN_TELEGRAM_IDS ?? '';
+  const n = Number(raw.split(/[\s,]+/).find(Boolean));
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
+}
+
+export async function settleDeskQueue(
+  chatId?: number | null,
+): Promise<{ ok: true; skipped: Array<{ short: string; reason: string }> } | { ok: false; error: string }> {
+  const session = await assertDeskSession();
+  if (!session.ok) return session;
+  const actor = actorTg();
+  if (!actor) return { ok: false, error: 'NO_ADMIN' };
+  const { data: locked, error } = await supabaseAdmin
+    .from('pending_slips')
+    .select('chat_id')
+    .eq('status', 'LOCKED');
+  if (error) return { ok: false, error: error.message };
+  const chats = [...new Set(
+    (locked ?? [])
+      .map((r: { chat_id: number }) => Number(r.chat_id))
+      .filter((n) => Number.isFinite(n) && n !== 0),
+  )];
+  const targets = chatId ? chats.filter((id) => id === chatId) : chats;
+  const skipped: Array<{ short: string; reason: string }> = [];
+  for (const id of targets) {
+    const r = await settleAllDue(id, actor, { dryRun: false, confirmHigh: false, confirmMismatch: false });
+    skipped.push(...r.skipped);
+  }
+  return { ok: true, skipped };
+}
+
+export async function saveTyphoonKey(value: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const session = await assertDeskSession();
+  if (!session.ok) return session;
+  try {
+    await saveTyphoonSetting(String(value ?? ''));
+    invalidateBotGateCache();
+    return { ok: true };
+  } catch {
+    return { ok: false, error: 'typhoon key required' };
+  }
 }

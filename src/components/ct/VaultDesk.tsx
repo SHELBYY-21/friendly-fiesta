@@ -8,7 +8,7 @@ import { useVaultLive } from '@/lib/ct/realtime';
 import { QueueTape } from '@/components/ct/TransactionFlow';
 import StaffPlaybook from '@/components/ct/StaffPlaybook';
 import DeskApiPanel from '@/components/ct/DeskApiPanel';
-import { pinDeskAccount, resetDeskCycle, setDeskRate } from '@/lib/desk/actions';
+import { keepDeskSlip, pinDeskAccount, resetDeskCycle, setDeskRate, settleDeskQueue } from '@/lib/desk/actions';
 
 type TapeRow = {
   id: string;
@@ -171,16 +171,10 @@ export default function VaultDesk() {
       const ok = typeof window === 'undefined' || window.confirm(`ยอด ${thb.toLocaleString('en-US')} THB สูง — บังคับเข้าคิว?`);
       if (!ok) throw new Error('ยกเลิก KEEP ยอดสูง');
     }
-    const res = await fetch('/api/dashboard/keep', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ short: row.short, force: true, confirmHigh: thb >= 20_000 }),
-    });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok || json.ok === false) {
-      const msg = String(json.error || 'keep failed');
-      setError(msg);
-      throw new Error(msg);
+    const result = await keepDeskSlip(row.short, { force: true, confirmHigh: thb >= 20_000 });
+    if (!result.ok) {
+      setError(result.error);
+      throw new Error(result.error);
     }
     await load();
   };
@@ -190,11 +184,10 @@ export default function VaultDesk() {
     setSettling(true);
     setError(null);
     try {
-      const res = await fetch('/api/dashboard/settle', { method: 'POST' });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || json.ok === false) throw new Error(json.error || 'settle failed');
-      if (Array.isArray(json.skipped) && json.skipped.length) {
-        const parts = json.skipped.map((s: { short: string; reason: string }) => `${s.short} ${s.reason}`);
+      const result = await settleDeskQueue(roomId);
+      if (!result.ok) throw new Error(result.error);
+      if (result.skipped.length) {
+        const parts = result.skipped.map((s) => `${s.short} ${s.reason}`);
         setError(`ข้าม ${parts.join(' · ')}`);
       }
       await load();
