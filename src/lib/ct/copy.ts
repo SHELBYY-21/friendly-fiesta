@@ -1,6 +1,6 @@
 import type { OutgoingMessage } from '../telegram';
 import {
-  esc, ik, btn, urlBtn, displayLedger, showAcct, thbInt, thbCard, usdt, rateCode, quoteBlock, deskUrl,
+  esc, ik, btn, urlBtn, displayLedger, showAcct, thbInt, thbCard, usdt, rateCode, quoteBlock, totalsBanner, deskUrl,
 } from './format';
 import { head as tokenHead, progress, rule, NODE, kv } from './tokens';
 import type { FlowStep } from './tokens';
@@ -45,14 +45,9 @@ export function skeletonSettle(ledger: string, usdtAmt: number): OutgoingMessage
 export function welcome(name: string): OutgoingMessage {
   return msg(
     [
-      head('สรุปยอด', `โต๊ะปฏิบัติการ (OPS DESK) · ${esc(name)}`),
+      head('สรุปยอด', `CT DESK · ${esc(name)}`),
       '',
-      'ระบบปิดสำหรับทีมภายใน (staff only)',
-      '1. กด <b>เลือกห้อง</b> แล้วกด <b>ใช้ห้องนี้</b> (pick room)',
-      '2. หมุดบัญชีรับเงินวันนี้ (pin today)',
-      '3. ตั้งอัตราห้อง (set desk) <code>36.70</code>',
-      '4. ส่งสลิป — ระบบอ่านและรวมคิวให้ (send slip)',
-      '5. เมื่อรวมยอดครบ กด <b>บันทึกส่งรวม</b> (batch send)',
+      '<blockquote>เขียว = ฝาก (IN)   แดง = โอน (OUT)\nส่งสลิปได้เลย</blockquote>',
     ].join('\n'),
   );
 }
@@ -219,7 +214,7 @@ export function cardInReady(d: {
     '</blockquote>',
     `OCR  ${Math.round(d.confidence)}%`,
     d.review ? 'CAUSE  ยอดหรือบัญชียังไม่มั่นใจ (review)' : 'CAUSE  สลิปตรงบัญชีแล้ว (matched)',
-    'ACTION กด ยืนยัน เพื่อเข้าคิว (confirm to queue)',
+    'ACTION กด ยืนยัน เพื่อรับฝาก (confirm deposit)',
     rawBlock(d.raw),
   ];
   if (d.fresh) lines.push(`บัญชีใหม่ (NEW PIN)  ${esc(d.bank)}  <code>${esc(payeeAcct)}</code>`);
@@ -368,7 +363,7 @@ export function cardLocked(d: {
   if (d.batch && d.batch.count > 0) {
     rows.push([btn('บันทึกส่งรวม', 'vault:batch', 'primary')]);
   }
-  rows.push([btn('บันทึกส่ง', `slip:settle:${d.short}`, 'success')]);
+  rows.push([btn('บันทึกส่ง', `slip:settle:${d.short}`, 'danger')]);
   rows.push([btn('แก้ไข', `slip:edit:${d.short}`), btn('พัก', `slip:open:${d.short}`)]);
   if (d.canUndo) rows.push([btn('ยกเลิก', `slip:undo:${d.short}`, 'danger')]);
   else rows.push([btn('ลบ', `slip:delask:${d.short}`, 'danger')]);
@@ -535,7 +530,7 @@ export function vaultBanner(d: {
 }): OutgoingMessage {
   const meta = d.mode === 'pending' ? `รอโอน  ${d.inRows.length} รายการ` : `${d.dateLabel}  ${d.clock}`;
   const step = d.mode === 'pending' || d.pendingUsdt > 0 ? 'wait' : d.inCount > 0 ? 'done' : 'scan';
-  const lines = [head('สรุปยอด', meta), tape(step), ''];
+  const lines = [head('สรุปยอด', meta), tape(step), '', totalsBanner({ inThb: d.inThb, outUsdt: d.outUsdt, pendingUsdt: d.pendingUsdt }), ''];
 
   if (d.mode === 'pending') {
     if (!d.inRows.length) {
@@ -589,7 +584,7 @@ function vaultButtons(pendingShorts: string[]) {
     [btn('เลือกห้อง', 'room:list', 'primary'), urlBtn('เปิดโต๊ะ', deskUrl())],
   ];
   if (pendingShorts.length) {
-    rows.unshift([btn('บันทึกส่งรวม', 'vault:batch', 'success')]);
+    rows.unshift([btn('บันทึกส่งรวม', 'vault:batch', 'danger')]);
   }
   const refs = pendingShorts.slice(0, 2);
   if (refs.length) rows.unshift(refs.map((s) => btn(s, `slip:open:${s}`)));
@@ -620,7 +615,15 @@ export function cardRecent(d: {
   });
 }
 
-export function pinView(items: Array<{ bank: string; last4: string; account?: string | null; name?: string | null }>): OutgoingMessage {
+export function pinView(items: Array<{
+  bank: string;
+  last4: string;
+  account?: string | null;
+  name?: string | null;
+  limit?: number | null;
+  usedThb?: number | null;
+  txCount?: number | null;
+}>): OutgoingMessage {
   const lines = [head('บัญชีรับ', 'หมุดวันนี้ (today pins)'), ''];
   if (!items.length) {
     lines.push('ยังไม่มีบัญชีรับเงินวันนี้ (no pin today)');
@@ -632,9 +635,16 @@ export function pinView(items: Array<{ bank: string; last4: string; account?: st
     return msg(lines.join('\n'));
   }
   items.forEach((it, i) => {
+    const used = it.usedThb != null ? thbInt(it.usedThb) : null;
+    const cap = it.limit != null && it.limit > 0 ? thbInt(it.limit) : null;
+    const left = it.limit != null && it.usedThb != null ? thbInt(Math.max(0, it.limit - it.usedThb)) : null;
     lines.push(`<blockquote expandable>${i + 1}. ${esc(it.bank)}`);
-    lines.push(`เลข (ACCT)  <code>${esc(showAcct(it.account || it.last4))}</code>`);
-    lines.push(`ชื่อ (NAME)  ${esc(it.name || '—')}</blockquote>`);
+    lines.push(`ชื่อ  ${esc(it.name || '—')}`);
+    lines.push(`เลข  <code>${esc(showAcct(it.account || it.last4))}</code>`);
+    if (cap) lines.push(`วงเงิน  ${cap} THB`);
+    if (used) lines.push(`ใช้แล้ว  ${used} THB${left ? ` · เหลือ ${left}` : ''}`);
+    if (it.txCount != null) lines.push(`รับแล้ว  ${it.txCount} รายการ`);
+    lines.push('</blockquote>');
   });
   lines.push('กดยกเลิกบัญชีหากวันนี้ไม่ใช้แล้ว (unpin if unused)');
   const unpins = items.slice(0, 3).map((_, i) => btn(`ยกเลิก ${i + 1}`, `pin:unpin:${i + 1}`));

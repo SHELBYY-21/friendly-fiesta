@@ -4,7 +4,7 @@
 // ============================================================
 import { NextRequest, NextResponse } from 'next/server';
 import * as UI from '@/lib/botUi';
-import { sendMessage, editMessage, answerCallback, uploadSlipFromTelegram, sendSticker,  } from '@/lib/telegram';
+import { sendMessage, editMessage, answerCallback, uploadSlipFromTelegram, sendSticker, sendPhoto } from '@/lib/telegram';
 import { getSession, setSession, clearSession } from '@/lib/botSessions';
 import LiveMessageService from '@/lib/liveMessage';
 import {
@@ -37,6 +37,7 @@ import { routeIncomingSlip, routeOutgoingSlip } from '@/lib/actions';
 import { handleCtPhoto } from '@/lib/ct/photo';
 import { stillFromTelegram } from '@/lib/ct/livePhoto';
 import { handleCtCallback, handleCtText, isCtCallback, adminKeyboard } from '@/lib/ct/callbacks';
+import { renderHeroPng } from '@/lib/ct/cardImage';
 import * as C from '@/lib/ct/copy';
 import { findReceiversByLast4, upsertReceiverOnDeposit } from '@/lib/receivers';
 import { getSticker, validateStickers, type StickerState } from '@/config/stickers';
@@ -362,8 +363,9 @@ async function handleUpdate(update: any): Promise<void> {
       await sendMessage(chatId, UI.error('บัญชีนี้ยังไม่ได้รับสิทธิ์ — ให้ SuperAdmin เพิ่ม Telegram ID ก่อน'));
       return;
     }
-    await sendMessage(chatId, {
-      ...C.welcome(existing.name),
+    const png = renderHeroPng('vault', { hero: 'CT DESK', sub: 'LIVE', meta: existing.name });
+    await sendPhoto(chatId, png, {
+      text: C.welcome(existing.name).text,
       reply_markup: adminKeyboard(),
     });
     return;

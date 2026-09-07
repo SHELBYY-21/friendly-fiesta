@@ -8,6 +8,7 @@ export interface PinnedAccount {
   accountName: string;
   bankName: string;
   last4: string;
+  accountNumber?: string | null;
   pinnedForDate: string;
   transactionCount: number;
   totalThb: number;
@@ -105,14 +106,16 @@ export default function PinnedAccounts({
               className={`w-full px-5 py-3 text-left disabled:opacity-50 ${on ? 'bg-[color:var(--bg-subtle)]' : 'hover:bg-[color:var(--bg-subtle)]'}`}
             >
               <div className="flex items-baseline justify-between gap-3">
-                <p className="min-w-0 truncate text-sm">
-                  {acc.bankName} <span className="font-mono text-gold">····{acc.last4}</span>
-                </p>
+                <p className="min-w-0 truncate text-sm font-semibold">{acc.accountName}</p>
                 <span className={`pill ${acc.status === 'active' ? 'pill-wait' : 'pill-done'}`}>ปักอยู่</span>
               </div>
+              <p className="mt-1 text-xs text-[color:var(--fg)]">
+                {acc.bankName}{' '}
+                <span className="font-mono text-gold">{acc.accountNumber || `····${acc.last4}`}</span>
+              </p>
               <p className="mt-1 font-mono text-xs font-medium text-[color:var(--fg)]">
-                รับแล้ว {nf.format(acc.totalThb)} บาท
-                {cap != null ? ` · วงเงิน ${nf.format(cap)} · เหลือ ${nf.format(left ?? 0)}` : ''}
+                รับแล้ว {nf.format(acc.totalThb)} บาท · {acc.transactionCount} รายการ
+                {cap != null ? ` · วงเงิน ${nf.format(cap)} · ใช้ไป ${nf.format(acc.totalThb)} · เหลือ ${nf.format(left ?? 0)}` : ''}
               </p>
             </button>
           );

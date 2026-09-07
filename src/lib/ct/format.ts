@@ -94,16 +94,27 @@ export function pnlThb(thb: number, usdtAmt: number, desk: number, mkt: number |
 export function quoteBlock(d: { thb: number; usdt: number; desk: number; mkt: number | null }): string {
   const p = pnlThb(d.thb, d.usdt, d.desk, d.mkt);
   const pnl = p == null ? '—' : `${p >= 0 ? '+' : ''}${thbInt(p)} THB`;
+  const rate = rateCode(d.desk);
   return quote(
     [
-      '◆ ยอดรับเข้า (AMOUNT)',
+      'ฝาก (IN)',
       `<b>${thbCard(d.thb)}</b> THB`,
-      '◆ รอโอน (PAYOUT)',
+      `ตีเป็น USDT ที่เรท ${rate}`,
       `<b>${usdt(d.usdt)}</b> USDT`,
-      '◆ กำไรสุทธิ (PNL)',
+      'กำไร (PNL)',
       `<b>${pnl}</b>`,
-      `เราขาย (DESK)  <code>${rateCode(d.desk)}</code>`,
-      `เรทอ้างอิง (MKT)  <code>${rateCode(d.mkt)}</code>`,
+      `เราขาย  <code>${rate}</code>   เรทอ้างอิง  <code>${rateCode(d.mkt)}</code>`,
+    ].join('\n'),
+  );
+}
+
+export function totalsBanner(d: { inThb: number; outUsdt: number; pendingUsdt: number }): string {
+  return quote(
+    [
+      '<b>ผลรวมวันนี้</b>',
+      `ฝาก     <b>${thbInt(d.inThb)}</b> THB`,
+      `ส่งแล้ว  <b>${usdt(d.outUsdt)}</b> USDT`,
+      `ค้างเคลียร์  <b>${usdt(d.pendingUsdt)}</b> USDT`,
     ].join('\n'),
   );
 }

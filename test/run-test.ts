@@ -135,6 +135,7 @@ const livePin = parseDeskPin(`✍️ ชื่อเต็ม: สุพัต�
 assert(livePin?.bank === 'KTB', `live pin bank KTB (got ${livePin?.bank})`);
 assert(livePin?.account === '6661260343', `live pin account (got ${livePin?.account})`);
 assert(livePin?.name === 'สุพัตรา อั้นเจริญ', `live pin name (got ${livePin?.name})`);
+assert(livePin?.limit === 500000, `live pin limit (got ${livePin?.limit})`);
 const livePins = [{ id: 's', bank_name: 'KTB', account_number: '6661260343', label: 'สุพัตรา' }];
 assert(accountLast4Candidates('6661260343').includes('0343'), 'true last4 0343');
 assert(accountLast4Candidates('6661260343').includes('6034'), 'KTB mask 6034');
@@ -333,6 +334,7 @@ const inReady = CT.cardInReady({
 });
 assert(inReady.text.includes('THB') || inReady.text.includes('บาท'), 'IN_READY amount table');
 assert(inReady.text.includes('กำไร'), 'IN_READY pnl');
+assert(inReady.text.includes('ตีเป็น USDT'), 'IN_READY converts at desk rate');
 assert(inReady.text.includes('เรทอ้างอิง'), 'IN_READY market');
 assert(inReady.text.includes('IN'), 'IN_READY progress tape');
 assert(inReady.text.includes('●──'), 'IN_READY dots');
@@ -379,6 +381,7 @@ const vault = CT.vaultBanner({
 });
 assert(vault.text.includes('◈') && vault.text.includes('VAULT'), 'empty vault density');
 assert(vault.text.includes('quiet.'), 'empty vault microcopy');
+assert(vault.text.includes('ผลรวมวันนี้') && vault.text.includes('ฝาก') && vault.text.includes('ค้างเคลียร์'), 'vault totals banner');
 assert(hasBalancedTelegramHtml(vault.text), 'vault html balanced');
 assert(!/[👑✨🌿💎🤍🟢🔴💰📈🎯💵🏦👤⚠❤🔥⚡]/.test(vault.text), 'vault has no public emoji');
 
@@ -467,6 +470,10 @@ assert(!queued.text.includes('ครับ'), 'queue copy has no polite suffix')
 assert(!queued.text.includes('need sent'), 'queue copy has no english stub');
 assert(!queued.text.includes('200,000-'), 'queue copy does not dump arithmetic');
 assert(collectCbs(CT.pinView([{ bank: 'BBL', last4: '7823' }])).includes('pin:unpin:1'), 'unpin 1');
+const pinFull = CT.pinView([{ bank: 'KBANK', last4: '8306', account: '145-3-58306-2', name: 'เอกรินทร์', limit: 50000, usedThb: 12000, txCount: 3 }]);
+assert(pinFull.text.includes('เอกรินทร์') && pinFull.text.includes('145-3-58306-2'), 'pin shows name and full account');
+assert(pinFull.text.includes('วงเงิน') && pinFull.text.includes('ใช้แล้ว') && pinFull.text.includes('3 รายการ'), 'pin shows limit used count');
+assert(!CT.welcome('RAZEN').text.includes('1. '), 'start card is not a tutorial');
 assert(matchReplyCommand('36.70') === null, 'bare rate number is not a pad command');
 assert(hasRatePrefix('36.70') === false, 'bare number is not an explicit rate command');
 assert(hasRatePrefix('/setrate 36.70') === true, 'setrate is explicit');

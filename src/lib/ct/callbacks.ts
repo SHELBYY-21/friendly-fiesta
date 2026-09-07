@@ -1,7 +1,7 @@
 import { answerCallback, editMessage, sendMessage, sendPhoto, editPhoto, deleteMessage } from '../telegram';
 import { parseAmounts } from '../amounts';
 import { parseDeskPin, parseDeskRate, hasRatePrefix, isBareDeskRate, parseTelegramId } from '../../bot/parse';
-import { listPinnedBanks, accountLast4, pinBankAccount, unpinBankAccount, matchSlipPins } from '../banks';
+import { listPinnedBanks, accountLast4, pinBankAccount, unpinBankAccount, matchSlipPins, parsePinLabel } from '../banks';
 import {
   recordOutgoing,
   deleteTransaction,
@@ -90,12 +90,16 @@ export function matchReplyCommand(text: string): ReplyCmd | null {
 }
 
 function pinCard(pinned: Awaited<ReturnType<typeof listPinnedBanks>>) {
-  return C.pinView(pinned.map((b) => ({
-    bank: b.bank_name,
-    last4: accountLast4(b.account_number) ?? '????',
-    account: b.account_number,
-    name: b.label,
-  })));
+  return C.pinView(pinned.map((b) => {
+    const meta = parsePinLabel(b.label);
+    return {
+      bank: b.bank_name,
+      last4: accountLast4(b.account_number) ?? '????',
+      account: b.account_number,
+      name: meta.name || b.label,
+      limit: meta.limit,
+    };
+  }));
 }
 
 function isLead(admin: Admin): boolean {
@@ -775,7 +779,7 @@ export async function handleCtText(opts: {
     const pasted = parseDeskPin(t);
     if (pasted) {
       try {
-        const result = await pinBankAccount(room, pasted.bank, pasted.account, pasted.name);
+        const result = await pinBankAccount(room, pasted.bank, pasted.account, pasted.name, pasted.limit);
         await sendMessage(view, pinCard(result.pinned));
       } catch (e: any) {
         await sendMessage(view, { text: e?.message === 'PIN_LIMIT_REACHED' ? 'หมุดครบ 3 บัญชีแล้วครับ' : 'หมุดบัญชีไม่สำเร็จครับ' });
@@ -790,7 +794,7 @@ export async function handleCtText(opts: {
   const deskPin = parseDeskPin(t);
   if (deskPin) {
     try {
-      const result = await pinBankAccount(room, deskPin.bank, deskPin.account, deskPin.name);
+      const result = await pinBankAccount(room, deskPin.bank, deskPin.account, deskPin.name, deskPin.limit);
       await sendMessage(view, pinCard(result.pinned));
     } catch (e: any) {
       await sendMessage(view, { text: e?.message === 'PIN_LIMIT_REACHED' ? 'pin ครบ 3' : 'pin ไม่ติด' });

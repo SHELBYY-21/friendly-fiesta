@@ -8,6 +8,30 @@ export interface PinnedBank {
   bank_name: string;
   account_number: string | null;
   label: string;
+  daily_limit_thb?: number | null;
+}
+
+export function parsePinLabel(label: string | null | undefined): { name: string | null; limit: number | null } {
+  const raw = String(label || '');
+  const cap = raw.match(/วงเงิน\s*[:：]?\s*([\d,]+)/i);
+  const n = cap ? Number(cap[1].replace(/,/g, '')) : NaN;
+  const name = raw
+    .split('·')
+    .map((s) => s.trim())
+    .find((s) => s && !/^วงเงิน/i.test(s) && !/^[A-Z]{2,8}$/.test(s) && !/••••/.test(s))
+    || null;
+  return { name, limit: Number.isFinite(n) && n > 0 ? n : null };
+}
+
+export function encodePinLabel(opts: {
+  name?: string | null;
+  limit?: number | null;
+  bank: string;
+  last4: string;
+}): string {
+  const who = (opts.name || '').trim();
+  const cap = opts.limit && opts.limit > 0 ? `วงเงิน ${Math.round(opts.limit)}` : '';
+  return [who, cap, opts.bank].filter(Boolean).join(' · ') || `${opts.bank} ••••${opts.last4}`;
 }
 
 function todayBangkok(): string {
@@ -50,6 +74,7 @@ export async function pinBankAccount(
   bankInput: string,
   accountInput: string,
   holderName?: string | null,
+  dailyLimit?: number | null,
 ): Promise<{ bank: PinnedBank; pinned: PinnedBank[] }> {
   const bankCode = normalizeBankCode(bankInput);
   const digits = accountInput.replace(/\D/g, '');
@@ -68,20 +93,27 @@ export async function pinBankAccount(
     .eq('bank_name', bankCode);
   if (findError) throw findError;
   let bank = (candidates ?? []).find((item: any) => accountLast4(item.account_number) === digits.slice(-4)) as PinnedBank | undefined;
+  const label = encodePinLabel({
+    name: holderName,
+    limit: dailyLimit,
+    bank: bankCode,
+    last4: digits.slice(-4),
+  });
   if (!bank) {
     const { data, error } = await supabaseAdmin
       .from('bank_accounts')
       .insert({
         bank_name: bankCode,
         account_number: digits,
-        label: holderName
-          ? `${holderName} · ${bankCode} ••••${digits.slice(-4)}`
-          : `${bankCode} ••••${digits.slice(-4)}`,
+        label,
       })
       .select('id, bank_name, account_number, label')
       .single();
     if (error || !data) throw error ?? new Error('BANK_CREATE_FAILED');
     bank = data as PinnedBank;
+  } else if (holderName || dailyLimit) {
+    await supabaseAdmin.from('bank_accounts').update({ label }).eq('id', bank.id);
+    bank = { ...bank, label };
   }
 
   const { error } = await supabaseAdmin.from('pinned_bank_accounts').insert({

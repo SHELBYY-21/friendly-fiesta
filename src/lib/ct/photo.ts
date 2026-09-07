@@ -34,7 +34,7 @@ async function pinsForToday(chatId: number): Promise<PinnedBank[]> {
   const desk = pinnedText ? parseDeskPin(pinnedText) : null;
   if (!desk) return [];
   try {
-    const { pinned } = await pinBankAccount(chatId, desk.bank, desk.account, desk.name);
+    const { pinned } = await pinBankAccount(chatId, desk.bank, desk.account, desk.name, desk.limit);
     return pinned;
   } catch {
     return [];

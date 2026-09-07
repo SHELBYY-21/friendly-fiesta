@@ -13,6 +13,7 @@ export interface DeskPin {
   bank: string;
   account: string;
   name: string | null;
+  limit: number | null;
 }
 
 export function cleanPersonName(raw: string | null | undefined): string | null {
@@ -124,7 +125,7 @@ export function parseDeskPin(text: string): DeskPin | null {
     if (parts.length >= 2 && /^\d{4,15}$/.test(parts[1].replace(/\D/g, ''))) {
       const bank = normalizeBankCode(parts[0]);
       const account = parts[1].replace(/\D/g, '');
-      if (bank && account.length >= 4) return { bank, account, name: null };
+      if (bank && account.length >= 4) return { bank, account, name: null, limit: null };
     }
     return null;
   }
@@ -144,7 +145,16 @@ export function parseDeskPin(text: string): DeskPin | null {
 
   const nameM = raw.match(/ชื่อ(?:เต็ม|\s*-?\s*สกุล)?\s*[:：]\s*([^\n]+)/i);
   const name = nameM ? nameM[1].replace(/^[^\u0E00-\u0E7Fa-zA-Z]+/, '').trim() : null;
-  return { bank, account, name: name || null };
+  const cap = raw.match(/วงเงิน(?:ธุรกรรม)?(?:\/วัน)?\s*[:：=]?\s*([\d,]+)\s*(k|พัน|หมื่น)?/i);
+  let limit: number | null = null;
+  if (cap) {
+    let n = Number(String(cap[1]).replace(/,/g, ''));
+    const unit = (cap[2] || '').toLowerCase();
+    if (unit === 'k' || unit === 'พัน') n *= 1000;
+    if (unit === 'หมื่น') n *= 10000;
+    if (Number.isFinite(n) && n > 0) limit = n;
+  }
+  return { bank, account, name: name || null, limit };
 }
 
 export function hasRatePrefix(text: string): boolean {

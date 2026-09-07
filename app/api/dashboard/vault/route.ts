@@ -28,12 +28,13 @@ export async function GET(req: NextRequest) {
         .in('status', ['IN_READY', 'IN_READY_REVIEW', 'LOCKED', 'OCR_WEAK', 'PIN_MISMATCH', 'HOLD'])
         .order('created_at', { ascending: false })
         .limit(20);
-    const [vault, pins, pending, rates] = await Promise.all([
-      loadVault(Number.isFinite(chatId) ? chatId : null, mode),
-      supabaseAdmin
+    const pinQ = supabaseAdmin
         .from('pinned_bank_accounts')
         .select('chat_id, pinned_for_date, bank_account_id, bank_accounts(id, bank_name, account_number, label)')
-        .eq('pinned_for_date', new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' })),
+        .eq('pinned_for_date', new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }));
+    const [vault, pins, pending, rates] = await Promise.all([
+      loadVault(Number.isFinite(chatId) ? chatId : null, mode),
+      chatId != null && Number.isFinite(chatId) ? pinQ.eq('chat_id', chatId) : pinQ,
       chatId != null && Number.isFinite(chatId) ? pendingQ.eq('chat_id', chatId) : pendingQ,
       opsRates(0),
     ]);
@@ -48,6 +49,7 @@ export async function GET(req: NextRequest) {
         bank: p.bank_accounts?.bank_name ?? '—',
         last4: last4s[0] ?? '',
         last4s,
+        account: acct || null,
         label: p.bank_accounts?.label ?? null,
       };
     });

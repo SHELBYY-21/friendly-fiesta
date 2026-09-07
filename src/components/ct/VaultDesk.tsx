@@ -29,6 +29,7 @@ type TapeRow = {
 
 type VaultPayload = {
   ok: boolean;
+  chatId?: number | null;
   vault: {
     dateLabel: string;
     clock: string;
@@ -45,9 +46,27 @@ type VaultPayload = {
     tape: TapeRow[];
   };
   rates: { desk: number; mkt: number | null };
-  pins: Array<{ id?: string; bank: string; last4: string; last4s?: string[]; label: string | null }>;
-  accounts?: Array<{ id?: string; bank: string; last4: string; count: number; totalThb: number; totalUsdt: number }>;
+  pins: Array<{
+    id?: string;
+    bank: string;
+    last4: string;
+    last4s?: string[];
+    label: string | null;
+    account?: string | null;
+  }>;
+  accounts?: Array<{
+    id?: string;
+    bank: string;
+    last4: string;
+    count: number;
+    totalThb: number;
+    totalUsdt: number;
+    label?: string | null;
+    account?: string | null;
+  }>;
 };
+
+type RoomChoice = { chatId: number; name: string; desk: number | null; current?: boolean };
 
 function money(n: number, d = 0) {
   return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -65,6 +84,8 @@ export default function VaultDesk() {
   const [catalog, setCatalog] = useState<Array<{ id: string; bankName: string; last4: string; label?: string | null }>>([]);
   const [mode, setMode] = useState<'today' | 'pending'>('pending');
   const [flash, setFlash] = useState<Set<string>>(new Set());
+  const [rooms, setRooms] = useState<RoomChoice[]>([]);
+  const [roomId, setRoomId] = useState<number | null>(null);
   const seen = useRef<Set<string>>(new Set());
   const primed = useRef(false);
   const loadRef = useRef<() => Promise<void>>(async () => {});
@@ -72,7 +93,7 @@ export default function VaultDesk() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/dashboard/vault?mode=${mode}`, { cache: 'no-store' });
+      const res = await fetch(`/api/dashboard/vault?mode=${mode}${roomId != null ? `&chatId=${roomId}` : ''}`, { cache: 'no-store' });
       const json = await res.json();
       if (!res.ok || !json.ok) throw new Error(json.error || 'vault failed');
       const incoming: TapeRow[] = json.vault?.tape ?? [];
@@ -92,7 +113,7 @@ export default function VaultDesk() {
     } catch (e: any) {
       setError(e?.message ?? 'offline');
     }
-  }, [mode]);
+  }, [mode, roomId]);
   loadRef.current = load;
 
   useEffect(() => {
@@ -100,6 +121,19 @@ export default function VaultDesk() {
     const t = setInterval(() => void load(), live ? 30_000 : 8_000);
     return () => clearInterval(t);
   }, [load, live]);
+
+  useEffect(() => {
+    fetch('/api/dashboard/rooms', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((j) => {
+        const list = Array.isArray(j.rooms) ? j.rooms as RoomChoice[] : [];
+        setRooms(list);
+        if (roomId == null && (j.activeChatId || list[0]?.chatId)) {
+          setRoomId(Number(j.activeChatId || list[0].chatId));
+        }
+      })
+      .catch(() => setRooms([]));
+  }, [roomId]);
 
   useEffect(() => {
     fetch('/api/admin/bank-accounts', { cache: 'no-store' })
@@ -116,7 +150,7 @@ export default function VaultDesk() {
       const res = await fetch('/api/dashboard/pin', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ bankAccountId }),
+        body: JSON.stringify({ bankAccountId, chatId: roomId }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || json.ok === false) throw new Error(json.error || 'pin failed');
@@ -200,7 +234,7 @@ export default function VaultDesk() {
       const res = await fetch('/api/admin/rate', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ sellRate }),
+        body: JSON.stringify({ sellRate, chatId: roomId }),
       });
       if (!res.ok) throw new Error('rate failed');
       setDeskDraft('');
@@ -233,20 +267,30 @@ export default function VaultDesk() {
   const pinCards: PinnedAccount[] = (accounts.length
     ? accounts
     : pin
-      ? [{ bank: pin.bank, last4: pin.last4, count: 0, totalThb: 0, totalUsdt: 0 }]
+      ? [{ bank: pin.bank, last4: pin.last4, count: 0, totalThb: 0, totalUsdt: 0, label: pin.label, account: pin.account }]
       : []
-  ).map((a, i) => ({
-    id: a.id ?? `${a.bank}-${a.last4}-${i}`,
-    bankAccountId: a.id ?? `${a.bank}-${a.last4}`,
-    accountName: a.bank,
-    bankName: a.bank,
-    last4: a.last4,
-    pinnedForDate: v?.dateLabel ?? '',
-    transactionCount: a.count,
-    totalThb: a.totalThb,
-    totalUsdt: a.totalUsdt,
-    status: 'active' as const,
-  }));
+  ).map((a, i) => {
+    const cap = String(a.label || '').match(/วงเงิน\s*[:：]?\s*([\d,]+)/i);
+    const limit = cap ? Number(cap[1].replace(/,/g, '')) : null;
+    const who = String(a.label || '')
+      .split('·')
+      .map((s) => s.trim())
+      .find((s) => s && !/^วงเงิน/i.test(s) && s !== a.bank) || a.bank;
+    return {
+      id: a.id ?? `${a.bank}-${a.last4}-${i}`,
+      bankAccountId: a.id ?? `${a.bank}-${a.last4}`,
+      accountName: who,
+      bankName: a.bank,
+      last4: a.last4,
+      accountNumber: a.account || null,
+      pinnedForDate: v?.dateLabel ?? '',
+      transactionCount: a.count,
+      totalThb: a.totalThb,
+      totalUsdt: a.totalUsdt,
+      dailyLimitThb: Number.isFinite(limit as number) ? limit : null,
+      status: 'active' as const,
+    };
+  });
   const waitDue = tape
     .filter((r) => r.status === 'WAIT' || r.status === 'QUEUE' || r.status === 'SENT' || r.status === 'LOCK')
     .reduce((s, r) => s + (r.dueUsdt ?? r.expectedUsdt ?? r.usdt ?? 0), 0);
@@ -292,6 +336,38 @@ export default function VaultDesk() {
           )}
         </div>
       </header>
+      {rooms.length > 0 && (
+        <div className="room-rail" aria-label="เลือกห้อง">
+          {rooms.map((r) => (
+            <button
+              key={r.chatId}
+              type="button"
+              className={'qd-pill' + (roomId === r.chatId ? ' is-on' : '')}
+              onClick={() => setRoomId(r.chatId)}
+            >
+              {r.name}
+            </button>
+          ))}
+        </div>
+      )}
+      <p className="color-key">
+        <span><i className="in" />เขียว = ฝาก</span>
+        <span><i className="out" />แดง = โอน</span>
+      </p>
+      <div className="desk-banner" aria-label="ผลรวมวันนี้">
+        <article className="is-in">
+          <p>ฝาก</p>
+          <strong>{money(v?.inThb ?? 0)}</strong>
+        </article>
+        <article className="is-out">
+          <p>ส่งแล้ว</p>
+          <strong>{money(sent, 2)}</strong>
+        </article>
+        <article className="is-due">
+          <p>ค้างเคลียร์</p>
+          <strong>{money(settleDue, 2)}</strong>
+        </article>
+      </div>
       <div className="agent-rail" />
       {error && <div className="noc-alert" role="alert">{error}</div>}
       <StaffPlaybook />

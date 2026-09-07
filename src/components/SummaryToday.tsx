@@ -96,17 +96,17 @@ export default function SummaryToday({
 
       <div className="kpi-strip" aria-label="สรุปยอดวันนี้">
         <article className="kpi is-in">
-          <p>ยอดรับเข้า</p>
+          <p>ฝาก</p>
           <strong><CountUp value={daily.totalThbReceived} decimals={0} /></strong>
-          <span>จากลูกค้า · {inCount} รายการ</span>
+          <span>THB · {inCount} รายการ</span>
         </article>
         <article className="kpi is-due">
-          <p>รอโอน</p>
-          <strong><CountUp value={required} decimals={2} /></strong>
-          <span>USDT</span>
+          <p>ค้างเคลียร์</p>
+          <strong><CountUp value={pending} decimals={2} /></strong>
+          <span>USDT · คิว {wait}</span>
         </article>
         <article className="kpi is-out">
-          <p>โอนสำเร็จ</p>
+          <p>ส่งแล้ว</p>
           <strong><CountUp value={daily.totalUsdtSent} decimals={2} /></strong>
           <span>USDT · {outCount} รายการ</span>
         </article>
