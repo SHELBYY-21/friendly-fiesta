@@ -46,8 +46,7 @@ const CHIP: Record<string, string> = {
 export function progress(step: FlowStep): string {
   const idx = STEP_INDEX[step];
   const dots = STEPS.map((_, i) => (i <= idx ? DOT_ON : DOT_OFF)).join('\u2500\u2500');
-  const labels = STEPS.map((s, i) => (i === idx ? `<b>${s}</b>` : s)).join('   ');
-  return `${NOW[step]}\n${dots}\n${labels}`;
+  return `${dots}  <b>${STEPS[idx]}</b>  ·  ${NOW[step]}`;
 }
 
 export function head(status: string, meta?: string): string {

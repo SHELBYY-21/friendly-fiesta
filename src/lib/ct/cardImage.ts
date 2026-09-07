@@ -150,13 +150,25 @@ function canvas(): Buffer {
 }
 
 function chrome(buf: Buffer, accent: number[]) {
-  glow(buf, 540, -30, 460, accent, 0.32);
-  glow(buf, 980, 70, 300, accent, 0.18);
-  glow(buf, 90, 80, 90, accent, 0.55);
+  glow(buf, 540, -40, 520, accent, 0.28);
+  glow(buf, 980, 80, 280, accent, 0.16);
+  glow(buf, 120, 90, 110, accent, 0.5);
   fill(buf, 0, 0, W, 3, accent);
-  fill(buf, 0, 0, 5, H, accent);
+  fill(buf, 0, 0, 4, H, accent);
   fill(buf, 0, H - 3, W, 3, accent);
+  fill(buf, W - 4, 0, 4, H, accent);
+  const GOLD = [212, 175, 88];
+  const tick = 28;
+  fill(buf, 18, 18, tick, 2, GOLD);
+  fill(buf, 18, 18, 2, tick, GOLD);
+  fill(buf, W - 18 - tick, 18, tick, 2, GOLD);
+  fill(buf, W - 20, 18, 2, tick, GOLD);
+  fill(buf, 18, H - 20, tick, 2, GOLD);
+  fill(buf, 18, H - 18 - tick, 2, tick, GOLD);
+  fill(buf, W - 18 - tick, H - 20, tick, 2, GOLD);
+  fill(buf, W - 20, H - 18 - tick, 2, tick, GOLD);
   diamond(buf, 72, 64, 16, accent);
+  ring(buf, 72, 64, 22, GOLD, 0.55);
 }
 
 // 5x7 glyphs, bit rows

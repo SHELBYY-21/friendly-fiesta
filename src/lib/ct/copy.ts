@@ -2,7 +2,7 @@ import type { OutgoingMessage } from '../telegram';
 import {
   esc, ik, btn, urlBtn, displayLedger, showAcct, thbInt, thbCard, usdt, rateCode, quoteBlock, totalsBanner, deskUrl,
 } from './format';
-import { head as tokenHead, progress, rule, NODE, kv } from './tokens';
+import { head as tokenHead, progress, rule, NODE, kv, quote } from './tokens';
 import type { FlowStep } from './tokens';
 
 function msg(text: string, keyboard?: unknown): OutgoingMessage {
@@ -192,33 +192,36 @@ export function cardInReady(d: {
   const hasDesk = d.desk > 0;
   const payeeAcct = showAcct(d.receiverAccount || d.last4);
   const payerAcct = showAcct(d.senderAccount || d.senderLast4);
+  const detail = [
+    d.slipType ? `ประเภท  ${esc(d.slipType)}` : '',
+    [d.date, d.time].filter(Boolean).length ? `เวลา  ${esc([d.date, d.time].filter(Boolean).join('  '))}` : '',
+    d.channel ? `ช่องทาง  ${esc(d.channel)}` : '',
+    d.transRef ? `อ้างอิง  <code>${esc(d.transRef)}</code>` : '',
+    d.feeThb != null ? `ค่าธรรมเนียม  ${thbInt(d.feeThb)} THB` : '',
+    d.balanceThb != null ? `คงเหลือ  ${thbCard(d.balanceThb)} THB` : '',
+    '',
+    'ผู้รับ',
+    `${esc(d.bank)}  <code>${esc(payeeAcct)}</code>`,
+    esc(d.name || '—'),
+    d.promptpay ? `พร้อมเพย์  <code>${esc(d.promptpay)}</code>` : '',
+    '',
+    'ผู้โอน',
+    `${esc(d.senderBank || '—')}  <code>${esc(payerAcct)}</code>`,
+    esc(d.senderName || '—'),
+    '',
+    `OCR  ${Math.round(d.confidence)}%`,
+    d.review ? 'ยอดหรือบัญชียังไม่มั่นใจ' : 'สลิปตรงบัญชีแล้ว',
+  ].filter((x) => x !== undefined);
   const lines = [
     head('ยอดรับเข้า', `<code>${esc(displayLedger(d.ledger))}</code>`),
     quoteBlock({ thb: d.thb, usdt: hasDesk ? d.shouldSend : 0, desk: d.desk, mkt: d.mkt ?? null }),
     tape('in'),
-    d.slipType ? `ประเภท (TYPE)     ${esc(d.slipType)}` : '',
-    d.date ? `วันที่ (DATE)     ${esc(d.date)}` : '',
-    d.time ? `เวลา (TIME)      ${esc(d.time)}` : '',
-    d.channel ? `ช่องทาง (CHANNEL)  ${esc(d.channel)}` : '',
-    d.transRef ? `รหัสอ้างอิง (REF)  <code>${esc(d.transRef)}</code>` : '',
-    d.feeThb != null ? `ค่าธรรมเนียม (FEE)  ${thbInt(d.feeThb)} THB` : '',
-    d.balanceThb != null ? `ยอดคงเหลือ (BALANCE)  ${thbCard(d.balanceThb)} THB` : '',
-    '<blockquote expandable>ผู้รับ (PAYEE)',
-    `${esc(d.bank)}  <code>${esc(payeeAcct)}</code>`,
-    esc(d.name || '—'),
-    d.promptpay ? `พร้อมเพย์ (PROMPTPAY)  <code>${esc(d.promptpay)}</code>` : '',
-    '</blockquote>',
-    '<blockquote expandable>ผู้โอน (PAYER)',
-    `${esc(d.senderBank || '—')}  <code>${esc(payerAcct)}</code>`,
-    esc(d.senderName || '—'),
-    '</blockquote>',
-    `OCR  ${Math.round(d.confidence)}%`,
-    d.review ? 'CAUSE  ยอดหรือบัญชียังไม่มั่นใจ (review)' : 'CAUSE  สลิปตรงบัญชีแล้ว (matched)',
-    'ACTION กด ยืนยัน เพื่อรับฝาก (confirm deposit)',
-    rawBlock(d.raw),
+    `<blockquote expandable>${detail.filter(Boolean).join('\n')}</blockquote>`,
+    'กด <b>ยืนยัน</b> เพื่อรับฝาก',
   ];
-  if (d.fresh) lines.push(`บัญชีใหม่ (NEW PIN)  ${esc(d.bank)}  <code>${esc(payeeAcct)}</code>`);
-  if (!hasDesk) lines.push('กรุณาตั้งอัตราห้องก่อน (set desk) เช่น <code>36.65</code>');
+  if (d.fresh) lines.push(`บัญชีใหม่  ${esc(d.bank)}  <code>${esc(payeeAcct)}</code>`);
+  if (!hasDesk) lines.push('กรุณาตั้งอัตราห้องก่อน เช่น <code>36.65</code>');
+  if (d.raw) lines.push(rawBlock(d.raw));
   const rows: Array<Array<Record<string, unknown>>> = [];
   if (hasDesk) {
     rows.push([
@@ -372,10 +375,9 @@ export function cardLocked(d: {
   const ready = Boolean(d.batch?.ready);
   const batchLines = d.batch && d.batch.count
     ? [
-        `วันนี้ (TODAY)      ${d.batch.count} รายการ`,
-        `ยอดรวม (TOTAL)     ${thbInt(d.batch.thb)} THB`,
-        `ต้องส่ง (DUE)       ${usdt(d.batch.usdt)} USDT`,
-        ready ? 'ครบยอดแล้ว (ready)' : `คงเหลือ (BALANCE)   ${thbInt(d.batch.remain)} THB`,
+        '',
+        `${d.batch.count} รายการ  ·  ${thbInt(d.batch.thb)} THB  ·  ${usdt(d.batch.usdt)} USDT`,
+        ready ? 'ครบยอดแล้ว' : `คงเหลือ  ${thbInt(d.batch.remain)} THB`,
       ]
     : [];
   return msg(
@@ -383,15 +385,10 @@ export function cardLocked(d: {
       head(queued ? 'รอรวมยอด' : 'รอโอน', `<code>${esc(displayLedger(d.ledger))}</code>`),
       quoteBlock({ thb: d.thb, usdt: d.shouldSend, desk: d.desk, mkt: d.mkt ?? null }),
       tape('wait'),
-      `เวลา (TIME)  ${esc(d.time)}`,
-      rule(),
-      'บัญชีปลายทาง (PAYEE)',
-      `${[d.bank, showAcct(d.account || d.last4)].filter((x) => x && x !== '—').join('  ')}`,
-      esc(d.name || d.adminName),
-      ...batchLines,
-      rule(),
-      'CAUSE  ยังไม่บันทึกยอดส่ง USDT (awaiting send)',
-      ready ? 'ACTION กด บันทึกส่งรวม (batch send)' : 'ACTION โอน USDT แล้วกด บันทึกส่งรวม (send then batch)',
+      `<blockquote expandable>${esc(d.time)}
+${[d.bank, showAcct(d.account || d.last4)].filter((x) => x && x !== '—').join('  ')}
+${esc(d.name || d.adminName)}${batchLines.join('\n')}</blockquote>`,
+      ready ? 'กด <b>บันทึกส่งรวม</b>' : 'โอน USDT แล้วกด <b>บันทึกส่งรวม</b>',
     ].filter(Boolean).join('\n'),
     ik(rows),
   );
@@ -440,16 +437,16 @@ export function cardSettled(d: {
 }): OutgoingMessage {
   return msg(
     [
-      head('โอนสำเร็จ', 'รายการเสร็จสมบูรณ์ (settled)'),
+      head('โอนสำเร็จ', `<code>${esc(displayLedger(d.ledger))}</code>`),
       tape('done'),
-      `ยอดรับเข้า (IN)      ${thbCard(d.thb)} THB`,
-      `เงินออก (OUT)     <b>${usdt(d.usdtOut)} USDT</b>`,
-      `เราขาย (DESK)  <code>${rateCode(d.desk)}</code>`,
-      '',
-      `<code>${esc(displayLedger(d.ledger))}</code>`,
-      `${esc(d.adminName)}  ${esc(d.inTime)} → ${esc(d.outTime)}`,
-      '',
-      'โอนครบแล้ว (settled)',
+      quote(
+        [
+          `ฝาก  <b>${thbCard(d.thb)} THB</b>`,
+          `ส่ง  <b>${usdt(d.usdtOut)} USDT</b>`,
+          `เรท  <code>${rateCode(d.desk)}</code>`,
+        ].join('\n'),
+      ),
+      `${esc(d.adminName)}  ·  ${esc(d.inTime)} → ${esc(d.outTime)}`,
     ].join('\n'),
     ik([
       [btn('ดูรายการ', `slip:open:${d.short}`), btn('คัดลอกเลขที่', `slip:copy:${d.short}`)],
