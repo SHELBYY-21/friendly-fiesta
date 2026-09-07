@@ -112,6 +112,10 @@ export default function VaultDesk() {
       }
       setData(json);
       setError(null);
+      const liveDesk = json.vault?.desk ?? json.rates?.desk;
+      if (liveDesk) {
+        setDeskDraft((cur) => (cur.trim() ? cur : String(liveDesk)));
+      }
     } catch (e: any) {
       setError(e?.message ?? 'offline');
     }

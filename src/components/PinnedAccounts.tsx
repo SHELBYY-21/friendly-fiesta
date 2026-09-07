@@ -131,7 +131,7 @@ export default function PinnedAccounts({
               onClick={() => void onPin(c.id)}
               className="keep px-3 py-2 text-xs"
             >
-              + ปัก {c.bankName} ····{c.last4}
+              ใช้วันนี้ {c.bankName} ····{c.last4}
             </button>
           ))}
         </div>

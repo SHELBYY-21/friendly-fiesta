@@ -137,7 +137,7 @@ function EndpointForm({ initial, submitLabel, onSubmit, onCancel }: EndpointForm
       description,
     });
     if (!endpoint) {
-      setError('Name และ URL ห้ามว่าง');
+      setError('ใส่ชื่อกับลิงก์ก่อน');
       return;
     }
     setError(null);
@@ -146,87 +146,54 @@ function EndpointForm({ initial, submitLabel, onSubmit, onCancel }: EndpointForm
 
   return (
     <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3">
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-2">
         <label className="text-xs">
-          <span className="mb-1 block text-[color:var(--muted)]">ชื่อ (Name)</span>
+          <span className="mb-1 block text-[color:var(--fg)]">ชื่อรายการ</span>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="เช่น My Custom API"
-            className="w-full rounded-md border border-[color:var(--border)] bg-black/40 px-2 py-1.5 text-sm text-[color:var(--text)] placeholder:text-[color:var(--muted)] focus:border-emerald-500/60 focus:outline-none"
+            placeholder="เช่น สุขภาพระบบ"
+            className="w-full min-h-11 rounded-md border border-[color:var(--border)] bg-black/40 px-3 py-2 text-sm text-[color:var(--text)] placeholder:text-[color:var(--fg-muted)] focus:border-emerald-500/60 focus:outline-none"
           />
         </label>
         <label className="text-xs">
-          <span className="mb-1 block text-[color:var(--muted)]">URL</span>
+          <span className="mb-1 block text-[color:var(--fg)]">ลิงก์ตรวจ</span>
           <input
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="/api/... หรือ https://..."
-            className="w-full rounded-md border border-[color:var(--border)] bg-black/40 px-2 py-1.5 font-mono text-xs text-[color:var(--text)] placeholder:text-[color:var(--muted)] focus:border-emerald-500/60 focus:outline-none"
+            placeholder="/api/health"
+            inputMode="url"
+            autoComplete="off"
+            className="w-full min-h-11 rounded-md border border-[color:var(--border)] bg-black/40 px-3 py-2 font-mono text-xs text-[color:var(--text)] placeholder:text-[color:var(--fg-muted)] focus:border-emerald-500/60 focus:outline-none"
           />
         </label>
         <label className="text-xs">
-          <span className="mb-1 block text-[color:var(--muted)]">Method</span>
+          <span className="mb-1 block text-[color:var(--fg)]">วิธีเรียก</span>
           <select
             value={method}
             onChange={(e) => setMethod(e.target.value as 'GET' | 'POST')}
-            className="w-full rounded-md border border-[color:var(--border)] bg-black/40 px-2 py-1.5 text-sm text-[color:var(--text)] focus:border-emerald-500/60 focus:outline-none"
+            className="w-full min-h-11 rounded-md border border-[color:var(--border)] bg-black/40 px-3 py-2 text-sm text-[color:var(--text)] focus:border-emerald-500/60 focus:outline-none"
           >
-            <option value="GET">GET</option>
-            <option value="POST">POST</option>
+            <option value="GET">GET อ่าน</option>
+            <option value="POST">POST ส่ง</option>
           </select>
-        </label>
-        <label className="text-xs">
-          <span className="mb-1 block text-[color:var(--muted)]">Category</span>
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value as ApiEndpoint['category'])}
-            className="w-full rounded-md border border-[color:var(--border)] bg-black/40 px-2 py-1.5 text-sm text-[color:var(--text)] focus:border-emerald-500/60 focus:outline-none"
-          >
-            <option value="core">core</option>
-            <option value="dashboard">dashboard</option>
-            <option value="external">external</option>
-            <option value="custom">custom</option>
-          </select>
-        </label>
-        <label className="text-xs">
-          <span className="mb-1 block text-[color:var(--muted)]">Icon (emoji)</span>
-          <input
-            value={icon}
-            onChange={(e) => setIcon(e.target.value)}
-            placeholder="🎯"
-            maxLength={4}
-            className="w-full rounded-md border border-[color:var(--border)] bg-black/40 px-2 py-1.5 text-sm text-[color:var(--text)] placeholder:text-[color:var(--muted)] focus:border-emerald-500/60 focus:outline-none"
-          />
-        </label>
-        <label className="text-xs">
-          <span className="mb-1 block text-[color:var(--muted)]">Description (optional)</span>
-          <input
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="สั้น ๆ ว่า endpoint นี้ทำอะไร"
-            className="w-full rounded-md border border-[color:var(--border)] bg-black/40 px-2 py-1.5 text-sm text-[color:var(--text)] placeholder:text-[color:var(--muted)] focus:border-emerald-500/60 focus:outline-none"
-          />
         </label>
       </div>
       {error && (
-        <div className="mt-2 rounded bg-rose-500/10 px-2 py-1 text-xs text-rose-300">⚠ {error}</div>
+        <div className="mt-2 rounded bg-rose-500/10 px-2 py-1 text-xs text-rose-300">{error}</div>
       )}
-      <p className="mt-2 text-[10px] text-[color:var(--muted)]">
-        Note: URL แบบ https:// จะถูก ping ผ่าน server (SSRF allowlist). URL แบบ /api/... จะเรียกตรงจาก browser
-      </p>
       <div className="mt-3 flex justify-end gap-2">
         {onCancel && (
           <button
             onClick={onCancel}
-            className="rounded-md border border-[color:var(--border)] bg-white/5 px-3 py-1 text-xs text-[color:var(--text)] backdrop-blur transition hover:bg-white/10"
+            className="min-h-11 rounded-md border border-[color:var(--border)] bg-white/5 px-3 py-2 text-xs text-[color:var(--text)]"
           >
-            Cancel
+            ยกเลิก
           </button>
         )}
         <button
           onClick={submit}
-          className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-300 backdrop-blur transition hover:bg-emerald-500/20"
+          className="min-h-11 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-300"
         >
           {submitLabel}
         </button>
@@ -416,7 +383,7 @@ export default function ApiMonitor({
       {showAddForm && (
         <div className="mt-4">
           <EndpointForm
-            submitLabel="Add"
+            submitLabel="เพิ่มรายการตรวจ"
             onSubmit={addEndpoint}
             onCancel={() => setShowAddForm(false)}
           />
@@ -441,7 +408,7 @@ export default function ApiMonitor({
               <div key={endpoint.id}>
                 <EndpointForm
                   initial={endpoint}
-                  submitLabel="Save"
+                  submitLabel="บันทึกรายการตรวจ"
                   onSubmit={updateEndpoint}
                   onCancel={() => setEditingId(null)}
                 />
