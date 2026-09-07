@@ -75,7 +75,7 @@ function quoteRows(d: QuoteNums): string[][] {
 export function richStart(name = 'CT'): InputRichMessage {
   return {
     blocks: [
-      heading('CT DESK'),
+      heading('CE VAULT'),
       paragraph(`LIVE · ${name}`),
       quote('เขียว = ฝาก\nแดง = โอน\nส่งสลิปได้เลย'),
       buttons([
@@ -190,7 +190,7 @@ export function cardExamples() {
       method: 'sendPhoto',
       chat_id: '{{chat_id}}',
       parse_mode: 'HTML',
-      start: { photo: 'attach://og-1200x630.png', caption: 'CT DESK LIVE' },
+      start: { photo: 'attach://og-1200x630.png', caption: 'CE VAULT LIVE' },
       wait: { photo: 'attach://webhook-wait-1080x560.png', caption: 'รอโอน (waiting)' },
       done: { photo: 'attach://webhook-success-1080x560.png', caption: 'โอนสำเร็จ (sent)' },
     },

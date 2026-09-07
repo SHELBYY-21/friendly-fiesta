@@ -82,7 +82,7 @@ function sticker(chatId: number, key: StickerState): void {
   if (!kind || kind === 'wait' && key === 'PROCESSING') return;
   const png = brandCard(kind, { hero: key, sub: kind === 'success' ? 'DONE' : 'WAIT', meta: 'CT' });
   sendPhoto(chatId, png, {
-    text: kind === 'success' ? 'โอนสำเร็จ (sent)' : kind === 'wait' ? 'รอโอน (waiting)' : 'CT DESK',
+    text: kind === 'success' ? 'โอนสำเร็จ (sent)' : kind === 'wait' ? 'รอโอน (waiting)' : 'CE VAULT',
   }).catch(() => undefined);
 }
 
@@ -186,7 +186,7 @@ export async function POST(req: NextRequest) {
     if (failureChatId != null) {
       try {
         await sendMessage(failureChatId, {
-          text: '◈  <b>CT</b>\n<i>[ แจ้งเตือน ]</i>\n\nทำงานไม่ครบ — ส่งสลิปหรือคำสั่งเดิมอีกครั้ง',
+          text: '◈  <b>CE</b>\n<i>[ แจ้งเตือน ]</i>\n\nทำงานไม่ครบ — ส่งสลิปหรือคำสั่งเดิมอีกครั้ง',
         });
       } catch {
         // Telegram may itself be unavailable.
@@ -372,7 +372,7 @@ async function handleUpdate(update: any): Promise<void> {
       await sendMessage(chatId, UI.error('บัญชีนี้ยังไม่ได้รับสิทธิ์ — ให้ SuperAdmin เพิ่ม Telegram ID ก่อน'));
       return;
     }
-    const png = brandCard('start', { hero: 'CT DESK', sub: 'LIVE', meta: existing.name });
+    const png = brandCard('start', { hero: 'CE VAULT', sub: 'LIVE', meta: existing.name });
     await sendPhoto(chatId, png, {
       text: C.welcome(existing.name).text,
       reply_markup: adminKeyboard(),

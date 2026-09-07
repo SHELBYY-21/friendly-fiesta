@@ -7,7 +7,7 @@
         {
           "type": "heading",
           "size": 2,
-          "text": "CT DESK"
+          "text": "CE VAULT"
         },
         {
           "type": "paragraph",
@@ -462,7 +462,7 @@
     "parse_mode": "HTML",
     "start": {
       "photo": "attach://og-1200x630.png",
-      "caption": "CT DESK LIVE"
+      "caption": "CE VAULT LIVE"
     },
     "wait": {
       "photo": "attach://webhook-wait-1080x560.png",

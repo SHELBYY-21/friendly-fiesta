@@ -300,8 +300,8 @@ export default function VaultDesk() {
     <div className="desk-board">
       <header className="nav dense-nav">
         <div className="flex min-w-0 items-center gap-3">
-          <span className="mark-glow" aria-hidden>CT</span>
-          <span className="ops-title">โต๊ะปฏิบัติการ</span>
+          <img className="ce-mark" src="/brand/ce-mark-512.png" width={36} height={36} alt="" />
+          <span className="ops-title">CE Vault</span>
           <span className={`pill hidden sm:inline-flex ${live ? 'pill-done' : 'pill-wait'}`}>
             {live ? 'สด' : 'รีเฟรช'}
           </span>

@@ -30,7 +30,7 @@ export function brandCard(
   if (disk && disk.length > 100) return disk;
   const mapped = kind === 'success' ? 'settled' : kind === 'wait' ? 'locked' : 'vault';
   return renderHeroPng(mapped, {
-    hero: d?.hero || (kind === 'success' ? 'DONE' : kind === 'wait' ? 'WAIT' : 'CT DESK'),
+    hero: d?.hero || (kind === 'success' ? 'DONE' : kind === 'wait' ? 'WAIT' : 'CE VAULT'),
     sub: d?.sub,
     meta: d?.meta || 'CT',
   });

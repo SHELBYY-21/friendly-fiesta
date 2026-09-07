@@ -31,7 +31,7 @@ export function noticeCard(opts: {
 }): string {
   const icon = NOTICE_ICON[opts.kind];
   const blocks: string[] = [
-    `${icon}  <b>CT</b>`,
+    `${icon}  <b>CE</b>`,
     `<i>${opts.title}</i>`,
     RULE,
     '<b>สรุป</b>',

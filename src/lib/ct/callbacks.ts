@@ -298,7 +298,7 @@ export async function handleCtCallback(opts: {
     const view = cb.action === 'recent'
       ? await renderRecent(roomId, admin.name)
       : await renderVault(roomId, mode);
-    await sendHero(chatId, messageId, 'vault', view, mode === 'pending' ? 'WAIT' : 'VAULT', 'CT DESK', '◈');
+    await sendHero(chatId, messageId, 'vault', view, mode === 'pending' ? 'WAIT' : 'VAULT', 'CE VAULT', '◈');
     return;
   }
 
@@ -401,7 +401,7 @@ export async function handleCtCallback(opts: {
       await answerCallback(id, 'พักรายการแล้ว');
       await patchSlip(p.id, { status: 'HOLD' });
       await redraw(chatId, messageId, {
-        text: `◈  <b>CT</b>\n<i>[ แจ้งเตือน ]  พักรายการ</i>\n<code>${displayLedger(p.ledger_ref)}</code>\nถือไว้ก่อน ยังไม่บันทึกลงสมุดครับ`,
+        text: `◈  <b>CE</b>\n<i>[ แจ้งเตือน ]  พักรายการ</i>\n<code>${displayLedger(p.ledger_ref)}</code>\nถือไว้ก่อน ยังไม่บันทึกลงสมุดครับ`,
       });
       return;
     case 'cancel':

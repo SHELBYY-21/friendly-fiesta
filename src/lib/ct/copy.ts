@@ -46,7 +46,7 @@ export function skeletonSettle(ledger: string, usdtAmt: number): OutgoingMessage
 export function welcome(name: string): OutgoingMessage {
   return msg(
     [
-      head('สรุปยอด', `CT DESK · ${esc(name)}`),
+      head('สรุปยอด', `CE VAULT · ${esc(name)}`),
       '',
       '<blockquote>เขียว = ฝาก (IN)   แดง = โอน (OUT)\nส่งสลิปได้เลย</blockquote>',
     ].join('\n'),

@@ -34,8 +34,12 @@ const ops = Orbitron({
 });
 
 export const metadata: Metadata = {
-  title: 'CT',
-  description: 'Crown Tether private desk',
+  title: 'CE Vault',
+  description: 'CE Vault private desk',
+  icons: {
+    icon: '/brand/ce-mark-512.png',
+    apple: '/brand/apple-touch-icon.png',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

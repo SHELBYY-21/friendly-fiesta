@@ -75,7 +75,7 @@ function frame(stage: AiStage, ctx: AiContext): OutgoingMessage {
   const chip = live
     ? '<b>LIVE PHOTO</b> · still frame'
     : '<b>SLIP PHOTO</b> · scanning';
-  const lines: string[] = ['◈  <b>CT</b>  ·  <b>AGENT (OCR)</b>', `${chip} (กำลังสแกน)`];
+  const lines: string[] = ['◈  <b>CE</b>  ·  <b>AGENT (OCR)</b>', `${chip} (กำลังสแกน)`];
 
   const amountLine = ctx.thb != null ? field('ยอดเงิน', 'AMOUNT', `${money(ctx.thb)} THB`) : '';
   const payeeLine = (ctx.bank || ctx.account || ctx.last4 || ctx.name)
@@ -226,7 +226,7 @@ export function aiVerifiedCard(ctx: AiContext): OutgoingMessage {
   const state = ctx.state || 'WAIT';
   return {
     text: [
-      '◈  <b>CT</b>  ·  <b>AGENT (OCR)</b>',
+      '◈  <b>CE</b>  ·  <b>AGENT (OCR)</b>',
       `${esc(time)} · ${money(ctx.thb, 0)} THB → ${money(ctx.usdt)} U · <code>${ref}</code> · ${esc(state)}`,
       '',
       '<blockquote>OCR        OK',

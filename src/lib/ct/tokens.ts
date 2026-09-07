@@ -1,4 +1,4 @@
-/** CT terminal visual tokens. */
+/** CE Vault terminal visual tokens. */
 
 export const MARK = '\u25C8';
 export const NODE = '\u2B22';
@@ -52,8 +52,8 @@ export function progress(step: FlowStep): string {
 export function head(status: string, meta?: string): string {
   const chip = CHIP[status] ?? status;
   return meta
-    ? `${MARK}  <b>CT</b>  ·  <b>${chip}</b>\n${meta}`
-    : `${MARK}  <b>CT</b>  ·  <b>${chip}</b>`;
+    ? `${MARK}  <b>CE</b>  ·  <b>${chip}</b>\n${meta}`
+    : `${MARK}  <b>CE</b>  ·  <b>${chip}</b>`;
 }
 
 export function rule(): string {

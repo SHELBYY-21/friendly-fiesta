@@ -95,6 +95,14 @@
   min-width:0;
   flex:1 1 220px;
 }
+.desk-board .ce-mark{
+  width:36px;
+  height:36px;
+  border-radius:10px;
+  object-fit:cover;
+  box-shadow:0 0 18px color-mix(in oklch, #d4af56 42%, transparent);
+  flex:none;
+}
 .desk-board .mark-glow{
   font-family:var(--font-display);
   color:var(--gold);
