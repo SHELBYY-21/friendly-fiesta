@@ -167,6 +167,45 @@
   gap:12px;
   margin-bottom:8px;
 }
+.desk-api-panel__keys{
+  display:grid;
+  gap:8px;
+  margin:0 0 12px;
+  padding:10px 12px;
+  border:1px solid rgba(56,189,248,.28);
+  border-radius:12px;
+  background:rgba(8,16,32,.55);
+}
+.desk-api-panel__keys label{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  font-size:12px;
+  letter-spacing:.04em;
+  color:#d6eeff;
+}
+.desk-api-panel__keys .ok{color:#4ade80}
+.desk-api-panel__keys .wait{color:#7dd3fc}
+.desk-api-panel__row{
+  display:flex;
+  gap:8px;
+}
+.desk-api-panel__keys input{
+  flex:1;
+  min-width:0;
+  height:40px;
+  padding:0 12px;
+  border:1px solid rgba(125,211,252,.35);
+  border-radius:10px;
+  background:#07101c;
+  color:#f8fbff;
+}
+.desk-api-panel__keys p{
+  margin:0;
+  font-size:12px;
+  color:#7dd3fc;
+}
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
   .desk-board .nav.dense-nav,
   .desk-board .sum-desk,

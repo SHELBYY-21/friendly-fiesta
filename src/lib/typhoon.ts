@@ -1,6 +1,7 @@
 import { last4FromPayeeMask, nameFromPayee } from '../bot/parse';
 import { parseSmartSlip } from './ct/smartSlip';
 import type { SlipExtract } from './grokVision';
+import { getTyphoonSetting } from './systemSettings';
 
 const BASE = () => (process.env.TYPHOON_BASE_URL || 'https://api.opentyphoon.ai/v1').replace(/\/$/, '');
 const OCR_MODEL = () => process.env.TYPHOON_OCR_MODEL || 'typhoon-ocr';
@@ -55,6 +56,10 @@ export function typhoonKey(): string | null {
   return k && k.trim() && !/YOUR_API_KEY|placeholder/i.test(k) ? k.trim() : null;
 }
 
+export async function resolveTyphoonKey(): Promise<string | null> {
+  return typhoonKey() || (await getTyphoonSetting());
+}
+
 const num = (v: unknown) =>
   typeof v === 'number' && Number.isFinite(v)
     ? v
@@ -78,7 +83,7 @@ async function chat(opts: {
   maxTokens?: number;
   temperature?: number;
 }): Promise<string | null> {
-  const key = typhoonKey();
+  const key = await resolveTyphoonKey();
   if (!key) return null;
   const res = await fetch(`${BASE()}/chat/completions`, {
     method: 'POST',
@@ -166,7 +171,8 @@ export function slipFromTyphoonJson(text: string, markdown?: string): SlipExtrac
 }
 
 export async function analyzeSlipWithTyphoon(imageUrl: string): Promise<SlipExtract | null> {
-  if (!typhoonKey() || !imageUrl) return null;
+  if (!imageUrl) return null;
+  if (!(await resolveTyphoonKey())) return null;
   try {
     const dataUrl = await asDataUrl(imageUrl);
     if (!dataUrl) return null;

@@ -4,6 +4,7 @@ import { validateProductionEnvironment, validateWebhookEnvironment } from '@/lib
 import { configuredSlipProvider } from '@/lib/ct/slipInquiry';
 import { ensureTelegramWebhook } from '@/lib/ct/telegramWebhook';
 import { opsChatId } from '@/lib/ct/deskChat';
+import { resolveTyphoonKey } from '@/lib/typhoon';
 
 export const runtime = 'nodejs';
 export const revalidate = 0;
@@ -60,9 +61,7 @@ export async function GET(req: NextRequest) {
   const vision = Boolean(
     process.env.GROK_API_KEY?.trim() || process.env.XAI_API_KEY?.trim(),
   );
-  const typhoon = Boolean(
-    process.env.TYPHOON_API_KEY?.trim() || process.env.TYPHOON_OCR_API_KEY?.trim(),
-  );
+  const typhoon = Boolean(await resolveTyphoonKey());
   const ocrFallback = Boolean(process.env.OCR_SPACE_API_KEY?.trim());
   const slipVerify = configuredSlipProvider()?.name ?? false;
   const liveError = staleWebhookError(webhook);

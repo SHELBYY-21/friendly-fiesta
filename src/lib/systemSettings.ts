@@ -6,8 +6,10 @@
 import { supabaseAdmin } from './supabaseAdmin';
 
 const CACHE_TTL_MS = 10_000;
+const SECRET_TTL_MS = 10_000;
 
 let cache: { botEnabled: boolean; maintenanceMessage: string; fetchedAt: number } | null = null;
+let secretCache: { typhoon: string | null; at: number } | null = null;
 
 export interface BotGate {
   botEnabled: boolean;
@@ -47,7 +49,53 @@ export async function getBotGate(): Promise<BotGate> {
   }
 }
 
+export async function getTyphoonSetting(): Promise<string | null> {
+  if (secretCache && Date.now() - secretCache.at < SECRET_TTL_MS) return secretCache.typhoon;
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('system_settings')
+      .select('value')
+      .eq('key', 'typhoon_api_key')
+      .maybeSingle();
+    if (error) throw error;
+    const typhoon = asSecret(data?.value);
+    secretCache = { typhoon, at: Date.now() };
+    return typhoon;
+  } catch {
+    secretCache = { typhoon: null, at: Date.now() };
+    return null;
+  }
+}
+
+export async function saveTyphoonSetting(key: string): Promise<void> {
+  const clean = asSecret(key);
+  if (!clean) throw new Error('INVALID_KEY');
+  const { error } = await supabaseAdmin.from('system_settings').upsert(
+    {
+      key: 'typhoon_api_key',
+      value: clean,
+      updated_at: new Date().toISOString(),
+      updated_by: 'dashboard',
+    },
+    { onConflict: 'key' },
+  );
+  if (error) throw error;
+  secretCache = { typhoon: clean, at: Date.now() };
+}
+
+function asSecret(v: unknown): string | null {
+  if (typeof v === 'string') {
+    const s = v.trim().replace(/^"+|"+$/g, '');
+    return s && s.length >= 12 && !/YOUR_API_KEY|placeholder/i.test(s) ? s : null;
+  }
+  if (v && typeof v === 'object' && 'key' in (v as object)) {
+    return asSecret((v as { key: unknown }).key);
+  }
+  return null;
+}
+
 /** ล้าง cache ทันที (เรียกหลัง dashboard แก้ค่า) */
 export function invalidateBotGateCache(): void {
   cache = null;
+  secretCache = null;
 }

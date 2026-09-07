@@ -11,6 +11,10 @@ const SEED: ApiEndpoint[] = [
 
 export default function DeskApiPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [remote, setRemote] = useState<ApiEndpoint[] | null>(null);
+  const [typhoonReady, setTyphoonReady] = useState(false);
+  const [typhoonKey, setTyphoonKey] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [note, setNote] = useState('');
 
   useEffect(() => {
     if (!open) return;
@@ -19,9 +23,33 @@ export default function DeskApiPanel({ open, onClose }: { open: boolean; onClose
       .then((j) => {
         const list = j?.data?.apiEndpoints;
         if (Array.isArray(list) && list.length) setRemote(list);
+        setTyphoonReady(Boolean(j?.data?.typhoonReady));
       })
       .catch(() => {});
   }, [open]);
+
+  async function saveTyphoon() {
+    const value = typhoonKey.trim();
+    if (!value) return;
+    setSaving(true);
+    setNote('');
+    try {
+      const res = await fetch('/api/admin/settings', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ key: 'typhoon_api_key', value }),
+      });
+      const json = await res.json();
+      if (!res.ok || json?.error) throw new Error(json?.error?.message || 'save failed');
+      setTyphoonReady(true);
+      setTyphoonKey('');
+      setNote('บันทึก Typhoon แล้ว');
+    } catch {
+      setNote('บันทึกไม่สำเร็จ');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   if (!open) return null;
 
@@ -31,6 +59,31 @@ export default function DeskApiPanel({ open, onClose }: { open: boolean; onClose
         <strong>ตรวจสอบรายการ</strong>
         <button type="button" className="qd-pill" onClick={onClose}>ปิด</button>
       </div>
+      <form
+        className="desk-api-panel__keys"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void saveTyphoon();
+        }}
+      >
+        <label>
+          Typhoon OCR
+          <span className={typhoonReady ? 'ok' : 'wait'}>{typhoonReady ? 'พร้อม' : 'ยังไม่มีคีย์'}</span>
+        </label>
+        <div className="desk-api-panel__row">
+          <input
+            type="password"
+            autoComplete="off"
+            placeholder="วาง TYPHOON_API_KEY แล้วบันทึก"
+            value={typhoonKey}
+            onChange={(e) => setTyphoonKey(e.target.value)}
+          />
+          <button type="submit" className="qd-pill" disabled={saving || !typhoonKey.trim()}>
+            {saving ? 'กำลังบันทึก' : 'บันทึกคีย์'}
+          </button>
+        </div>
+        {note ? <p>{note}</p> : null}
+      </form>
       <ApiMonitor endpoints={remote ?? SEED} storageKey="ct.apiMonitor.v2" />
     </section>
   );

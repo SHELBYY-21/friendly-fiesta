@@ -20,6 +20,7 @@ import { gateOcr } from './gate';
 import { renderGateCard } from './photo';
 import * as C from './copy';
 import type { Admin } from '@/types/transactions';
+import { saveTyphoonSetting } from '../systemSettings';
 
 export function parseCb(data: string): {
   domain: string;
@@ -654,6 +655,23 @@ export async function handleCtText(opts: {
   text: string;
 }): Promise<boolean> {
   const t = opts.text.trim();
+  const typhoonCmd = t.match(/^\/typhoon(?:@[a-z0-9_]+)?(?:\s+(.+))?$/i);
+  if (typhoonCmd) {
+    const key = (typhoonCmd[1] || '').trim();
+    if (!key) {
+      await sendMessage(opts.chatId, {
+        text: 'วางคีย์ท้ายคำสั่ง เช่น <code>/typhoon sk-...</code>',
+      });
+      return true;
+    }
+    try {
+      await saveTyphoonSetting(key);
+      await sendMessage(opts.chatId, { text: 'Typhoon OCR พร้อมแล้ว (OCR ready)' });
+    } catch {
+      await sendMessage(opts.chatId, { text: 'คีย์ไม่ถูกต้อง' });
+    }
+    return true;
+  }
   const cmd = matchReplyCommand(t);
   if (cmd === 'vault') {
     const view = await renderVault(opts.chatId, 'today');

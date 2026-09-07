@@ -1,8 +1,6 @@
-// GET/PATCH /api/admin/settings — อ่าน/แก้ system_settings (เช่น ปุ่มหยุดบอท)
-// ป้องกันด้วย middleware (session cookie จาก PIN gate)
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { invalidateBotGateCache } from '@/lib/systemSettings';
+import { invalidateBotGateCache, saveTyphoonSetting } from '@/lib/systemSettings';
 
 export const runtime = 'nodejs';
 export const revalidate = 0;
@@ -14,7 +12,18 @@ const EDITABLE_KEYS = new Set([
   'response_templates',
   'error_thresholds',
   'rate_limits',
+  'typhoon_api_key',
 ]);
+
+const SECRET_KEYS = new Set(['typhoon_api_key']);
+
+function asSecretPresent(v: unknown): boolean {
+  if (typeof v === 'string') return v.trim().length >= 12;
+  if (v && typeof v === 'object' && 'key' in (v as object)) {
+    return asSecretPresent((v as { key: unknown }).key);
+  }
+  return false;
+}
 
 export async function GET() {
   const { data, error } = await supabaseAdmin
@@ -29,7 +38,14 @@ export async function GET() {
   }
 
   const settings: Record<string, any> = {};
-  for (const row of data ?? []) settings[row.key] = row.value;
+  const secrets: Record<string, boolean> = {};
+  for (const row of data ?? []) {
+    if (SECRET_KEYS.has(row.key)) {
+      secrets[row.key] = asSecretPresent(row.value);
+      continue;
+    }
+    settings[row.key] = row.value;
+  }
 
   return NextResponse.json({
     data: {
@@ -39,6 +55,7 @@ export async function GET() {
       responseTemplates: settings.response_templates ?? null,
       errorThresholds: settings.error_thresholds ?? null,
       rateLimits: settings.rate_limits ?? null,
+      typhoonReady: Boolean(process.env.TYPHOON_API_KEY?.trim()) || Boolean(secrets.typhoon_api_key),
       updatedAt: (data ?? []).reduce<string | null>(
         (latest, r) => (!latest || r.updated_at > latest ? r.updated_at : latest),
         null
@@ -65,6 +82,19 @@ export async function PATCH(req: NextRequest) {
       { data: null, error: { code: 'INVALID_KEY', message: `key must be one of ${[...EDITABLE_KEYS].join(', ')}` } },
       { status: 400 }
     );
+  }
+
+  if (key === 'typhoon_api_key') {
+    try {
+      await saveTyphoonSetting(String(body.value ?? ''));
+    } catch {
+      return NextResponse.json(
+        { data: null, error: { code: 'INVALID_KEY', message: 'typhoon key required' } },
+        { status: 400 }
+      );
+    }
+    invalidateBotGateCache();
+    return NextResponse.json({ data: { key, ready: true }, error: null });
   }
 
   const { error } = await supabaseAdmin
