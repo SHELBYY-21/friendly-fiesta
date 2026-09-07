@@ -65,7 +65,7 @@ import {
   pinBankAccount,
   unpinBankAccount,
 } from '@/lib/banks';
-import { parseTelegramUpdate } from '@/lib/telegram/update';
+import { largestPhoto, parseTelegramUpdate } from '@/lib/telegram/update';
 
 // ตรวจ USDT (OCR vs พิมพ์เอง) ต้องตรงกันในระดับ 0.0001 (req 13)
 const USDT_TOLERANCE = 0.0001;
@@ -497,7 +497,7 @@ async function handleUpdate(update: any): Promise<void> {
     }
     sticker(chatId, 'PROCESSING');
     try {
-      const replyPhoto = msg.reply_to_message?.photo?.at(-1);
+      const replyPhoto = largestPhoto(msg.reply_to_message?.photo);
       let imgUrl = session?.slip_url ?? null;
       let fingerprint = session?.slip_fingerprint ?? null;
       let slip: Awaited<ReturnType<typeof analyzeSlip>> = {
@@ -521,8 +521,8 @@ async function handleUpdate(update: any): Promise<void> {
         confidence: session?.ocr_conf ?? null,
       };
       if (replyPhoto) {
-        fingerprint = slipFingerprint(replyPhoto.file_unique_id);
-        imgUrl = await uploadSlipFromTelegram(replyPhoto.file_id);
+        fingerprint = slipFingerprint(replyPhoto.fileUniqueId);
+        imgUrl = await uploadSlipFromTelegram(replyPhoto.fileId);
         slip = await analyzeSlip(imgUrl);
       }
       if (!imgUrl || !fingerprint) {

@@ -24,14 +24,25 @@ function asId(value: unknown): number | null {
   return Number.isSafeInteger(n) && n !== 0 ? n : null;
 }
 
-export function largestPhotoFileId(photo: unknown): string | null {
+export function largestPhoto(photo: unknown): { fileId: string; fileUniqueId: string } | null {
   if (!Array.isArray(photo) || photo.length === 0) return null;
   const ranked = photo
-    .map((item) => asRecord(item))
-    .filter((item): item is Record<string, unknown> => Boolean(item?.file_id))
-    .sort((a, b) => Number(b.width ?? 0) * Number(b.height ?? 0) - Number(a.width ?? 0) * Number(a.height ?? 0));
-  const id = ranked[0]?.file_id;
-  return typeof id === 'string' && id ? id : null;
+    .map((item, index) => ({ rec: asRecord(item), index }))
+    .filter((row): row is { rec: Record<string, unknown>; index: number } => Boolean(row.rec?.file_id))
+    .sort((a, b) => {
+      const da = Number(a.rec.width ?? 0) * Number(a.rec.height ?? 0);
+      const db = Number(b.rec.width ?? 0) * Number(b.rec.height ?? 0);
+      if (db !== da) return db - da;
+      return b.index - a.index;
+    });
+  const rec = ranked[0]?.rec;
+  const id = rec?.file_id;
+  if (typeof id !== 'string' || !id) return null;
+  return { fileId: id, fileUniqueId: String(rec.file_unique_id ?? id) };
+}
+
+export function largestPhotoFileId(photo: unknown): string | null {
+  return largestPhoto(photo)?.fileId ?? null;
 }
 
 export function parseTelegramUpdate(body: unknown): ParsedTelegramUpdate | null {

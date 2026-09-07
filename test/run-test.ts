@@ -367,6 +367,15 @@ assert(!/[👑✨🌿💎🤍🟢🔴💰📈🎯💵🏦👤⚠❤🔥⚡]/.tes
 const { stillFromTelegram, decodeStillFrame, isLivePhoto } = require('../src/lib/ct/livePhoto');
 assert(stillFromTelegram({ live_photo: { photo: [{ file_id: 'lp1', file_unique_id: 'u1' }] }, photo: [{ file_id: 'p1' }] }).fileId === 'lp1', 'live photo prefers still frame');
 assert(stillFromTelegram({ photo: [{ file_id: 'a' }, { file_id: 'b', file_unique_id: 'ub' }] }).fileId === 'b', 'plain photo uses largest size');
+assert(
+  stillFromTelegram({
+    photo: [
+      { file_id: 'big', width: 1280, height: 720 },
+      { file_id: 'small', width: 90, height: 90 },
+    ],
+  }).fileId === 'big',
+  'unsorted photo uses largest area',
+);
 assert(stillFromTelegram({ live_photo: { file_id: 'clip-only' } }) == null, 'live clip without still is ignored');
 assert(isLivePhoto({ live_photo: { photo: [{ file_id: 'x' }] } }) === true, 'isLivePhoto true');
 assert(isLivePhoto({ photo: [{ file_id: 'x' }] }) === false, 'plain photo is not live');
