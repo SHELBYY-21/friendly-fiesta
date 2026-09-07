@@ -585,7 +585,7 @@ export function pinnedAccounts(items: PinnedAccountItem[]): OutgoingMessage {
   if (items.length === 0) {
     return card({
       icon: '📌',
-      titleTh: 'บัญชีรับวันนี้',
+      titleTh: 'บัญชีรับเงินวันนี้',
       titleEn: "Today's Receiving Accounts",
       note: 'ยังไม่ปักหมุดบัญชี — เพิ่มด้วย /pin KBANK 1234567890',
     });
@@ -596,7 +596,7 @@ export function pinnedAccounts(items: PinnedAccountItem[]): OutgoingMessage {
   }));
   return card({
     icon: '📌',
-    titleTh: 'บัญชีรับวันนี้',
+    titleTh: 'บัญชีรับเงินวันนี้',
     titleEn: "Today's Receiving Accounts",
     groups: [fields],
     note: `${items.length} / 3 Accounts — เพิ่ม/ลบด้วย /pin หรือ /unpin`,
@@ -1124,7 +1124,7 @@ export function menuCard(): OutgoingMessage {
       { labelTh: '/today', value: mono('สรุปวันนี้') },
       { labelTh: '/recent_slips 10', value: mono('รายการล่าสุด') },
       { labelTh: '/save_slip', value: mono('บันทึกสลิป') },
-      { labelTh: '/pin, /unpin', value: mono('บัญชีรับวันนี้') },
+      { labelTh: '/pin, /unpin', value: mono('บัญชีรับเงินวันนี้') },
       { labelTh: '/rate, /setrate 40', value: mono('อัตราแลกเปลี่ยน') },
       { labelTh: '/receiver 6578', value: mono('ประวัติผู้รับ') },
       { labelTh: '/export', value: mono('ส่งออก CSV') },

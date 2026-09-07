@@ -26,9 +26,9 @@ export default function DeskApiPanel({ open, onClose }: { open: boolean; onClose
   if (!open) return null;
 
   return (
-    <section className="desk-api-panel" aria-label="มอนิเตอร์ API">
+    <section className="desk-api-panel" aria-label="ตรวจสอบรายการ">
       <div className="desk-api-panel__bar">
-        <strong>มอนิเตอร์</strong>
+        <strong>ตรวจสอบรายการ</strong>
         <button type="button" className="qd-pill" onClick={onClose}>ปิด</button>
       </div>
       <ApiMonitor endpoints={remote ?? SEED} storageKey="ct.apiMonitor.v2" />

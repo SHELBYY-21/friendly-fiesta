@@ -9,8 +9,8 @@
   --bg-subtle: #0e1a2c;
   --panel: rgba(8, 18, 34, 0.82);
   --fg: #d7f4ff;
-  --fg-muted: #7aa8b8;
-  --fg-subtle: #4d6f7c;
+  --fg-muted: #a8c6d4;
+  --fg-subtle: #8aa8b4;
   --gold: #5ee7ff;
   --gold-dim: color-mix(in srgb, var(--gold) 16%, transparent);
   --cyan: #1ee08a;

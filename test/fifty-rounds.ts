@@ -50,11 +50,11 @@ function rounds(): Round[] {
   }
   for (const conf of [80, 88, 90, 94]) {
     out.push({
-      n: 0, name: `review-${conf}`, thb: 1000, conf, pin: true, desk: 41, bank: 'KTB', last4: '6034',
-      after: 'keep', expectGate: 'IN_READY_REVIEW', expectAuto: false, expectChip: 'WAIT', expectSettle: null,
+      n: 0, name: `ready-${conf}`, thb: 1000, conf, pin: true, desk: 41, bank: 'KTB', last4: '6034',
+      after: 'keep', expectGate: 'IN_READY', expectAuto: true, expectChip: 'WAIT', expectSettle: null,
     });
   }
-  for (const conf of [0, 40, 79]) {
+  for (const conf of [0, 30, 39]) {
     out.push({
       n: 0, name: `weak-${conf}`, thb: 1000, conf, pin: true, desk: 41, bank: 'KTB', last4: '6034',
       expectGate: 'OCR_WEAK', expectAuto: false, expectChip: 'ERR', expectSettle: 'NOT_LOCKED',
@@ -116,7 +116,7 @@ function rounds(): Round[] {
   });
   out.push({
     n: 0, name: 'c416-ttb', thb: 31000, conf: 99, pin: false, desk: 41, bank: 'TTB', last4: '4987',
-    after: 'keep', expectGate: 'PIN_MISMATCH', expectAuto: false, expectChip: 'WAIT', expectSettle: 'PIN_MISMATCH',
+    after: 'keep', expectGate: 'PIN_MISMATCH', expectAuto: false, expectChip: 'WAIT', expectSettle: 'HIGH_VALUE',
   });
   out.push({
     n: 0, name: 'already-settled', thb: 1020, conf: 99, pin: true, desk: 41, bank: 'KTB', last4: '6034',

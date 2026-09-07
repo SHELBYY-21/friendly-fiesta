@@ -67,7 +67,10 @@ export function matchReplyCommand(text: string): ReplyCmd | null {
   if (t === 'วันใหม่' || t === '/newday') return 'newday';
   if (t === 'pin' || t === 'หมุด' || t === 'บัญชีรับ' || t === '/pin') return 'pin';
   if (t === '/recent' || t === '/recent_slips') return 'recent';
-  if (/^(?:\/setrate(?:@[a-z0-9_]+)?|\/rate(?:@[a-z0-9_]+)?|setrate|เรทตอนนี้|เรทวันนี้|อัตราแลกเปลี่ยน)\s*$/i.test(t)) {
+  if (
+    t === 'อัตรา' || t === 'เราขาย' ||
+    /^(?:\/setrate(?:@[a-z0-9_]+)?|\/rate(?:@[a-z0-9_]+)?|setrate|เรทตอนนี้|เรทวันนี้|อัตราแลกเปลี่ยน)\s*$/i.test(t)
+  ) {
     return 'rate';
   }
   return null;
@@ -464,7 +467,7 @@ async function doLock(
     await patchSlip(p.id, { message_id: photoId });
   } catch (e: any) {
     const msg = e?.message === 'PIN_MISMATCH'
-      ? 'บัญชีไม่ตรงกับบัญชีรับวันนี้ครับ'
+      ? 'บัญชีไม่ตรงกับบัญชีรับเงินวันนี้ครับ'
       : e?.message === 'NO_AMOUNT'
         ? 'ยังไม่พบยอดเงินครับ'
         : e?.message === 'HIGH_VALUE'

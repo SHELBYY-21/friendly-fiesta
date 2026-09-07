@@ -20,18 +20,6 @@ import { AiTransition, aiReceived } from './aiTransition';
 import type { Admin } from '@/types/transactions';
 import type { PinnedBank } from '../banks';
 
-/** Bot API 10 live_photo still sits on photo[]; never OCR the motion clip. */
-export function stillFromTelegram(msg: any): { fileId: string; fileUniqueId: string } | null {
-  const sizes = msg?.live_photo?.photo ?? msg?.photo;
-  if (!Array.isArray(sizes) || !sizes.length) return null;
-  const last = sizes[sizes.length - 1];
-  if (!last?.file_id) return null;
-  return {
-    fileId: String(last.file_id),
-    fileUniqueId: String(last.file_unique_id ?? last.file_id),
-  };
-}
-
 async function pinsForToday(chatId: number): Promise<PinnedBank[]> {
   try {
     const rolled = await ensureTodayPins(chatId);
@@ -111,12 +99,12 @@ async function sendHero(
   return id;
 }
 
-export async function handleCtPhoto(opts: { chatId: number; userId: number; admin: Admin; fileId: string; fileUniqueId: string; }): Promise<void> {
-  const { chatId, userId, admin, fileId, fileUniqueId } = opts;
+export async function handleCtPhoto(opts: { chatId: number; userId: number; admin: Admin; fileId: string; fileUniqueId: string; livePhoto?: boolean; }): Promise<void> {
+  const { chatId, userId, admin, fileId, fileUniqueId, livePhoto } = opts;
   const [pins, rates] = await Promise.all([pinsForToday(chatId), opsRates(chatId)]);
   const todayPin = pins[0];
-  await sendChatAction(chatId, 'typing');
-  const cardIdP = sendMessage(chatId, aiReceived());
+  await sendChatAction(chatId, livePhoto ? 'upload_photo' : 'typing');
+  const cardIdP = sendMessage(chatId, aiReceived({ live: Boolean(livePhoto) }));
   const read = await readSlip(chatId, fileId, cardIdP);
   if (!read) return;
   const { cardId, url, slip, qr } = read;
@@ -130,7 +118,7 @@ export async function handleCtPhoto(opts: { chatId: number; userId: number; admi
   }
   const fingerprint = fingerprints[0];
 
-  const ai = new AiTransition(chatId, cardId);
+  const ai = new AiTransition(chatId, cardId, Boolean(livePhoto));
   await ai.step('ocr');
   const matchedPin = matchSlipPins(slip.bank, slip.receiverLast4, slip.senderLast4, pins);
   const pinMatch = Boolean(matchedPin);

@@ -13,7 +13,7 @@ interface SyncBadgeProps {
 function formatRelative(date: Date): string {
   const diffMs = Date.now() - date.getTime();
   const diffSec = Math.floor(diffMs / 1000);
-  if (diffSec < 5) return 'เมื่อกี้';
+  if (diffSec < 5) return 'อัปเดตล่าสุด';
   if (diffSec < 60) return `${diffSec} วิ`;
   const diffMin = Math.floor(diffSec / 60);
   if (diffMin < 60) return `${diffMin} นาที`;
@@ -22,7 +22,7 @@ function formatRelative(date: Date): string {
 
 const LABEL: Record<SyncStatus, string> = {
   live: 'สด',
-  syncing: 'กำลังอัปเดต',
+  syncing: 'กำลังอัปเดตข้อมูล',
   stale: 'ข้อมูลเก่า',
   error: 'เชื่อมไม่ได้',
 };
@@ -44,13 +44,14 @@ export default function SyncBadge({ lastSync, status, staleAfterMs = 60_000 }: S
   const tone =
     effectiveStatus === 'error' ? 'text-danger' :
     effectiveStatus === 'stale' ? 'text-gold' :
-    'text-muted';
+    effectiveStatus === 'syncing' ? 'text-gold' :
+    'text-cyan';
 
   return (
-    <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${tone}`}>
+    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${tone}`}>
       <span className="h-1.5 w-1.5 rounded-full bg-current" />
       <span>{LABEL[effectiveStatus]}</span>
-      {lastSync && <span className="text-faint">{formatRelative(lastSync)}</span>}
+      {lastSync && effectiveStatus !== 'syncing' ? <span className="text-muted font-medium">{formatRelative(lastSync)}</span> : null}
     </span>
   );
 }

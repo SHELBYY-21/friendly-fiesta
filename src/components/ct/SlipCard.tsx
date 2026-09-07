@@ -82,11 +82,11 @@ export function SlipCard({ slip, onClose, queue, onKeep }: {
   }
 
   const note = slip.status === 'HOLD'
-    ? 'พักรอบนี้แล้ว — กด ดึงเข้าคิว ถ้าจะโอน (ยังไม่นับในยอดต้องโอน)'
+    ? 'พักรอบนี้แล้ว — กดดึงเข้าคิวถ้าจะโอน (ยังไม่นับในยอดรอโอน)'
     : slip.status === 'ERR' || slip.status === 'ERROR'
-      ? 'บัญชีรับยังไม่ตรงที่ปัก — ปักบัญชีแล้วกด ดึงเข้าคิว'
+      ? 'บัญชีรับยังไม่ตรงที่ปัก — ปักบัญชีแล้วกดดึงเข้าคิว'
       : queued
-        ? `อยู่ในคิว · ต้องโอนรวม ${n(dueAll || due, 2)} USDT`
+        ? `อยู่ในคิว · รอโอนรวม ${n(dueAll || due, 2)} USDT`
         : 'รายการนี้ปิดแล้ว';
 
   return (
@@ -106,13 +106,13 @@ export function SlipCard({ slip, onClose, queue, onKeep }: {
       <div className="slip-row"><span>บัญชีรับ</span><span>{payee || '—'}</span></div>
       <div className="slip-row"><span>ชื่อ</span><span>{slip.name || '—'}</span></div>
       <div className="slip-rule" />
-      <div className="slip-row"><span>รับ</span><span className="in">{n(slip.thb)} บาท</span></div>
-      <div className="slip-row"><span>ต้องโอน</span><span className="due">{n(due ?? expected, 2)} USDT</span></div>
-      <div className="slip-row"><span>โอนแล้ว</span><span>{n(sent, 2)} USDT</span></div>
+      <div className="slip-row"><span>รับเข้า</span><span className="in">{n(slip.thb)} บาท</span></div>
+      <div className="slip-row"><span>รอโอน</span><span className="due">{n(due ?? expected, 2)} USDT</span></div>
+      <div className="slip-row"><span>โอนสำเร็จ</span><span>{n(sent, 2)} USDT</span></div>
       <div className="slip-rule" />
       <div className="slip-row"><span>คิวรวม</span><span>{queue?.count ?? 1} รายการ</span></div>
       <div className="slip-row"><span>รับรวม</span><span className="in">{n(queue?.thb)} บาท</span></div>
-      <div className="slip-row"><span>ต้องโอนรวม</span><span className="due">{n(dueAll, 2)} USDT</span></div>
+      <div className="slip-row"><span>รอโอนรวม</span><span className="due">{n(dueAll, 2)} USDT</span></div>
       <div className="slip-row"><span>เป้าหมายกอง</span><span>{n(target)} บาท</span></div>
       <div className="slip-row"><span>เหลืออีก</span><span>{n(left)} บาท</span></div>
       <div className="slip-rule" />

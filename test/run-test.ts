@@ -289,9 +289,9 @@ assert(uiSamples.every((message: { text: string }) => message.text.length <= 409
 assert(uiSamples.every((message: { text: string }) => hasBalancedTelegramHtml(message.text)), 'enterprise UI samples use balanced Telegram HTML');
 
 const { gateOcr } = require('../src/lib/ct/gate');
-assert(gateOcr({ thb: 500, confidence: 98, pinMatch: true }) === 'IN_READY', 'OCR >=95 pin match is IN_READY');
-assert(gateOcr({ thb: 500, confidence: 90, pinMatch: true }) === 'IN_READY_REVIEW', 'OCR 80-94 pin match is review');
-assert(gateOcr({ thb: 500, confidence: 72, pinMatch: true }) === 'OCR_WEAK', 'OCR <80 is weak');
+assert(gateOcr({ thb: 500, confidence: 98, pinMatch: true }) === 'IN_READY', 'OCR >=70 pin match is IN_READY');
+assert(gateOcr({ thb: 500, confidence: 65, pinMatch: true }) === 'IN_READY_REVIEW', 'OCR 40-69 pin match is review');
+assert(gateOcr({ thb: 500, confidence: 30, pinMatch: true }) === 'OCR_WEAK', 'OCR <40 is weak');
 assert(gateOcr({ thb: 500, confidence: 99, pinMatch: false }) === 'PIN_MISMATCH', 'pin mismatch never ready');
 assert(gateOcr({ thb: null, confidence: 99, pinMatch: true }) === 'NEED_UNIT', 'missing amount is NEED_UNIT');
 
@@ -307,7 +307,7 @@ const inReady = CT.cardInReady({
 });
 assert(inReady.text.includes('THB') || inReady.text.includes('บาท'), 'IN_READY amount table');
 assert(inReady.text.includes('กำไร'), 'IN_READY pnl');
-assert(inReady.text.includes('เรทตลาด'), 'IN_READY market');
+assert(inReady.text.includes('เรทอ้างอิง'), 'IN_READY market');
 assert(inReady.text.includes('IN'), 'IN_READY progress tape');
 assert(inReady.text.includes('●──'), 'IN_READY dots');
 assert(inReady.text.includes('OCR') || inReady.text.includes('MATCH'), 'IN_READY rail');
@@ -316,6 +316,11 @@ assert(inReady.text.includes('#CE-20260826-A4F2'), 'ledger id with hash');
 assert(JSON.stringify(inReady.reply_markup).includes('slip:lock:A4F2'), 'lock callback present');
 assert(hasBalancedTelegramHtml(inReady.text), 'IN_READY html balanced');
 assert(!/[👑✨🌿💎🤍🟢🔴💰📈🎯💵🏦👤⚠❤🔥⚡]/.test(inReady.text), 'IN_READY has no public emoji');
+
+const { stillFromTelegram } = require('../src/lib/ct/livePhoto');
+assert(stillFromTelegram({ live_photo: { photo: [{ file_id: 'lp1', file_unique_id: 'u1' }] }, photo: [{ file_id: 'p1' }] }).fileId === 'lp1', 'live photo prefers still frame');
+assert(stillFromTelegram({ photo: [{ file_id: 'a' }, { file_id: 'b', file_unique_id: 'ub' }] }).fileId === 'b', 'plain photo uses largest size');
+assert(stillFromTelegram({ live_photo: { file_id: 'clip-only' } }) == null, 'live clip without still is ignored');
 const vault = CT.vaultBanner({
   mode: 'today', dateLabel: '26 Aug', clock: '03:59',
   inThb: 0, inCount: 0, inRows: [], outUsdt: 0, outCount: 0, outRows: [],

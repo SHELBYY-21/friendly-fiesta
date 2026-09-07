@@ -136,12 +136,12 @@ export function QueueTape({
         ))}
       </div>
       <article className="qd-balance">
-        <p className="qd-k">ต้องโอน USDT</p>
+        <p className="qd-k">รอโอน USDT</p>
         <p className="qd-amt">{dueText}</p>
         <p className="qd-sub">{`คิว ${batch.count} · รับ ${n(batch.thb)} บาท · ส่งแล้ว ${n(sent, 2)}${holdCount ? ` · พัก ${holdCount}` : ''}`}</p>
       </article>
       <div className="qd-cols">
-        <span>เวลา</span><span>บัญชี</span><span>บาท</span><span>ต้องส่ง</span><span>สถานะ</span>
+        <span>เวลา</span><span>บัญชี</span><span>บาท</span><span>รอโอน</span><span>สถานะ</span>
       </div>
       <div className="qd-list">
         {shown.length === 0 ? <p className="qd-empty">{filter === 'WAIT' ? 'ไม่มีคิวรอโอน — ดูแท็บพักถ้าต้องการดึงกลับ' : filter === 'HOLD' ? 'ไม่มีรายการพัก — กดเริ่มรอบใหม่จะจอดคิวไว้ที่นี่' : 'ไม่มีรายการในมุมนี้'}</p> : shown.map((row, i) => {

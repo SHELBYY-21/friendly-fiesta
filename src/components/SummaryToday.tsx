@@ -24,6 +24,7 @@ export interface SummaryTodayProps {
     outCount?: number;
     waitCount?: number;
     errCount?: number;
+    holdCount?: number;
   };
   rates: {
     sellRate: number;
@@ -42,7 +43,7 @@ function Row({
   label, hint, value, tone, mark,
 }: {
   label: string;
-  hint: string;
+  hint?: string;
   value: ReactNode;
   tone?: 'in' | 'out' | 'net' | 'due' | 'muted';
   mark?: 'in' | 'out';
@@ -52,7 +53,7 @@ function Row({
       <span className="sum-k">
         {mark ? <i className={'sum-dot ' + mark} /> : null}
         {label}
-        <em>{hint}</em>
+        {hint ? <em>{hint}</em> : null}
       </span>
       <span className="sum-v">{value}</span>
     </div>
@@ -70,6 +71,9 @@ export default function SummaryToday({
   const inCount = daily.inCount ?? daily.transactionCount;
   const outCount = daily.outCount ?? 0;
   const wait = daily.waitCount ?? Math.max(0, inCount - outCount);
+  const hold = daily.holdCount ?? 0;
+  const err = daily.errCount ?? 0;
+  const parked = hold + err;
   const required = daily.requiredUsdt ?? 0;
   const pending = daily.pendingUsdt ?? Math.max(0, required - daily.totalUsdtSent);
   const coin = daily.coinDelta ?? daily.totalUsdtSent - required;
@@ -84,47 +88,48 @@ export default function SummaryToday({
     <section className="sum-desk">
       <header className="sum-head">
         <div>
-          <p className="sum-title">ยอดวันนี้</p>
+          <p className="sum-title">สรุปยอดวันนี้</p>
           <p className="sum-meta">{dateLabel ?? 'วันนี้'}</p>
         </div>
         <SyncBadge lastSync={lastSync} status={syncStatus} />
       </header>
 
-      <div className="kpi-strip">
+      <div className="kpi-strip" aria-label="สรุปยอดวันนี้">
         <article className="kpi is-in">
-          <p>รับบาท</p>
+          <p>ยอดรับเข้า</p>
           <strong><CountUp value={daily.totalThbReceived} decimals={0} /></strong>
-          <span>บาท · {inCount} รายการ</span>
+          <span>จากลูกค้า · {inCount} รายการ</span>
         </article>
         <article className="kpi is-due">
-          <p>ต้องโอน</p>
+          <p>รอโอน</p>
           <strong><CountUp value={required} decimals={2} /></strong>
           <span>USDT</span>
         </article>
-        <article className="kpi">
-          <p>โอนแล้ว</p>
+        <article className="kpi is-out">
+          <p>โอนสำเร็จ</p>
           <strong><CountUp value={daily.totalUsdtSent} decimals={2} /></strong>
           <span>USDT · {outCount} รายการ</span>
         </article>
-        <article className={over ? 'kpi is-out' : 'kpi'}>
-          <p>{over ? 'ส่งเกิน' : 'ยังค้าง'}</p>
+        <article className={over ? 'kpi is-risk' : 'kpi is-due'}>
+          <p>{over ? 'ส่งเกิน' : 'รายการค้าง'}</p>
           <strong><CountUp value={over ? Math.abs(coin) : pending} decimals={2} /></strong>
-          <span>{over ? 'USDT' : `คิว ${wait}`}</span>
+          <span>{over ? 'USDT · ตรวจหัวหน้า' : `USDT · คิว ${wait}`}</span>
         </article>
       </div>
 
-      <div className="sum-block">
-        <Row mark="in" label="เงินเข้า" hint="รับจากลูกค้า" tone="in" value={<><CountUp value={daily.totalThbReceived} decimals={0} /> บาท<span className="sum-qty">{inCount}</span></>} />
-        <Row label="ต้องโอน" hint="ยังไม่ส่ง" tone="due" value={<><CountUp value={required} decimals={2} /> U</>} />
-        <Row mark="out" label="โอนแล้ว" hint="บันทึกแล้ว" tone="out" value={<><CountUp value={daily.totalUsdtSent} decimals={2} /> U<span className="sum-qty">{outCount}</span></>} />
-        <Row label={over ? 'ส่งเกิน' : 'ยังค้าง'} hint={over ? 'ตรวจหัวหน้า' : 'รอในคิว'} tone={over ? 'net' : 'due'} value={<><CountUp value={over ? Math.abs(coin) : pending} decimals={2} /> U</>} />
+      <div className="sum-block" aria-label="สถานะการรับเงิน">
+        <p className="sum-section">สถานะการรับเงิน</p>
+        <Row mark="in" label="รับเข้า" tone="in" value={<>{inCount}<span className="sum-qty">รายการ</span></>} />
+        <Row label="รอโอน" tone="due" value={<>{wait}<span className="sum-qty">รายการ</span></>} />
+        <Row mark="out" label="โอนสำเร็จ" tone="out" value={<>{outCount}<span className="sum-qty">รายการ</span></>} />
+        <Row label="รอดำเนินการ" tone={parked ? 'net' : 'muted'} value={<>{parked}<span className="sum-qty">พัก / ผิด</span></>} />
       </div>
       <div className="sum-rule" />
       <div className="sum-block">
-        <Row label="เรทโต๊ะ" hint="ขายลูกค้า" value={desk ? n(desk, 2) + ' บาท / U' : '—'} />
-        <Row label="เรทตลาด" hint="อ้างอิง" tone="muted" value={mkt ? n(mkt, 2) : '—'} />
-        <Row label="อัปเดตล่าสุด" hint="" tone="muted" value={clock ?? '—'} />
-        {owner ? <Row label="ผู้รับผิดชอบ" hint="" value={owner.name + ' · ' + owner.count} /> : null}
+        <Row label="เราขาย" hint="อัตราขายให้ลูกค้า" value={desk ? n(desk, 2) + ' บาท / U' : '—'} />
+        <Row label="เรทอ้างอิง" hint="ราคาตลาดอ้างอิง" tone="muted" value={mkt ? n(mkt, 2) : '—'} />
+        <Row label="อัปเดตล่าสุด" tone="muted" value={clock ?? '—'} />
+        {owner ? <Row label="ผู้รับผิดชอบ" value={owner.name + ' · ' + owner.count} /> : null}
       </div>
     </section>
   );

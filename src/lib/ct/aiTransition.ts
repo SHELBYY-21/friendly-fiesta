@@ -22,6 +22,7 @@ export type AiContext = {
   ref?: string | null;
   time?: string | null;
   state?: string | null;
+  live?: boolean;
 };
 
 function bar(pct: number): string {
@@ -31,7 +32,7 @@ function bar(pct: number): string {
 }
 
 function esc(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return s.replace(/&/g, '&').replace(/</g, '<').replace(/>/g, '>');
 }
 
 function money(n: number | null | undefined, d = 2): string {
@@ -42,40 +43,41 @@ function money(n: number | null | undefined, d = 2): string {
 function frame(stage: AiStage, ctx: AiContext): OutgoingMessage {
   const bank = ctx.bank ? esc(ctx.bank) : '—';
   const last4 = ctx.last4 ? esc(ctx.last4) : '????';
-  const lines: string[] = ['◈  <b>CE VAULT AI</b>'];
+  const live = ctx.live ? 'LIVE PHOTO · still frame' : 'SLIP PHOTO';
+  const lines: string[] = ['◈  <b>CE VAULT</b>', `<i>${live}</i>`];
 
   switch (stage) {
     case 'received':
-      lines.push('<i>AI RECEIVED TRANSACTION</i>', '', 'Initializing secure transaction...', bar(10));
+      lines.push('', '<blockquote>English first', 'Reading the still image — not the clip.', 'กำลังอ่านภาพนิ่ง ไม่ใช่คลิป</blockquote>', bar(12));
       break;
     case 'init':
-      lines.push('<i>Initializing...</i>', '', bar(20), 'Scanning slip');
+      lines.push('', bar(22), 'Scanning slip', 'กำลังเปิดสลิป');
       break;
     case 'ocr':
-      lines.push('<i>OCR Vision active</i>', '', bar(40), 'Reading transaction...');
+      lines.push('', '<i>OCR Vision</i>', bar(42), 'Reading amount / payee / reference');
       break;
     case 'extract':
-      lines.push('<i>Extracting amount...</i>', '', bar(55));
-      if (ctx.thb) lines.push(`THB  <b>${money(ctx.thb, 0)}</b>`);
+      lines.push('', '<i>Extracting fields</i>', bar(58));
+      if (ctx.thb) lines.push(`ยอดรับเข้า  <b>${money(ctx.thb, 0)}</b> THB`);
       break;
     case 'match':
-      lines.push('<i>Matching account</i>', '', bar(70), `→ ${bank} ••${last4}`);
+      lines.push('', '<i>Matching pin</i>', bar(72), `→ ${bank} ••${last4}`);
       break;
     case 'security':
-      lines.push('<i>Security verification...</i>', '', bar(80));
+      lines.push('', '<i>Security check</i>', bar(82));
       break;
     case 'calc':
-      lines.push('<i>Calculating USDT...</i>', '', bar(90));
-      if (ctx.usdt != null) lines.push(`DUE  <b>${money(ctx.usdt)} U</b>`);
+      lines.push('', '<i>Desk rate</i>', bar(90));
+      if (ctx.usdt != null) lines.push(`รอโอน  <b>${money(ctx.usdt)} U</b>`);
       break;
     case 'ledger':
-      lines.push('<i>Building ledger...</i>', '', bar(95));
+      lines.push('', '<i>Building ledger</i>', bar(95));
       break;
     case 'done':
-      lines.push('<i>SYSTEM PROCESS</i>', '━'.repeat(12));
-      lines.push('◉ OCR VISION', ctx.thb ? `   ${money(ctx.thb, 0)} THB detected` : '   —');
-      lines.push('◉ ACCOUNT MATCH', `   ${bank} ••••${last4}`);
-      lines.push('◉ RATE ENGINE', ctx.usdt != null ? `   ${money(ctx.usdt)} USDT` : '   —');
+      lines.push('', '━'.repeat(12));
+      lines.push('◉ OCR', ctx.thb ? `   ${money(ctx.thb, 0)} THB` : '   —');
+      lines.push('◉ MATCH', `   ${bank} ••••${last4}`);
+      lines.push('◉ DUE', ctx.usdt != null ? `   ${money(ctx.usdt)} USDT` : '   —');
       lines.push('━'.repeat(12), '<b>TRANSACTION READY</b>');
       if (ctx.time && ctx.thb != null && ctx.usdt != null) {
         lines.push(`${esc(ctx.time)} │ ${money(ctx.thb, 0)} THB → ${money(ctx.usdt)} U`);
@@ -94,10 +96,10 @@ function sleep(ms: number) {
 
 export class AiTransition {
   private lastAt = 0;
-  constructor(private chatId: number, private messageId: number) {}
+  constructor(private chatId: number, private messageId: number, private live = false) {}
 
   async pulse() {
-    await sendChatAction(this.chatId, 'typing');
+    await sendChatAction(this.chatId, this.live ? 'upload_photo' : 'typing');
   }
 
   async step(stage: AiStage, ctx: AiContext = {}): Promise<void> {
@@ -105,7 +107,7 @@ export class AiTransition {
     const elapsed = Date.now() - this.lastAt;
     if (this.lastAt && elapsed < wait) await sleep(wait - elapsed);
     try {
-      await editMessage(this.chatId, this.messageId, frame(stage, ctx));
+      await editMessage(this.chatId, this.messageId, frame(stage, { ...ctx, live: this.live || ctx.live }));
     } catch {
       /* Telegram may reject identical text */
     }
@@ -113,8 +115,8 @@ export class AiTransition {
   }
 }
 
-export function aiReceived(): OutgoingMessage {
-  return frame('received', {});
+export function aiReceived(opts?: { live?: boolean }): OutgoingMessage {
+  return frame('received', { live: Boolean(opts?.live) });
 }
 
 export function aiVerifiedCard(ctx: AiContext): OutgoingMessage {
@@ -125,7 +127,7 @@ export function aiVerifiedCard(ctx: AiContext): OutgoingMessage {
   const state = ctx.state || 'WAIT';
   return {
     text: [
-      '◈  <b>CE AI VERIFIED</b>',
+      '◈  <b>CE VAULT</b>',
       `${esc(time)} │ ${money(ctx.thb, 0)} THB → ${money(ctx.usdt)} U │ <code>${ref}</code> │ ${esc(state)}`,
       '',
       'OCR        OK',

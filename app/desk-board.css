@@ -70,11 +70,11 @@
 .desk-board .sum-title,
 .desk-board .qd-mark{
   font-family:var(--font-body);
-  color:var(--fg-muted);
-  letter-spacing:.06em;
+  color:var(--fg);
+  letter-spacing:.04em;
   text-transform:none;
-  font-size:12px;
-  font-weight:600;
+  font-size:13px;
+  font-weight:700;
 }
 .desk-board .sum-head,
 .desk-board .qd-head{
@@ -145,8 +145,12 @@
   z-index:1;
   font-family:var(--font-body);
   font-size:11px;
-  letter-spacing:.08em;
-  color:var(--fg-muted);
+  letter-spacing:0;
+  color:var(--fg);
+  font-weight:600;
+  text-align:center;
+  line-height:1.45;
+  padding:0 12px;
   text-transform:none;
 }
 @keyframes desk-sweep{

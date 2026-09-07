@@ -269,7 +269,7 @@ export default function VaultDesk() {
                 className={'qd-pill' + (mode === m ? ' is-on' : '')}
                 onClick={() => setMode(m)}
               >
-                {m === 'today' ? 'วันนี้' : 'ค้าง'}
+                {m === 'today' ? 'วันนี้' : 'รอดำเนินการ'}
               </button>
             ))}
           </span>
@@ -278,10 +278,10 @@ export default function VaultDesk() {
             className={'qd-pill' + (monitor ? ' is-on' : '')}
             onClick={() => setMonitor((v) => !v)}
           >
-            มอนิเตอร์
+            ตรวจสอบรายการ
           </button>
           {settleDue > 0 && (
-            <span className="font-mono text-sm text-gold">ต้องโอน {money(settleDue, 2)}</span>
+            <span className="font-mono text-sm text-gold">รอโอน {money(settleDue, 2)}</span>
           )}
         </div>
       </header>
@@ -289,7 +289,7 @@ export default function VaultDesk() {
       {error && <div className="noc-alert" role="alert">{error}</div>}
       <StaffPlaybook />
       <DeskApiPanel open={monitor} onClose={() => setMonitor(false)} />
-      <div className="scan-ring" aria-hidden><span>{live ? 'scan live' : 'scan poll'}</span></div>
+      <div className="scan-ring" aria-hidden><span>{live ? 'กำลังตรวจสอบรายการ' : 'กำลังอัปเดตข้อมูล'}</span></div>
       <div className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <SummaryToday
           dateLabel={v ? `${v.dateLabel} ${v.clock}` : undefined}
@@ -303,8 +303,9 @@ export default function VaultDesk() {
             feeUsdt: fee,
             inCount: v?.inCount ?? 0,
             outCount: v?.outCount ?? 0,
-            waitCount: tape.filter((r) => r.pending).length,
+            waitCount: tape.filter((r) => r.pending || r.status === 'WAIT' || r.status === 'QUEUE').length,
             errCount: tape.filter((r) => r.status === 'ERR' || r.status === 'ERROR').length,
+            holdCount: tape.filter((r) => r.status === 'HOLD').length,
           }}
           rates={{ sellRate: desk, marketRate: mkt ?? 0 }}
           lastSync={data ? new Date() : null}
@@ -316,7 +317,7 @@ export default function VaultDesk() {
       </div>
       {error && <p className="sr-only">{error}</p>}
       <form onSubmit={saveDesk} className="flex gap-2 border-b border-[var(--line)] px-4 py-3">
-        <input value={deskDraft} onChange={(e) => setDeskDraft(e.target.value)} placeholder="เรทขาย เช่น 36.70" inputMode="decimal" aria-label="เรทโต๊ะ" className="field" />
+        <input value={deskDraft} onChange={(e) => setDeskDraft(e.target.value)} placeholder="เราขาย เช่น 36.70" inputMode="decimal" aria-label="เราขาย" className="field" />
         <button type="submit" disabled={saving} className="keep px-4 text-xs">ตั้งเรท</button>
         <button type="button" disabled={resetting} className="keep px-4 text-xs" onClick={() => void resetCycle()}>
           {resetting ? '…' : 'เริ่มรอบใหม่'}

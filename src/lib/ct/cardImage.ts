@@ -4,7 +4,9 @@ const W = 1080;
 const H = 560;
 const BG = [8, 10, 14];
 const GOLD = [232, 199, 106];
-const CYAN = [77, 232, 212];
+const CYAN = [103, 232, 249];
+const MINT = [30, 224, 138];
+const AMBER = [245, 193, 74];
 const INK = [245, 245, 247];
 const MUTED = [134, 140, 148];
 
@@ -154,18 +156,19 @@ export function renderHeroPng(kind: 'vault' | 'locked' | 'settled', d: {
   for (let i = 0; i < buf.length; i += 3) {
     buf[i] = BG[0]; buf[i + 1] = BG[1]; buf[i + 2] = BG[2];
   }
-  glow(buf, 540, -20, 420, CYAN, 0.18);
-  glow(buf, 980, 80, 280, GOLD, 0.12);
-  glow(buf, 72, 72, 70, GOLD, 0.55);
-  fill(buf, 0, 0, W, 2, CYAN);
+  const accent = kind === 'settled' ? MINT : kind === 'locked' ? AMBER : CYAN;
+  glow(buf, 540, -20, 420, accent, 0.22);
+  glow(buf, 980, 80, 280, GOLD, 0.14);
+  glow(buf, 72, 72, 70, accent, 0.55);
+  fill(buf, 0, 0, W, 3, accent);
   fill(buf, 0, 0, 6, H, GOLD);
-  diamond(buf, 72, 72, 18, GOLD);
+  diamond(buf, 72, 72, 18, accent);
   text(buf, 'CT', 108, 48, 5, INK);
-  const tag = kind === 'vault' ? 'VAULT' : kind === 'locked' ? 'LOCKED' : 'SETTLED';
-  text(buf, tag, 108, 92, 2, kind === 'settled' ? CYAN : MUTED);
-  fill(buf, 48, 138, W - 96, 1, kind === 'settled' ? CYAN : GOLD);
-  glow(buf, 220, 250, 220, GOLD, 0.22);
-  text(buf, d.hero.replace(/,/g, ''), 48, 188, 10, GOLD);
+  const tag = kind === 'vault' ? 'VAULT' : kind === 'locked' ? 'WAIT' : 'DONE';
+  text(buf, tag, 108, 92, 2, accent);
+  fill(buf, 48, 138, W - 96, 1, accent);
+  glow(buf, 220, 250, 220, accent, 0.28);
+  text(buf, d.hero.replace(/,/g, ''), 48, 188, 10, kind === 'settled' ? MINT : GOLD);
   if (d.sub) text(buf, d.sub.replace(/,/g, ''), 48, 318, 4, INK);
   if (d.meta) text(buf, d.meta.replace(/,/g, ''), 48, 460, 3, MUTED);
   return encodePng(buf, W, H);

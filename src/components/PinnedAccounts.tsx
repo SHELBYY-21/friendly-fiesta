@@ -57,7 +57,7 @@ export default function PinnedAccounts({
     return (
       <div className="glass accent-top reveal p-5">
         <div className="flex items-center justify-between gap-3">
-          <p className="text-sm text-muted">ยังไม่มีบัญชีรับวันนี้ — กดปักก่อนรับสลิป</p>
+          <p className="text-sm text-[color:var(--fg)]">ยังไม่มีบัญชีรับเงินวันนี้ — กดปักก่อนรับสลิป</p>
           <SyncBadge lastSync={lastSync} status={syncStatus} />
         </div>
         {choices.length > 0 && onPin ? (
@@ -75,7 +75,7 @@ export default function PinnedAccounts({
             ))}
           </div>
         ) : (
-          <p className="mt-2 text-xs text-muted">ปักบัญชีรับแล้วสลิปจึงเข้าคิวได้</p>
+          <p className="mt-2 text-xs text-[color:var(--fg-muted)]">ปักบัญชีรับแล้วสลิปจึงเข้าคิวได้</p>
         )}
       </div>
     );
@@ -84,9 +84,9 @@ export default function PinnedAccounts({
   return (
     <div className="glass accent-top reveal overflow-hidden">
       <div className="flex items-center justify-between border-b border-[color:var(--border)] px-5 py-3">
-        <h2 className="text-sm font-semibold tracking-[0.08em]">บัญชีรับวันนี้</h2>
+        <h2 className="text-sm font-semibold tracking-[0.04em]">บัญชีรับเงินวันนี้</h2>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted">{accounts.length} บัญชี</span>
+          <span className="text-xs font-medium text-[color:var(--fg-muted)]">{accounts.length} บัญชี</span>
           <SyncBadge lastSync={lastSync} status={syncStatus} />
         </div>
       </div>
@@ -110,7 +110,7 @@ export default function PinnedAccounts({
                 </p>
                 <span className={`pill ${acc.status === 'active' ? 'pill-wait' : 'pill-done'}`}>ปักอยู่</span>
               </div>
-              <p className="mt-1 font-mono text-xs text-muted">
+              <p className="mt-1 font-mono text-xs font-medium text-[color:var(--fg)]">
                 รับแล้ว {nf.format(acc.totalThb)} บาท
                 {cap != null ? ` · วงเงิน ${nf.format(cap)} · เหลือ ${nf.format(left ?? 0)}` : ''}
               </p>

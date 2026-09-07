@@ -35,6 +35,7 @@ import { getBotGate } from '@/lib/systemSettings';
 import { parseAmounts } from '@/lib/amounts';
 import { routeIncomingSlip, routeOutgoingSlip } from '@/lib/actions';
 import { handleCtPhoto } from '@/lib/ct/photo';
+import { stillFromTelegram } from '@/lib/ct/livePhoto';
 import { handleCtCallback, handleCtText, isCtCallback, adminKeyboard } from '@/lib/ct/callbacks';
 import * as C from '@/lib/ct/copy';
 import { findReceiversByLast4, upsertReceiverOnDeposit } from '@/lib/receivers';
@@ -488,13 +489,22 @@ async function handleUpdate(update: any): Promise<void> {
       let fingerprint = session?.slip_fingerprint ?? null;
       let slip: Awaited<ReturnType<typeof analyzeSlip>> = {
         thbAmount: session?.ocr_thb ?? null,
+        feeThb: null,
         bank: session?.slip_bank ?? null,
         receiverLast4: session?.slip_last4 ?? null,
         senderLast4: null,
+        receiverAccount: null,
+        senderAccount: null,
+        senderBank: null,
         receiverName: session?.slip_receiver_name ?? null,
         senderName: null,
         date: session?.slip_date ?? null,
         time: session?.slip_time ?? null,
+        transRef: null,
+        channel: null,
+        promptpay: null,
+        balanceThb: null,
+        slipType: null,
         confidence: session?.ocr_conf ?? null,
       };
       if (replyPhoto) {
@@ -565,14 +575,16 @@ async function handleUpdate(update: any): Promise<void> {
     return;
   }
 
-  // ----- รูปภาพ: ส่ง Vision Verification Card (ยังไม่บันทึก) -----
-  if (msg.photo) {
+  // ----- รูปภาพ / Live Photo: อ่านเฟรมนิ่งเท่านั้น ไม่ OCR คลิป -----
+  const still = stillFromTelegram(msg);
+  if (still) {
     await handleCtPhoto({
       chatId,
       userId,
       admin: admin!,
-      fileId: msg.photo[msg.photo.length - 1].file_id,
-      fileUniqueId: msg.photo[msg.photo.length - 1].file_unique_id,
+      fileId: still.fileId,
+      fileUniqueId: still.fileUniqueId,
+      livePhoto: Boolean(msg.live_photo),
     });
     return;
   }
