@@ -8,6 +8,7 @@ import { useVaultLive } from '@/lib/ct/realtime';
 import { QueueTape } from '@/components/ct/TransactionFlow';
 import StaffPlaybook from '@/components/ct/StaffPlaybook';
 import DeskApiPanel from '@/components/ct/DeskApiPanel';
+import { pinDeskAccount, resetDeskCycle, setDeskRate } from '@/lib/desk/actions';
 
 type TapeRow = {
   id: string;
@@ -153,13 +154,8 @@ export default function VaultDesk() {
     setPinning(true);
     setError(null);
     try {
-      const res = await fetch('/api/dashboard/pin', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ bankAccountId, chatId: roomId }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || json.ok === false) throw new Error(json.error || 'pin failed');
+      const result = await pinDeskAccount(bankAccountId, roomId);
+      if (!result.ok) throw new Error(result.error);
       await load();
     } catch (err: any) {
       setError(err?.message ?? 'pin failed');
@@ -215,13 +211,8 @@ export default function VaultDesk() {
     setResetting(true);
     setError(null);
     try {
-      const res = await fetch('/api/dashboard/reset', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ confirm: true }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || json.ok === false) throw new Error(json.error || 'reset failed');
+      const result = await resetDeskCycle(roomId);
+      if (!result.ok) throw new Error(result.error);
       setMode('today');
       await load();
     } catch (err: any) {
@@ -242,18 +233,16 @@ export default function VaultDesk() {
     setRateNote(null);
     setError(null);
     try {
-      const res = await fetch('/api/admin/rate', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ sellRate, chatId: roomId }),
-      });
-      if (!res.ok) throw new Error('rate failed');
-      setDeskDraft(String(sellRate));
-      setRateNote(`ใช้เรท ${sellRate} แล้ว`);
+      const result = await setDeskRate(sellRate);
+      if (!result.ok) {
+        setRateNote(result.error);
+        return;
+      }
+      setDeskDraft(String(result.sellRate));
+      setRateNote(`ใช้เรท ${result.sellRate} แล้ว`);
       await load();
-    } catch (err: any) {
+    } catch {
       setRateNote('ตั้งเรทไม่ติด ลองอีกครั้ง');
-      setError(err?.message ?? 'rate failed');
     } finally {
       setSaving(false);
     }

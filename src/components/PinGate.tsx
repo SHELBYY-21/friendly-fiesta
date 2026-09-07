@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
+import { loginWithPin } from '@/lib/desk/actions';
 
 export default function PinGate({ nextPath = '/dashboard' }: { nextPath?: string }) {
   const [digits, setDigits] = useState<string[]>(['', '', '', '', '', '']);
@@ -33,22 +34,17 @@ export default function PinGate({ nextPath = '/dashboard' }: { nextPath?: string
     setStatus('checking');
     setMessage(null);
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ pin }),
-      });
-      const json = await res.json();
-      if (res.ok && json.ok) {
+      const result = await loginWithPin(pin);
+      if (result.ok) {
         setStatus('ok');
         window.location.href = nextPath;
         return;
       }
-      if (res.status === 429) {
+      if (result.error === 'locked') {
         setStatus('locked');
-        setLockSeconds(Number(json.secondsLeft) || 900);
+        setLockSeconds(Number(result.secondsLeft) || 900);
         setMessage('ใส่ผิดหลายครั้ง — รอแล้วค่อยลองใหม่');
-      } else if (res.status === 503) {
+      } else if (result.error === 'auth_not_configured') {
         window.location.href = nextPath;
         return;
       } else {

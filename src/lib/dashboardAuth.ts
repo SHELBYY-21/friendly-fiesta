@@ -108,3 +108,11 @@ export async function requireDashboardSession(req: NextRequest): Promise<NextRes
   }
   return null;
 }
+
+export async function assertDeskSession(): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!isAuthConfigured()) return { ok: true };
+  const { cookies } = await import('next/headers');
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  if (!(await verifySessionToken(token))) return { ok: false, error: 'unauthorized' };
+  return { ok: true };
+}
