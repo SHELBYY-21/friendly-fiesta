@@ -28,4 +28,4 @@ create index if not exists idx_pending_slips_locked
 analyze public.transactions;
 analyze public.pending_slips;
 analyze public.rates;
-analyze public.pinned_bank_accounts;
+-- After apply, paste explain-v17-vault-poll.sql to confirm Index Scan.
