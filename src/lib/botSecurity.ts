@@ -104,6 +104,8 @@ export const BOT_BANK: Record<string, string> = {
   '073': 'LH',
 };
 
+const CHANNEL_NOT_BANK = new Set(['KPLUS', 'SCBEASY', 'KTBNEXT']);
+
 export function botBank(code: string | null | undefined): string | null {
   return normalizeBankCode(code);
 }
@@ -118,12 +120,14 @@ export function normalizeBankCode(value: string | null | undefined): string | nu
     if (!/[A-Za-zก-๙]/.test(raw)) return null;
   }
   if (/พร้อมเพย์|prompt\s*pay/i.test(raw)) return 'PROMPTPAY';
-  if (/ทรูมันนี่|true\s*money|wallet/i.test(raw)) return 'TRUEMONEY';
-  if (/กสิกร|ไลน์\s*bk|line\s*bk|k\s*plus/i.test(raw)) return 'KBANK';
+  if (/ทรูมันนี่|true\s*money/i.test(raw)) return 'TRUEMONEY';
+  if (/กสิกร|ไลน์\s*bk|line\s*bk/i.test(raw)) return 'KBANK';
+  const compact = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (CHANNEL_NOT_BANK.has(compact)) return null;
   if (/กรุงศรี|อยุธยา/i.test(raw)) return 'BAY';
   if (/กรุงไทย/i.test(raw)) return 'KTB';
   if (/กรุงเทพ|บางกอก/i.test(raw)) return 'BBL';
-  if (/ไทยพาณิช|พาณิชย์|scb/i.test(raw)) return 'SCB';
+  if (/ไทยพาณิช|พาณิชย์/i.test(raw)) return 'SCB';
   if (/ออมสิน/i.test(raw)) return 'GSB';
   if (/ทหารไทย|ธนชาต|ทีทีบี|ttb/i.test(raw)) return 'TTB';
   if (/เกียรตินาคิน|kkp/i.test(raw)) return 'KKP';
@@ -134,11 +138,10 @@ export function normalizeBankCode(value: string | null | undefined): string | nu
   if (/ธ\.?\s*ก\.?\s*ส|เพื่อการเกษตร|baac/i.test(raw)) return 'BAAC';
   if (/อาคารสงเคราะห์|ghb/i.test(raw)) return 'GHB';
   if (/อิสลาม|ibank/i.test(raw)) return 'ISLAM';
-  const compact = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
   if (!compact) return null;
   const aliases: Record<string, string> = {
     KASIKORN: 'KBANK', KASIKORNBANK: 'KBANK', KBANK: 'KBANK', KBANKTH: 'KBANK',
-    LINEBK: 'KBANK', KPLUS: 'KBANK',
+    LINEBK: 'KBANK',
     SIAMCOMMERCIALBANK: 'SCB', SCB: 'SCB',
     KRUNGTHAI: 'KTB', KTB: 'KTB',
     BANGKOKBANK: 'BBL', BBL: 'BBL',
