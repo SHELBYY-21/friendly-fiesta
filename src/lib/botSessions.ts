@@ -150,3 +150,83 @@ export async function setRoomName(chatId: number, name: string): Promise<void> {
     .upsert({ chat_id: chatId, room_name: name, updated_at: now });
   if (error) throw error;
 }
+
+function fallbackRoomName(chatId: number): string {
+  return `ห้อง ${String(Math.abs(chatId)).slice(-4)}`;
+}
+
+export async function ensureRoom(chatId: number, name?: string | null): Promise<void> {
+  const now = new Date().toISOString();
+  const label = (name || '').trim().slice(0, 40) || fallbackRoomName(chatId);
+  const { data } = await supabaseAdmin
+    .from('chat_settings')
+    .select('chat_id, room_name')
+    .eq('chat_id', chatId)
+    .maybeSingle();
+  if (data) {
+    if (!data.room_name && name) await setRoomName(chatId, label);
+    return;
+  }
+  await supabaseAdmin.from('chat_settings').upsert({
+    chat_id: chatId,
+    room_name: label,
+    updated_at: now,
+  });
+}
+
+export async function listRooms(): Promise<Array<{ chatId: number; name: string; desk: number | null }>> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('chat_settings')
+      .select('chat_id, room_name, sell_rate')
+      .order('updated_at', { ascending: false })
+      .limit(12);
+    if (error || !data) return [];
+    return data.map((r) => {
+      const chatId = Number(r.chat_id);
+      return {
+        chatId,
+        name: (r.room_name && String(r.room_name).trim()) || fallbackRoomName(chatId),
+        desk: r.sell_rate != null ? Number(r.sell_rate) : null,
+      };
+    }).filter((r) => Number.isFinite(r.chatId) && r.chatId !== 0);
+  } catch {
+    return [];
+  }
+}
+
+function opsRoomKey(userId: number): string {
+  return `ops_room:${userId}`;
+}
+
+export async function getOpsRoom(userId: number): Promise<number | null> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('system_settings')
+      .select('value')
+      .eq('key', opsRoomKey(userId))
+      .maybeSingle();
+    if (error || data == null) return null;
+    const n = Number(data.value);
+    return Number.isFinite(n) && n !== 0 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function setOpsRoom(userId: number, chatId: number): Promise<void> {
+  const { error } = await supabaseAdmin.from('system_settings').upsert(
+    {
+      key: opsRoomKey(userId),
+      value: chatId,
+      updated_at: new Date().toISOString(),
+      updated_by: 'telegram',
+    },
+    { onConflict: 'key' },
+  );
+  if (error) throw error;
+}
+
+export async function resolveOpsRoom(userId: number, chatId: number): Promise<number> {
+  return (await getOpsRoom(userId)) ?? chatId;
+}

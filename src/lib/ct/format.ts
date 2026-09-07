@@ -131,6 +131,7 @@ export function adminKeyboard() {
     keyboard: [
       [{ text: 'ยอดวันนี้' }, { text: 'รอส่ง' }, { text: 'อัตรา' }],
       [{ text: 'บัญชีรับ' }, { text: 'ตั้งค่า' }, { text: 'วันใหม่' }],
+      [{ text: 'เลือกห้อง' }],
     ],
     resize_keyboard: true,
     is_persistent: true,

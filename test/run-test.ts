@@ -390,11 +390,12 @@ const {
   VAULT_ACTIONS,
   PIN_ACTIONS,
   ADMIN_ACTIONS,
+  ROOM_ACTIONS,
 } = require('../src/lib/ct/callbacks');
 const { adminKeyboard } = require('../src/lib/ct/format');
 
 const pad = adminKeyboard().keyboard.flat().map((b: { text: string }) => b.text);
-assert(JSON.stringify(pad) === JSON.stringify(['ยอดวันนี้', 'รอส่ง', 'อัตรา', 'บัญชีรับ', 'ตั้งค่า', 'วันใหม่']), 'reply pad labels');
+assert(JSON.stringify(pad) === JSON.stringify(['ยอดวันนี้', 'รอส่ง', 'อัตรา', 'บัญชีรับ', 'ตั้งค่า', 'วันใหม่', 'เลือกห้อง']), 'reply pad labels');
 const padMap: Record<string, string> = {
   'ยอดวันนี้': 'vault',
   'รอส่ง': 'pending',
@@ -402,6 +403,7 @@ const padMap: Record<string, string> = {
   'อัตรา': 'rate',
   'ตั้งค่า': 'settings',
   'วันใหม่': 'newday',
+  'เลือกห้อง': 'rooms',
 };
 for (const label of pad) {
   assert(matchReplyCommand(label) === padMap[label], `pad ${label} wired`);
@@ -424,10 +426,23 @@ const cards = [
     pendingShorts: ['A4F2'],
   }),
   CT.pinView([{ bank: 'BBL', last4: '7823' }]),
+  CT.settingsCard({ desk: 36.7, mkt: 32.71, pins: [], admins: [], roomName: 'ห้อง A' }),
+  CT.roomPicker({
+    currentName: 'ห้อง A',
+    currentId: -1001,
+    rooms: [
+      { chatId: -1001, name: 'ห้อง A', desk: 36.7, current: true },
+      { chatId: -1002, name: 'ห้อง B', desk: 36.5 },
+    ],
+  }),
 ];
 function collectCbs(card: { reply_markup?: any }): string[] {
   const rows = card.reply_markup?.inline_keyboard ?? [];
   return rows.flat().map((b: any) => b.callback_data).filter(Boolean);
+}
+function collectBtns(card: { reply_markup?: any }): Array<{ text: string; callback_data?: string; style?: string }> {
+  const rows = card.reply_markup?.inline_keyboard ?? [];
+  return rows.flat();
 }
 const cbs = cards.flatMap(collectCbs);
 assert(cbs.length > 0, 'cards expose callbacks');
@@ -438,6 +453,7 @@ for (const data of cbs) {
   if (cb.domain === 'vault') assert(VAULT_ACTIONS.has(cb.action), `vault action ${cb.action} from ${data}`);
   if (cb.domain === 'pin') assert(PIN_ACTIONS.has(cb.action), `pin action ${cb.action} from ${data}`);
   if (cb.domain === 'admin') assert(ADMIN_ACTIONS.has(cb.action), `admin action ${cb.action} from ${data}`);
+  if (cb.domain === 'room') assert(ROOM_ACTIONS.has(cb.action), `room action ${cb.action} from ${data}`);
 }
 assert(collectCbs(CT.cardInReady(sample)).includes('slip:lock:A4F2'), 'keep → lock');
 assert(collectCbs(CT.cardInReady(sample)).includes('slip:queue:A4F2'), 'queue later');
@@ -457,6 +473,26 @@ assert(hasRatePrefix('/setrate 36.70') === true, 'setrate is explicit');
 assert(isBareDeskRate('36.70') === true, '36.70 is a bare desk rate token');
 assert(isBareDeskRate('โอน 36.70 แล้ว') === false, 'rate inside chat is not bare');
 assert(VAULT_ACTIONS.has('set'), 'settings callback exists');
+assert(VAULT_ACTIONS.has('batch'), 'batch settle callback exists');
+assert(isCt2('room:here') && isCt2('room:list') && isCt2('room:use:-1001'), 'room callbacks are CT');
+assert(ROOM_ACTIONS.has('here') && ROOM_ACTIONS.has('list') && ROOM_ACTIONS.has('use'), 'room actions registered');
+assert(collectCbs(CT.settingsCard({ desk: 36.7, mkt: 32.71, pins: [], admins: [] })).includes('room:here'), 'settings stay-room');
+assert(collectCbs(CT.settingsCard({ desk: 36.7, mkt: 32.71, pins: [], admins: [] })).includes('room:list'), 'settings switch-room');
+const roomBtns = collectBtns(CT.roomPicker({
+  currentName: 'ห้อง A',
+  currentId: -1001,
+  rooms: [
+    { chatId: -1001, name: 'ห้อง A', desk: 36.7, current: true },
+    { chatId: -1002, name: 'ห้อง B', desk: 36.5 },
+  ],
+}));
+assert(roomBtns.some((b) => b.callback_data === 'room:here' && b.style === 'success'), 'stay room is green');
+assert(roomBtns.some((b) => b.callback_data === 'room:list' && b.style === 'primary'), 'switch room is blue');
+assert(roomBtns.some((b) => b.callback_data === 'room:use:-1002' && b.style === 'primary'), 'other room is blue');
+const goStop = collectBtns(CT.cardInReady(sample));
+assert(goStop.some((b) => b.callback_data === 'slip:lock:A4F2' && b.style === 'success'), 'confirm is green');
+assert(goStop.some((b) => b.callback_data === 'slip:cancel:A4F2' && b.style === 'danger'), 'cancel is red');
+assert(goStop.some((b) => b.callback_data === 'slip:queue:A4F2' && b.style === 'primary'), 'hold-queue is blue');
 assert(VAULT_ACTIONS.has('batch'), 'batch settle callback exists');
 const { batchProgress, canAutoQueue, BATCH_THB } = require('../src/lib/ct/queue');
 assert(BATCH_THB === 10000, 'batch target 10000');

@@ -48,10 +48,11 @@ export function welcome(name: string): OutgoingMessage {
       head('สรุปยอด', `โต๊ะปฏิบัติการ (OPS DESK) · ${esc(name)}`),
       '',
       'ระบบปิดสำหรับทีมภายใน (staff only)',
-      '1. หมุดบัญชีรับเงินวันนี้ (pin today)',
-      '2. ตั้งอัตราห้อง (set desk) <code>36.70</code>',
-      '3. ส่งสลิป — ระบบอ่านและรวมคิวให้ (send slip)',
-      '4. เมื่อรวมยอดครบ กด <b>บันทึกส่งรวม</b> (batch send)',
+      '1. กด <b>เลือกห้อง</b> แล้วกด <b>ใช้ห้องนี้</b> (pick room)',
+      '2. หมุดบัญชีรับเงินวันนี้ (pin today)',
+      '3. ตั้งอัตราห้อง (set desk) <code>36.70</code>',
+      '4. ส่งสลิป — ระบบอ่านและรวมคิวให้ (send slip)',
+      '5. เมื่อรวมยอดครบ กด <b>บันทึกส่งรวม</b> (batch send)',
     ].join('\n'),
   );
 }
@@ -70,6 +71,7 @@ export function settingsCard(d: {
   mkt: number | null;
   pins: Array<{ bank: string; last4: string; account?: string | null }>;
   admins: Array<{ name: string; role: string }>;
+  roomName?: string | null;
 }): OutgoingMessage {
   const pinLine = d.pins.length
     ? d.pins.map((p) => `${esc(p.bank)}  <code>${esc(showAcct(p.account || p.last4))}</code>`).join('\n')
@@ -77,9 +79,10 @@ export function settingsCard(d: {
   const adminLine = d.admins.length
     ? d.admins.map((a) => `${esc(a.name)}  ${esc(a.role)}`).join('\n')
     : '—';
+  const room = d.roomName?.trim() || 'ห้องนี้';
   return msg(
     [
-      head('ตั้งค่า', 'ห้องนี้ (this room)'),
+      head('ตั้งค่า', `${esc(room)} (this room)`),
       '',
       `เราขาย (DESK)   <code>${rateCode(d.desk)}</code>`,
       `เรทอ้างอิง (MKT)         <code>${rateCode(d.mkt)}</code>`,
@@ -88,15 +91,60 @@ export function settingsCard(d: {
       'ผู้ดูแล (ADMINS)',
       adminLine,
       '',
+      'เขียว = ใช้ห้องนี้ต่อ (stay) · น้ำเงิน = สลับห้อง (switch)',
       'ตั้งอัตรา (set rate): กดปุ่มอัตรา แล้วพิมพ์ตัวเลขอย่างเดียว เช่น <code>36.70</code>',
       'หรือพิมพ์ <code>/setrate 36.70</code>',
       'เพิ่มผู้ดูแล (add admin): กดปุ่มเพิ่มผู้ดูแล แล้วส่ง Telegram ID',
       'หรือพิมพ์ <code>/admin 5676959274</code>',
     ].join('\n'),
     ik([
+      [btn('ใช้ห้องนี้', 'room:here', 'success'), btn('เลือกห้องอื่น', 'room:list', 'primary')],
       [btn('อัตรา', 'vault:rateask'), btn('บัญชีรับ', 'pin:view'), btn('เพิ่มผู้ดูแล', 'admin:add')],
       [btn('วันใหม่', 'vault:newday'), urlBtn('เปิดโต๊ะ', deskUrl())],
     ]),
+  );
+}
+
+export type RoomChoice = {
+  chatId: number;
+  name: string;
+  desk: number | null;
+  current?: boolean;
+};
+
+export function roomPicker(d: {
+  currentName: string;
+  currentId: number;
+  rooms: RoomChoice[];
+}): OutgoingMessage {
+  const rows: Array<Array<Record<string, unknown>>> = [
+    [btn('ใช้ห้องนี้', 'room:here', 'success'), btn('เลือกห้องอื่น', 'room:list', 'primary')],
+  ];
+  const seen = new Set<number>();
+  const list = d.rooms.slice(0, 10);
+  if (!list.some((r) => r.chatId === d.currentId)) {
+    list.unshift({ chatId: d.currentId, name: d.currentName, desk: null, current: true });
+  }
+  for (const r of list) {
+    if (seen.has(r.chatId)) continue;
+    seen.add(r.chatId);
+    const active = r.chatId === d.currentId || r.current;
+    const rate = r.desk && r.desk > 0 ? ` ${r.desk.toFixed(2)}` : '';
+    const label = `${active ? '✓ ' : ''}${r.name}${rate}`.slice(0, 34);
+    rows.push([btn(label, `room:use:${r.chatId}`, active ? 'success' : 'primary')]);
+  }
+  rows.push([btn('ตั้งค่า', 'vault:set'), urlBtn('เปิดโต๊ะ', deskUrl())]);
+  return msg(
+    [
+      head('เลือกห้อง', 'หลายห้องปฏิบัติการ (multi-room)'),
+      '',
+      kv('ห้องที่ใช้', 'ACTIVE', `${esc(d.currentName)}\n<code>${d.currentId}</code>`),
+      '',
+      'เขียว = ใช้ต่อ (stay) · น้ำเงิน = สลับห้อง (switch)',
+      'เพิ่มห้องใหม่: เปิดบอทในกลุ่มนั้น แล้วกด <b>ใช้ห้องนี้</b>',
+      'ตั้งชื่อ: <code>/setroom ห้อง A</code>',
+    ].join('\n'),
+    ik(rows),
   );
 }
 
@@ -180,7 +228,7 @@ export function cardInReady(d: {
   if (hasDesk) {
     rows.push([
       btn('ยืนยัน', `slip:lock:${d.short}`, 'success'),
-      btn('บันทึกไว้ก่อน', `slip:queue:${d.short}`),
+      btn('บันทึกไว้ก่อน', `slip:queue:${d.short}`, 'primary'),
     ]);
   }
   rows.push([btn('แก้ไข', `slip:edit:${d.short}`), btn('พักรายการ', `slip:hold:${d.short}`)]);
@@ -294,7 +342,7 @@ export function cardForceAsk(d: { short: string; ledger: string }): OutgoingMess
     `${head('แจ้งเตือน', 'ยืนยันบังคับรับรายการ (force)')}\n<code>${esc(displayLedger(d.ledger))}</code>\nกรุณายืนยันหากต้องการบันทึกทั้งที่บัญชีไม่ตรง`,
     ik([
       [btn('บังคับบันทึก', `slip:force:${d.short}`, 'danger')],
-      [btn('ยกเลิก', `slip:cancel:${d.short}`)],
+      [btn('ยกเลิก', `slip:cancel:${d.short}`, 'primary')],
     ]),
   );
 }
@@ -537,11 +585,11 @@ export function vaultBanner(d: {
 
 function vaultButtons(pendingShorts: string[]) {
   const rows: Array<Array<Record<string, unknown>>> = [
-    [btn('รอส่ง', 'vault:pending'), btn('อัตรา', 'vault:rateask'), btn('ตั้งค่า', 'vault:set')],
-    [urlBtn('เปิดโต๊ะ', deskUrl())],
+    [btn('รอส่ง', 'vault:pending', 'primary'), btn('อัตรา', 'vault:rateask'), btn('ตั้งค่า', 'vault:set')],
+    [btn('เลือกห้อง', 'room:list', 'primary'), urlBtn('เปิดโต๊ะ', deskUrl())],
   ];
   if (pendingShorts.length) {
-    rows.unshift([btn('บันทึกส่งรวม', 'vault:batch', 'primary')]);
+    rows.unshift([btn('บันทึกส่งรวม', 'vault:batch', 'success')]);
   }
   const refs = pendingShorts.slice(0, 2);
   if (refs.length) rows.unshift(refs.map((s) => btn(s, `slip:open:${s}`)));

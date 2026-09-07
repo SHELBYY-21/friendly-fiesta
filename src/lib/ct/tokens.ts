@@ -40,6 +40,7 @@ const CHIP: Record<string, string> = {
   บัญชีรับ: 'บัญชีรับเงินวันนี้ (PINS)',
   อัตราแลกเปลี่ยน: 'เราขาย (DESK)',
   รายการ: 'รายการ (LEDGER)',
+  เลือกห้อง: 'เลือกห้อง (ROOMS)',
 };
 
 export function progress(step: FlowStep): string {
