@@ -149,8 +149,9 @@ export function validateProductionEnvironment(env: EnvMap = process.env): Config
   const hasOcrProvider = [
     envValue(env, 'GROK_API_KEY', 'XAI_API_KEY'),
     envValue(env, 'OCR_SPACE_API_KEY'),
+    envValue(env, 'TYPHOON_API_KEY', 'TYPHOON_OCR_API_KEY', 'OPENTYPHOON_API_KEY'),
   ].some((value) => value != null && !isPlaceholderValue(value));
-  if (!hasOcrProvider) issues.push({ key: 'GROK_API_KEY|OCR_SPACE_API_KEY', code: 'missing' });
+  if (!hasOcrProvider) issues.push({ key: 'GROK_API_KEY|OCR_SPACE_API_KEY|TYPHOON_API_KEY', code: 'missing' });
 
   return dedupeIssues(issues);
 }

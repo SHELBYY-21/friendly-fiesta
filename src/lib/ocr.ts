@@ -1,9 +1,11 @@
 // ============================================================
 // อ่านสลิป — ลำดับความสำคัญ:
-//   1) Grok Vision (ถ้ามี GROK_API_KEY) — คืนข้อมูล structured ทั้งชุด
-//   2) OCR.space + smart-slip-verifier parser (goragodwiriya)
+//   1) Typhoon OCR + v2.5 (ถ้ามี TYPHOON_API_KEY) — สลิปไทย
+//   2) Grok Vision (ถ้ามี GROK_API_KEY) — structured ทั้งชุด
+//   3) OCR.space + smart-slip-verifier parser
 // ============================================================
 import { analyzeSlipWithGrok, analyzeUsdtWithGrok, SlipExtract, UsdtExtract } from './grokVision';
+import { analyzeSlipWithTyphoon } from './typhoon';
 import { pickExplicitThbAmount } from './ocrAmount';
 import { parseSlipText } from '../bot/parse';
 import { parseSmartSlip } from './ct/smartSlip';
@@ -35,27 +37,32 @@ function visionReady(s: SlipExtract | null): s is SlipExtract {
   return s.thbAmount != null || Boolean(s.receiverLast4) || Boolean(s.transRef) || Boolean(s.receiverName);
 }
 
-function mergeSlip(grok: SlipExtract | null, ocr: ReturnType<typeof parseSlipText> | null, smart?: ReturnType<typeof parseSmartSlip> | null): SlipExtract {
+function mergeSlip(
+  typhoon: SlipExtract | null,
+  grok: SlipExtract | null,
+  ocr: ReturnType<typeof parseSlipText> | null,
+  smart?: ReturnType<typeof parseSmartSlip> | null,
+): SlipExtract {
   return {
-    thbAmount: grok?.thbAmount ?? smart?.amount ?? ocr?.amount ?? null,
-    feeThb: grok?.feeThb ?? smart?.fee ?? null,
-    time: grok?.time ?? smart?.time ?? ocr?.time ?? null,
-    date: grok?.date ?? smart?.date ?? ocr?.date ?? null,
-    receiverLast4: grok?.receiverLast4 || smart?.receiverLast4 || ocr?.last4 || null,
-    senderLast4: grok?.senderLast4 ?? smart?.senderLast4 ?? null,
-    receiverAccount: grok?.receiverAccount ?? smart?.receiverAccount ?? null,
-    senderAccount: grok?.senderAccount ?? null,
-    bank: grok?.bank || smart?.bank || ocr?.bank || null,
-    senderBank: grok?.senderBank ?? null,
-    receiverName: grok?.receiverName || smart?.receiverName || ocr?.receiverName || null,
-    senderName: grok?.senderName ?? smart?.senderName ?? null,
-    transRef: grok?.transRef ?? smart?.transRef ?? null,
-    channel: grok?.channel ?? null,
-    promptpay: grok?.promptpay ?? null,
-    balanceThb: grok?.balanceThb ?? null,
-    slipType: grok?.slipType ?? null,
-    confidence: grok?.confidence ?? smart?.confidence ?? (ocr?.amount ? 70 : null),
-    raw: grok?.raw,
+    thbAmount: typhoon?.thbAmount ?? grok?.thbAmount ?? smart?.amount ?? ocr?.amount ?? null,
+    feeThb: typhoon?.feeThb ?? grok?.feeThb ?? smart?.fee ?? null,
+    time: typhoon?.time ?? grok?.time ?? smart?.time ?? ocr?.time ?? null,
+    date: typhoon?.date ?? grok?.date ?? smart?.date ?? ocr?.date ?? null,
+    receiverLast4: typhoon?.receiverLast4 || grok?.receiverLast4 || smart?.receiverLast4 || ocr?.last4 || null,
+    senderLast4: typhoon?.senderLast4 ?? grok?.senderLast4 ?? smart?.senderLast4 ?? null,
+    receiverAccount: typhoon?.receiverAccount ?? grok?.receiverAccount ?? smart?.receiverAccount ?? null,
+    senderAccount: typhoon?.senderAccount ?? grok?.senderAccount ?? null,
+    bank: typhoon?.bank || grok?.bank || smart?.bank || ocr?.bank || null,
+    senderBank: typhoon?.senderBank ?? grok?.senderBank ?? null,
+    receiverName: typhoon?.receiverName || grok?.receiverName || smart?.receiverName || ocr?.receiverName || null,
+    senderName: typhoon?.senderName ?? grok?.senderName ?? smart?.senderName ?? null,
+    transRef: typhoon?.transRef ?? grok?.transRef ?? smart?.transRef ?? null,
+    channel: typhoon?.channel ?? grok?.channel ?? null,
+    promptpay: typhoon?.promptpay ?? grok?.promptpay ?? null,
+    balanceThb: typhoon?.balanceThb ?? grok?.balanceThb ?? null,
+    slipType: typhoon?.slipType ?? grok?.slipType ?? null,
+    confidence: typhoon?.confidence ?? grok?.confidence ?? smart?.confidence ?? (ocr?.amount ? 70 : null),
+    raw: [typhoon?.raw, grok?.raw].filter(Boolean).join('\n') || undefined,
   };
 }
 
@@ -64,22 +71,22 @@ export async function analyzeSlipFast(
   dataUrl: string,
   publicUrlP: Promise<string>,
 ): Promise<{ url: string; slip: SlipExtract }> {
+  const typhoonP = raceMs(analyzeSlipWithTyphoon(dataUrl), 22000, null).catch(() => null);
   const grokP = raceMs(analyzeSlipWithGrok(dataUrl), 18000, null).catch(() => null);
   const ocrP = publicUrlP
     .then((url) => raceMs(extractSlipTextFromOcrSpace(url), 10000, null).then((ocr) => ({ url, ocr })))
     .catch(async () => ({ url: await publicUrlP, ocr: null }));
 
-  const grok = await grokP;
-  const { url, ocr } = await ocrP;
-  return { url, slip: mergeSlip(grok, ocr?.legacy ?? null, ocr?.smart ?? null) };
+  const [typhoon, grok, pack] = await Promise.all([typhoonP, grokP, ocrP]);
+  return { url: pack.url, slip: mergeSlip(typhoon, grok, pack.ocr?.legacy ?? null, pack.ocr?.smart ?? null) };
 }
 
 export async function analyzeSlip(imageUrl: string): Promise<SlipExtract> {
+  const typhoonP = raceMs(analyzeSlipWithTyphoon(imageUrl), 22000, null).catch(() => null);
   const grokP = raceMs(analyzeSlipWithGrok(imageUrl), 18000, null).catch(() => null);
   const ocrP = raceMs(extractSlipTextFromOcrSpace(imageUrl), 10000, null).catch(() => null);
-  const grok = await grokP;
-  const pack = await ocrP;
-  return mergeSlip(grok, pack?.legacy ?? null, pack?.smart ?? null);
+  const [typhoon, grok, pack] = await Promise.all([typhoonP, grokP, ocrP]);
+  return mergeSlip(typhoon, grok, pack?.legacy ?? null, pack?.smart ?? null);
 }
 
 /** legacy helper — ใช้ในโค้ดเก่าที่รับแค่ยอด THB */

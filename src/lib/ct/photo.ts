@@ -8,7 +8,7 @@ import { parseDeskPin } from '../../bot/parse';
 import { gateOcr, type OcrGate } from './gate';
 import { opsRates } from './rates';
 import { insertPending, findPendingByFingerprint, type PendingSlip } from './store';
-import { shouldSend, maskAcct, clockBkk } from './format';
+import { shouldSend, clockBkk } from './format';
 import { canAutoQueue, commitIncomingLock, dueSummary } from './queue';
 import { isOcrJunkAmount } from './settleGuard';
 import { applyQrToOcr, type SlipQrResult } from './slipQr';
@@ -129,17 +129,38 @@ export async function handleCtPhoto(opts: { chatId: number; userId: number; admi
   const fingerprint = fingerprints[0];
 
   const ai = new AiTransition(chatId, cardId, Boolean(livePhoto), still);
-  await ai.step('ocr');
   const matchedPin = matchSlipPins(slip.bank, slip.receiverLast4, slip.senderLast4, pins);
   const pinMatch = Boolean(matchedPin);
   const thb = slip.thbAmount && slip.thbAmount > 0 ? slip.thbAmount : null;
   const last4Early = accountLast4(matchedPin?.account_number) ?? slip.receiverLast4 ?? slip.senderLast4;
-  await ai.step('match', { bank: slip.bank ?? todayPin?.bank_name, last4: last4Early, thb });
+  const ctx = {
+    thb,
+    usdt: null as number | null,
+    bank: matchedPin?.bank_name ?? slip.bank ?? todayPin?.bank_name ?? null,
+    last4: last4Early,
+    ref: slip.transRef,
+    time: slip.time,
+    date: slip.date,
+    name: slip.receiverName ?? slip.senderName,
+    sender: slip.senderName,
+    channel: slip.channel,
+    fee: slip.feeThb,
+    confidence: slip.confidence,
+    account: slip.receiverAccount || matchedPin?.account_number || last4Early,
+    senderAccount: slip.senderAccount,
+    senderBank: slip.senderBank,
+    balance: slip.balanceThb,
+    slipType: slip.slipType,
+  };
+  await ai.step('ocr', ctx);
+  await ai.step('extract', ctx);
+  await ai.step('match', ctx);
   const qrVerified = Boolean(qr?.inquiry?.valid);
   let gate = gateOcr({ thb, confidence: slip.confidence, pinMatch, hasCurrency: thb != null, qrVerified });
   if (qr?.inquiry && qr.inquiry.valid === false) gate = 'OCR_WEAK';
   const usdtDue = thb && rates.desk ? shouldSend(thb, rates.desk) : null;
-  await ai.step('calc', { thb, usdt: usdtDue, bank: slip.bank ?? todayPin?.bank_name, last4: last4Early });
+  ctx.usdt = usdtDue;
+  await ai.step('calc', ctx);
   const notes = [
     isOcrJunkAmount(thb) ? 'OCR_JUNK:AMOUNT_TOO_LARGE' : null,
     qr?.transRef ? `QR:${qr.transRef}` : null,
@@ -148,16 +169,23 @@ export async function handleCtPhoto(opts: { chatId: number; userId: number; admi
     slip.transRef ? `REF:${slip.transRef}` : null,
     slip.channel ? `CH:${slip.channel}` : null,
     slip.senderName ? `FROM:${slip.senderName}` : null,
+    slip.senderAccount ? `FROMACCT:${String(slip.senderAccount).replace(/\D/g, '')}` : null,
+    slip.senderBank ? `FROMBANK:${slip.senderBank}` : null,
     slip.feeThb != null ? `FEE:${slip.feeThb}` : null,
     (slip.receiverAccount || last4Early) ? `ACCT:${String(slip.receiverAccount || last4Early).replace(/\D/g, '')}` : null,
     slip.bank ? `BANK:${slip.bank}` : null,
+    slip.date ? `DATE:${slip.date}` : null,
+    slip.time ? `TIME:${slip.time}` : null,
+    slip.promptpay ? `PP:${slip.promptpay}` : null,
+    slip.balanceThb != null ? `BAL:${slip.balanceThb}` : null,
+    slip.slipType ? `TYPE:${slip.slipType}` : null,
   ].filter(Boolean).join('|') || null;
   const pending = await insertPending({
     chat_id: chatId, admin_tg_id: userId, admin_name: admin.name,
     status: gate === 'IN_READY_REVIEW' ? 'IN_READY_REVIEW' : gate,
     thb_in: thb, should_send: usdtDue, desk_rate: rates.desk || null, mkt_rate: rates.mkt, bot_usd: rates.usd,
     bank: matchedPin?.bank_name ?? slip.bank ?? null,
-    account_masked: maskAcct(last4Early),
+    account_masked: slip.receiverAccount || matchedPin?.account_number || last4Early,
     name: slip.receiverName ?? slip.senderName ?? null, pin_match: pinMatch, ocr_confidence: slip.confidence ?? null,
     source_file_id: fileId, slip_url: url, slip_fingerprint: fingerprint, message_id: cardId,
     undo_until: null, tx_id: null,
@@ -172,11 +200,17 @@ export async function handleCtPhoto(opts: { chatId: number; userId: number; admi
   const known = last4 ? await findReceiversByLast4(last4) : [];
   const card = renderGateCard(pending, {
     gate, slipBank: slip.bank ?? '—', slipLast4: last4Early ?? slip.receiverLast4 ?? '????',
-    pinBank: matchedPin?.bank_name ?? todayPin?.bank_name ?? '—', pinLast4: accountLast4(matchedPin?.account_number ?? todayPin?.account_number) ?? 'ยังไม่หมุด',
+    pinBank: matchedPin?.bank_name ?? todayPin?.bank_name ?? '—',
+    pinLast4: accountLast4(matchedPin?.account_number ?? todayPin?.account_number) ?? 'ยังไม่หมุด',
+    pinAccount: matchedPin?.account_number ?? todayPin?.account_number ?? null,
     lead: admin.role === 'SuperAdmin' || admin.role === 'Admin',
     chips: thb ? [thb] : [500, 1000], fresh: Boolean(last4) && known.length === 0,
     slip,
-    pins: pins.map((b) => ({ bank: b.bank_name, last4: accountLast4(b.account_number) ?? '????' })),
+    pins: pins.map((b) => ({
+      bank: b.bank_name,
+      last4: accountLast4(b.account_number) ?? '????',
+      account: b.account_number,
+    })),
   });
   const hero = gate === 'PIN_MISMATCH'
     ? 'MISMATCH'
@@ -193,7 +227,8 @@ async function tryQueue(pending: PendingSlip, ctx: { chatId: number; userId: num
     const card = C.cardLocked({
       thb: locked.thb_in ?? 0, shouldSend: locked.should_send ?? 0, desk: locked.desk_rate ?? 0, mkt: locked.mkt_rate,
       ledger: locked.ledger_ref, adminName: ctx.admin.name, time: clockBkk(), short: locked.short_ref,
-      canUndo: true, queued: true, batch, bank: locked.bank ?? ctx.bank, last4: ctx.last4 ?? '????', name: locked.name,
+      canUndo: true, queued: true, batch, bank: locked.bank ?? ctx.bank, last4: ctx.last4 ?? '????',
+      account: locked.account_masked, name: locked.name,
     });
     await sendHero(
       ctx.chatId,
@@ -210,17 +245,24 @@ async function tryQueue(pending: PendingSlip, ctx: { chatId: number; userId: num
 
 export function renderGateCard(p: PendingSlip, extra: {
   gate: OcrGate; slipBank: string; slipLast4: string; pinBank: string; pinLast4: string;
+  pinAccount?: string | null;
   lead: boolean; chips: number[]; fresh?: boolean; slip?: SlipExtract;
-  pins?: Array<{ bank: string; last4: string }>;
+  pins?: Array<{ bank: string; last4: string; account?: string | null }>;
 }) {
   const s = extra.slip;
   if (extra.gate === 'PIN_MISMATCH') return C.cardPinMismatch({
     slipBank: extra.slipBank, slipLast4: extra.slipLast4, pinBank: extra.pinBank, pinLast4: extra.pinLast4,
     name: p.name, confidence: p.ocr_confidence ?? 0, short: p.short_ref, lead: extra.lead,
-    slipAccount: s?.receiverAccount, pins: extra.pins,
+    slipAccount: s?.receiverAccount, pinAccount: extra.pinAccount, pins: extra.pins,
   });
   if (extra.gate === 'NEED_UNIT') return C.cardNeedUnit({ short: p.short_ref });
-  if (extra.gate === 'OCR_WEAK') return C.cardOcrWeak({ bank: extra.slipBank, last4: extra.slipLast4, name: p.name, confidence: p.ocr_confidence ?? 0, short: p.short_ref, chips: extra.chips });
+  if (extra.gate === 'OCR_WEAK') return C.cardOcrWeak({
+    bank: extra.slipBank, last4: extra.slipLast4, name: p.name, confidence: p.ocr_confidence ?? 0,
+    short: p.short_ref, chips: extra.chips,
+    account: s?.receiverAccount, senderName: s?.senderName, senderAccount: s?.senderAccount,
+    senderBank: s?.senderBank, transRef: s?.transRef, time: s?.time, date: s?.date,
+    channel: s?.channel, raw: s?.raw,
+  });
   return C.cardInReady({
     review: extra.gate === 'IN_READY_REVIEW',
     thb: p.thb_in ?? 0,
@@ -240,10 +282,14 @@ export function renderGateCard(p: PendingSlip, extra: {
     senderName: s?.senderName,
     senderLast4: s?.senderLast4,
     senderBank: s?.senderBank,
-    receiverAccount: s?.receiverAccount,
+    senderAccount: s?.senderAccount,
+    receiverAccount: s?.receiverAccount || p.account_masked,
     transRef: s?.transRef,
     feeThb: s?.feeThb,
     channel: s?.channel,
     promptpay: s?.promptpay,
+    balanceThb: s?.balanceThb,
+    slipType: s?.slipType,
+    raw: s?.raw,
   });
 }

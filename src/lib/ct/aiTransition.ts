@@ -1,8 +1,8 @@
 import { editMessage, sendChatAction, editPhoto, type OutgoingMessage } from '../telegram';
 import { renderScanPng, type StillFrame } from './cardImage';
 
-const MIN_GAP_MS = 550;
-const MAX_GAP_MS = 850;
+const MIN_GAP_MS = 280;
+const MAX_GAP_MS = 380;
 
 export type AiStage =
   | 'received'
@@ -20,21 +20,32 @@ export type AiContext = {
   usdt?: number | null;
   bank?: string | null;
   last4?: string | null;
+  account?: string | null;
+  senderAccount?: string | null;
+  senderBank?: string | null;
+  balance?: number | null;
+  slipType?: string | null;
   ref?: string | null;
   time?: string | null;
+  date?: string | null;
+  name?: string | null;
+  sender?: string | null;
+  channel?: string | null;
+  fee?: number | null;
+  confidence?: number | null;
   state?: string | null;
   live?: boolean;
 };
 
 const SWEEP: Record<AiStage, number> = {
-  received: 0.14,
-  init: 0.24,
-  ocr: 0.40,
+  received: 0.12,
+  init: 0.22,
+  ocr: 0.38,
   extract: 0.54,
-  match: 0.66,
-  security: 0.76,
-  calc: 0.86,
-  ledger: 0.93,
+  match: 0.68,
+  security: 0.78,
+  calc: 0.88,
+  ledger: 0.94,
   done: 1,
 };
 
@@ -53,14 +64,36 @@ function money(n: number | null | undefined, d = 2): string {
   return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 
+function field(th: string, en: string, value: string): string {
+  return `> ${th} <i>(${en})</i>\n  <code>${value}</code>`;
+}
+
 function frame(stage: AiStage, ctx: AiContext): OutgoingMessage {
   const bank = ctx.bank ? esc(ctx.bank) : '—';
-  const last4 = ctx.last4 ? esc(ctx.last4) : '????';
+  const acct = ctx.account ? esc(String(ctx.account)) : ctx.last4 ? esc(String(ctx.last4)) : '—';
   const live = Boolean(ctx.live);
   const chip = live
     ? '<b>LIVE PHOTO</b> · still frame'
     : '<b>SLIP PHOTO</b> · scanning';
-  const lines: string[] = ['◈  <b>CE VAULT</b>', chip];
+  const lines: string[] = ['◈  <b>CT</b>  ·  <b>AGENT (OCR)</b>', `${chip} (กำลังสแกน)`];
+
+  const amountLine = ctx.thb != null ? field('ยอดเงิน', 'AMOUNT', `${money(ctx.thb)} THB`) : '';
+  const payeeLine = (ctx.bank || ctx.account || ctx.last4 || ctx.name)
+    ? field('ผู้รับ', 'PAYEE', [bank, acct !== '—' ? acct : '', ctx.name ? esc(ctx.name) : ''].filter(Boolean).join('  '))
+    : '';
+  const timeLine = (ctx.date || ctx.time)
+    ? field('เวลา', 'TIME', [ctx.date ? esc(ctx.date) : '', ctx.time ? esc(ctx.time) : ''].filter(Boolean).join('  '))
+    : '';
+  const refLine = ctx.ref ? field('รหัสอ้างอิง', 'REF', esc(ctx.ref)) : '';
+  const channelLine = ctx.channel ? field('ช่องทาง', 'CHANNEL', esc(ctx.channel)) : '';
+  const feeLine = ctx.fee != null ? field('ค่าธรรมเนียม', 'FEE', `${money(ctx.fee)} THB`) : '';
+  const ocrLine = ctx.confidence != null ? field('ความมั่นใจ', 'OCR', `${Math.round(ctx.confidence)}%`) : '';
+  const payoutLine = ctx.usdt != null ? field('รอโอน', 'PAYOUT', `${money(ctx.usdt)} USDT`) : '';
+  const payerLine = (ctx.sender || ctx.senderAccount)
+    ? field('ผู้โอน', 'PAYER', [ctx.senderBank ? esc(ctx.senderBank) : '', ctx.senderAccount ? esc(String(ctx.senderAccount)) : '', ctx.sender ? esc(ctx.sender) : ''].filter(Boolean).join('  '))
+    : '';
+  const balLine = ctx.balance != null ? field('ยอดคงเหลือ', 'BALANCE', `${money(ctx.balance)} THB`) : '';
+  const typeLine = ctx.slipType ? field('ประเภท', 'TYPE', esc(ctx.slipType)) : '';
 
   switch (stage) {
     case 'received':
@@ -69,49 +102,70 @@ function frame(stage: AiStage, ctx: AiContext): OutgoingMessage {
         '<blockquote expandable>English first',
         'Reading the still image — not the clip.',
         'กำลังอ่านภาพนิ่ง ไม่ใช่คลิป</blockquote>',
+        '> boot     vision.engine',
         bar(12),
       );
       break;
     case 'init':
-      lines.push('', bar(22), '<blockquote>Scanning slip', 'กำลังเปิดสลิป</blockquote>');
+      lines.push('', '> init     still.frame', bar(22), '<blockquote>Scanning slip (กำลังเปิดสลิป)</blockquote>');
       break;
     case 'ocr':
-      lines.push('', '<i>OCR Vision</i>', bar(42), '<blockquote>Reading amount / payee / reference', 'กำลังอ่านยอด ผู้รับ รหัสอ้างอิง</blockquote>');
+      lines.push(
+        '',
+        '> ocr      amount / payee / ref',
+        '<i>OCR Vision</i>',
+        bar(42),
+        '<blockquote>Reading amount / payee / reference',
+        'กำลังอ่านยอด ผู้รับ รหัสอ้างอิง</blockquote>',
+      );
       break;
     case 'extract':
-      lines.push('', '<i>Extracting fields</i>', bar(58));
-      if (ctx.thb) {
-        lines.push(`<blockquote>ยอดรับเข้า\n<b>${money(ctx.thb, 0)}</b> THB</blockquote>`);
-      }
+      lines.push('', '> extract  fields', '<i>Extracting fields (ถอดรายละเอียด)</i>', bar(58));
+      if (amountLine) lines.push(amountLine);
+      if (timeLine) lines.push(timeLine);
+      if (refLine) lines.push(refLine);
+      if (channelLine) lines.push(channelLine);
+      if (feeLine) lines.push(feeLine);
+      if (payerLine) lines.push(payerLine);
+      if (balLine) lines.push(balLine);
+      if (typeLine) lines.push(typeLine);
       break;
     case 'match':
-      lines.push('', '<i>Matching pin</i>', bar(72), `<blockquote>ผู้รับ\n${bank} ••${last4}</blockquote>`);
+      lines.push('', '> match    pin.today', '<i>Matching pin (เทียบบัญชี)</i>', bar(72));
+      if (payeeLine) lines.push(payeeLine);
+      if (amountLine) lines.push(amountLine);
+      if (ocrLine) lines.push(ocrLine);
       break;
     case 'security':
-      lines.push('', '<i>Security check</i>', bar(82), '<blockquote>ตรวจลายน้ำ · QR · หมุดวันนี้</blockquote>');
+      lines.push('', '> security watermark / qr / pin', '<i>Security check</i>', bar(82), '<blockquote>ตรวจลายน้ำ · QR · หมุดวันนี้ (watermark · QR · today pin)</blockquote>');
       break;
     case 'calc':
-      lines.push('', '<i>Desk rate</i>', bar(90));
-      if (ctx.usdt != null) lines.push(`<blockquote>รอโอน\n<b>${money(ctx.usdt)} U</b></blockquote>`);
+      lines.push('', '> calc     desk.rate', '<i>Desk rate (เราขาย)</i>', bar(90));
+      if (amountLine) lines.push(amountLine);
+      if (payoutLine) lines.push(payoutLine);
+      if (payeeLine) lines.push(payeeLine);
       break;
     case 'ledger':
-      lines.push('', '<i>Building ledger</i>', bar(95));
+      lines.push('', '> ledger   write', '<i>Building ledger (เขียนเลขที่)</i>', bar(95));
+      if (ctx.ref) lines.push(field('เลขที่', 'REF', esc(ctx.ref)));
       break;
     case 'done':
-      lines.push('', '<blockquote expandable>TRANSACTION READY');
-      lines.push(`ยอดรับเข้า  <b>${ctx.thb != null ? money(ctx.thb, 0) : '—'}</b> THB`);
-      lines.push(`ผู้รับ  ${bank} ••••${last4}`);
-      lines.push(`รอโอน  <b>${ctx.usdt != null ? money(ctx.usdt) : '—'}</b> USDT`);
+      lines.push('', '<blockquote expandable>TRANSACTION READY (พร้อมคิว)');
+      lines.push(`ยอดรับเข้า (AMOUNT)  <b>${ctx.thb != null ? money(ctx.thb, 0) : '—'}</b> THB`);
+      lines.push(`ผู้รับ (PAYEE)  ${bank}  <code>${acct}</code>`);
+      if (ctx.name) lines.push(esc(ctx.name));
+      lines.push(`รอโอน (PAYOUT)  <b>${ctx.usdt != null ? money(ctx.usdt) : '—'}</b> USDT`);
       if (ctx.time && ctx.thb != null && ctx.usdt != null) {
         lines.push(`${esc(ctx.time)} · ${money(ctx.thb, 0)} THB → ${money(ctx.usdt)} U`);
       }
-      if (ctx.ref) lines.push(`รหัส  <code>${esc(ctx.ref)}</code>`);
-      lines.push(`สถานะ  ${esc(ctx.state || 'WAIT')}`);
+      if (ctx.ref) lines.push(`รหัส (REF)  <code>${esc(ctx.ref)}</code>`);
+      if (ctx.confidence != null) lines.push(`OCR  ${Math.round(ctx.confidence)}%`);
+      lines.push(`สถานะ (STATUS)  ${esc(ctx.state || 'WAIT')}`);
       lines.push('</blockquote>');
       break;
   }
 
-  return { text: lines.join('\n') };
+  return { text: lines.filter(Boolean).join('\n') };
 }
 
 function sleep(ms: number) {
@@ -135,8 +189,21 @@ export class AiTransition {
     const wait = MIN_GAP_MS + Math.floor(Math.random() * (MAX_GAP_MS - MIN_GAP_MS));
     const elapsed = Date.now() - this.lastAt;
     if (this.lastAt && elapsed < wait) await sleep(wait - elapsed);
-    const caption = frame(stage, { ...ctx, live: this.live || ctx.live });
-    const png = renderScanPng({ still: this.still, sweep: SWEEP[stage], live: this.live });
+    const merged = { ...ctx, live: this.live || ctx.live };
+    const caption = frame(stage, merged);
+    const png = renderScanPng({
+      still: this.still,
+      sweep: SWEEP[stage],
+      live: this.live,
+      readout: {
+        amount: merged.thb != null ? `${money(merged.thb)} THB` : undefined,
+        payee: [merged.bank, merged.account || merged.last4 || ''].filter(Boolean).join(' ') || undefined,
+        time: [merged.date, merged.time].filter(Boolean).join(' ') || undefined,
+        ref: merged.ref || undefined,
+        ocr: merged.confidence != null ? `${Math.round(merged.confidence)} PCT` : undefined,
+        payout: merged.usdt != null ? `${money(merged.usdt)} USDT` : undefined,
+      },
+    });
     try {
       const ok = await editPhoto(this.chatId, this.messageId, png, caption);
       if (!ok) await editMessage(this.chatId, this.messageId, caption);
@@ -153,13 +220,13 @@ export function aiReceived(opts?: { live?: boolean }): OutgoingMessage {
 
 export function aiVerifiedCard(ctx: AiContext): OutgoingMessage {
   const bank = ctx.bank ? esc(ctx.bank) : '—';
-  const last4 = ctx.last4 ? esc(ctx.last4) : '????';
+  const acct = ctx.account ? esc(String(ctx.account)) : ctx.last4 ? esc(ctx.last4) : '—';
   const ref = ctx.ref ? esc(ctx.ref) : '—';
   const time = ctx.time || '—';
   const state = ctx.state || 'WAIT';
   return {
     text: [
-      '◈  <b>CE VAULT</b>',
+      '◈  <b>CT</b>  ·  <b>AGENT (OCR)</b>',
       `${esc(time)} · ${money(ctx.thb, 0)} THB → ${money(ctx.usdt)} U · <code>${ref}</code> · ${esc(state)}`,
       '',
       '<blockquote>OCR        OK',
@@ -167,7 +234,7 @@ export function aiVerifiedCard(ctx: AiContext): OutgoingMessage {
       'SECURITY   OK',
       'QUEUE      OK</blockquote>',
       '',
-      `${bank} ••••${last4}`,
+      `${bank}  <code>${acct}</code>`,
     ].join('\n'),
   };
 }

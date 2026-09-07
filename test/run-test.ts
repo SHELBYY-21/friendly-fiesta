@@ -70,7 +70,33 @@ const lineBk = parseSlipText(`โอนเงินสำเร็จ
 LINE BK Powered by KBank`);
 assert(lineBk.amount === 365, `LINE BK amount 365 (got ${lineBk.amount})`);
 assert(lineBk.last4 === '5012', `LINE BK last4 is payee 5012 not sender 9434 (got ${lineBk.last4})`);
-assert(lineBk.bank === 'KBANK', `LINE BK bank KBANK (got ${lineBk.bank})`);
+const { slipFromTyphoonJson } = require('../src/lib/typhoon');
+const ty = slipFromTyphoonJson(`{
+  "thbAmount": 1020,
+  "feeThb": 0,
+  "time": "08:45:35",
+  "date": "07/09/2026",
+  "receiverAccount": "145-3-58306-2",
+  "senderAccount": "666-1-26034-3",
+  "receiverLast4": "8306",
+  "senderLast4": "0343",
+  "bank": "KBANK",
+  "senderBank": "KTB",
+  "receiverName": "เอกรินทร์",
+  "senderName": "สุพัตรา อั้นเจริญ",
+  "transRef": "016238120625COR004437",
+  "channel": "KPLUS",
+  "promptpay": null,
+  "balanceThb": 50000,
+  "slipType": "TRANSFER",
+  "confidence": 94
+}`);
+assert(ty.thbAmount === 1020, 'typhoon amount 1020');
+assert(ty.receiverAccount === '145-3-58306-2', 'typhoon full payee account');
+assert(ty.senderAccount === '666-1-26034-3', 'typhoon full payer account');
+assert(ty.receiverName === 'เอกรินทร์', 'typhoon payee name');
+assert(ty.balanceThb === 50000, 'typhoon balance open');
+assert(ty.bank === 'KBANK', 'typhoon bank KBANK');
 
 assert(last4FromPayeeMask(`จาก น.ส. มาลัย กสิกรไทย xxx-x-x9434-x
 ไปยัง บจก. พิมพ์ใจ กสิกรไทย xxx-x-x5012-x`) === '5012', 'payee mask ignores sender');

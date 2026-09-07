@@ -2,14 +2,13 @@ import { deflateSync } from 'zlib';
 
 const W = 1080;
 const H = 560;
-const BG = [8, 10, 14];
-const GOLD = [232, 199, 106];
-const CYAN = [103, 232, 249];
+const BG = [3, 8, 20];
+const CYAN = [94, 231, 255];
 const MINT = [30, 224, 138];
 const AMBER = [245, 193, 74];
-const INK = [245, 245, 247];
-const MUTED = [134, 140, 148];
-const PANEL = [16, 20, 28];
+const INK = [232, 248, 255];
+const MUTED = [138, 176, 196];
+const PANEL = [8, 18, 34];
 
 export type StillFrame = { data: Uint8Array | Buffer; width: number; height: number };
 
@@ -151,12 +150,12 @@ function canvas(): Buffer {
 }
 
 function chrome(buf: Buffer, accent: number[]) {
-  glow(buf, 540, -30, 460, accent, 0.26);
-  glow(buf, 980, 70, 300, GOLD, 0.16);
-  glow(buf, 90, 80, 90, accent, 0.5);
-  fill(buf, 0, 0, W, 4, accent);
-  fill(buf, 0, 0, 7, H, GOLD);
-  fill(buf, 0, H - 4, W, 4, accent);
+  glow(buf, 540, -30, 460, accent, 0.32);
+  glow(buf, 980, 70, 300, accent, 0.18);
+  glow(buf, 90, 80, 90, accent, 0.55);
+  fill(buf, 0, 0, W, 3, accent);
+  fill(buf, 0, 0, 5, H, accent);
+  fill(buf, 0, H - 3, W, 3, accent);
   diamond(buf, 72, 64, 16, accent);
 }
 
@@ -202,6 +201,12 @@ const G: Record<string, number[]> = {
   ' ': [0, 0, 0, 0, 0, 0, 0],
   '-': [0, 0, 0, 14, 0, 0, 0],
   '#': [10, 31, 10, 31, 10, 0, 0],
+  '%': [25, 26, 4, 8, 16, 11, 19],
+  '/': [1, 2, 4, 4, 8, 16, 16],
+  '*': [0, 4, 21, 14, 21, 4, 0],
+  _: [0, 0, 0, 0, 0, 0, 31],
+  '=': [0, 0, 31, 0, 31, 0, 0],
+  '?': [14, 17, 1, 2, 4, 0, 4],
 };
 
 function glyph(buf: Buffer, ch: string, x: number, y: number, s: number, rgb: number[]) {
@@ -236,19 +241,29 @@ export function renderHeroPng(kind: 'vault' | 'locked' | 'settled', d: {
   fill(buf, 40, 132, W - 80, 2, accent);
   fill(buf, 48, 168, W - 96, 250, PANEL);
   glow(buf, 240, 250, 240, accent, 0.32);
-  glow(buf, 240, 250, 90, GOLD, 0.18);
+  glow(buf, 240, 250, 90, accent, 0.22);
   scanBeam(buf, 300, accent);
-  text(buf, d.hero.replace(/,/g, ''), 64, 196, 10, kind === 'settled' ? MINT : GOLD);
+  text(buf, d.hero.replace(/,/g, ''), 64, 196, 10, kind === 'settled' ? MINT : CYAN);
   if (d.sub) text(buf, d.sub.replace(/,/g, ''), 64, 330, 4, INK);
   if (d.meta) text(buf, d.meta.replace(/,/g, ''), 64, 468, 3, MUTED);
   return encodePng(buf, W, H);
 }
 
-/** Wallet-News-style scan: still frame of the slip + sweeping cyan beam. */
+export type ScanReadout = {
+  amount?: string;
+  payee?: string;
+  time?: string;
+  ref?: string;
+  ocr?: string;
+  payout?: string;
+};
+
+/** Wallet-News-style scan: still frame of the slip + sweeping cyan beam + OCR HUD. */
 export function renderScanPng(opts: {
   still?: StillFrame | null;
   sweep: number;
   live?: boolean;
+  readout?: ScanReadout | null;
 }): Buffer {
   const buf = canvas();
   const accent = opts.live ? MINT : CYAN;
@@ -259,9 +274,14 @@ export function renderScanPng(opts: {
   text(buf, tag, 118, 92, 2, BG);
   fill(buf, 40, 132, W - 80, 2, accent);
 
+  const hasReadout = Boolean(
+    opts.readout &&
+      (opts.readout.amount || opts.readout.payee || opts.readout.time || opts.readout.ref || opts.readout.ocr || opts.readout.payout),
+  );
+  const hudW = hasReadout ? 360 : 0;
   const panelX = 48;
   const panelY = 150;
-  const panelW = W - 96;
+  const panelW = W - 96 - (hasReadout ? hudW + 16 : 0);
   const panelH = 360;
   fill(buf, panelX, panelY, panelW, panelH, PANEL);
   if (opts.still) {
@@ -272,7 +292,7 @@ export function renderScanPng(opts: {
       for (let x = panelX; x < panelX + panelW; x++) blend(buf, x, y, BG, a);
     }
   } else {
-    const cx = 540;
+    const cx = panelX + Math.round(panelW / 2);
     const cy = 330;
     glow(buf, cx, cy, 220, accent, 0.28);
     ring(buf, cx, cy, 70, accent, 0.35);
@@ -284,6 +304,28 @@ export function renderScanPng(opts: {
   const t = Math.max(0, Math.min(1, opts.sweep));
   const beamY = panelY + 12 + Math.round(t * (panelH - 24));
   scanBeam(buf, beamY, accent, panelX + 4, panelX + panelW - 4);
+
+  if (hasReadout && opts.readout) {
+    const hx = panelX + panelW + 16;
+    fill(buf, hx, panelY, hudW, panelH, PANEL);
+    fill(buf, hx, panelY, 3, panelH, accent);
+    let y = panelY + 18;
+    const rows: Array<[string, string | undefined]> = [
+      ['AMOUNT', opts.readout.amount],
+      ['PAYEE', opts.readout.payee],
+      ['TIME', opts.readout.time],
+      ['REF', opts.readout.ref],
+      ['PAYOUT', opts.readout.payout],
+      ['OCR', opts.readout.ocr],
+    ];
+    for (const [label, value] of rows) {
+      text(buf, label, hx + 16, y, 2, MUTED);
+      const shown = (value || '....').replace(/,/g, '').slice(0, 18);
+      text(buf, shown, hx + 16, y + 22, value ? 3 : 2, value ? INK : MUTED);
+      y += 56;
+    }
+  }
+
   text(buf, opts.live ? 'STILL FRAME' : 'READING SLIP', 64, 524, 2, MUTED);
   return encodePng(buf, W, H);
 }

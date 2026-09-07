@@ -24,7 +24,7 @@ function n(v: number | null | undefined, d = 0) {
   return Number(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 
-const STEPS = ['อ่านสลิป', 'ตรงบัญชี', 'รับเงิน', 'รอโอน', 'เสร็จ'] as const;
+const STEPS = ['OCR', 'MATCH', 'IN', 'WAIT', 'DONE'] as const;
 
 function onSteps(status: string, pending: boolean): number {
   if (status === 'DONE') return 5;
@@ -72,7 +72,7 @@ export function SlipCard({ slip, onClose, queue, onKeep }: {
   const used = queue?.thb ?? 0;
   const left = Math.max(0, target - used);
   const dueAll = queue?.usdt ?? 0;
-  const payee = [slip.bank, slip.last4 ? '···· ' + slip.last4 : null].filter(Boolean).join(' ');
+  const payee = [slip.bank, slip.last4 || null].filter(Boolean).join(' ');
 
   async function copyRef() {
     if (!ref) return;
@@ -92,7 +92,7 @@ export function SlipCard({ slip, onClose, queue, onKeep }: {
   return (
     <article className="slip term">
       <div className="slip-head">
-        <span className="slip-tag">สลิป · {statusLabel(slip.status)}</span>
+        <span className="slip-tag">สลิป (SLIP) · {statusLabel(slip.status)}</span>
         <button type="button" className="slip-x" onClick={onClose} aria-label="ปิด">ปิด</button>
       </div>
       <p className="slip-rail">
@@ -101,20 +101,20 @@ export function SlipCard({ slip, onClose, queue, onKeep }: {
         ))}
       </p>
       <div className="slip-rule" />
-      <div className="slip-row"><span>เวลา</span><span>{slip.time || '—'}</span></div>
-      <div className="slip-row"><span>เลขอ้างอิง</span><button type="button" className={'slip-copy' + (copied ? ' is-on' : '')} onClick={copyRef}>{copied ? 'คัดอยู่' : ref || '—'}</button></div>
-      <div className="slip-row"><span>บัญชีรับ</span><span>{payee || '—'}</span></div>
-      <div className="slip-row"><span>ชื่อ</span><span>{slip.name || '—'}</span></div>
+      <div className="slip-row"><span>เวลา (TIME)</span><span>{slip.time || '—'}</span></div>
+      <div className="slip-row"><span>เลขอ้างอิง (REF)</span><button type="button" className={'slip-copy' + (copied ? ' is-on' : '')} onClick={copyRef}>{copied ? 'คัดอยู่' : ref || '—'}</button></div>
+      <div className="slip-row"><span>บัญชีรับ (PAYEE)</span><span>{payee || '—'}</span></div>
+      <div className="slip-row"><span>ชื่อ (NAME)</span><span>{slip.name || '—'}</span></div>
       <div className="slip-rule" />
-      <div className="slip-row"><span>รับเข้า</span><span className="in">{n(slip.thb)} บาท</span></div>
-      <div className="slip-row"><span>รอโอน</span><span className="due">{n(due ?? expected, 2)} USDT</span></div>
-      <div className="slip-row"><span>โอนสำเร็จ</span><span>{n(sent, 2)} USDT</span></div>
+      <div className="slip-row"><span>รับเข้า (IN)</span><span className="in">{n(slip.thb)} THB</span></div>
+      <div className="slip-row"><span>รอโอน (PAYOUT)</span><span className="due">{n(due ?? expected, 2)} USDT</span></div>
+      <div className="slip-row"><span>โอนสำเร็จ (SENT)</span><span>{n(sent, 2)} USDT</span></div>
       <div className="slip-rule" />
-      <div className="slip-row"><span>คิวรวม</span><span>{queue?.count ?? 1} รายการ</span></div>
-      <div className="slip-row"><span>รับรวม</span><span className="in">{n(queue?.thb)} บาท</span></div>
-      <div className="slip-row"><span>รอโอนรวม</span><span className="due">{n(dueAll, 2)} USDT</span></div>
-      <div className="slip-row"><span>เป้าหมายกอง</span><span>{n(target)} บาท</span></div>
-      <div className="slip-row"><span>เหลืออีก</span><span>{n(left)} บาท</span></div>
+      <div className="slip-row"><span>คิวรวม (QUEUE)</span><span>{queue?.count ?? 1} รายการ</span></div>
+      <div className="slip-row"><span>รับรวม (TOTAL IN)</span><span className="in">{n(queue?.thb)} THB</span></div>
+      <div className="slip-row"><span>รอโอนรวม (DUE)</span><span className="due">{n(dueAll, 2)} USDT</span></div>
+      <div className="slip-row"><span>เป้าหมายกอง (TARGET)</span><span>{n(target)} THB</span></div>
+      <div className="slip-row"><span>เหลืออีก (LEFT)</span><span>{n(left)} THB</span></div>
       <div className="slip-rule" />
       <p className="slip-note">{note}</p>
       {onKeep && slip.status !== 'DONE' ? (

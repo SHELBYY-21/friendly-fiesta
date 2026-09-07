@@ -134,8 +134,14 @@ const F = {
   operator: (name: string): Field => ({ icon: '👤', labelTh: 'ผู้ดูแล', labelEn: 'Operator', value: mono(name) }),
   receiver: (name: string): Field => ({ icon: '👤', labelTh: 'ผู้รับ', labelEn: 'Receiver', value: mono(name) }),
   bank: (b: string): Field => ({ icon: '🏦', labelTh: 'ธนาคาร', labelEn: 'Bank', value: mono(b) }),
-  last4: (l: string): Field => ({ icon: '🔢', labelTh: 'เลขท้าย', labelEn: 'Last 4', value: mono(l) }),
+  last4: (l: string): Field => ({ icon: '🔢', labelTh: 'เลขบัญชี', labelEn: 'Account', value: mono(String(l).replace(/[•*]+/g, '') || l) }),
   time: (t: string): Field => ({ labelTh: 'เวลา', labelEn: 'Time', value: mono(t) }),
+  date: (t: string): Field => ({ labelTh: 'วันที่', labelEn: 'Date', value: mono(t) }),
+  sender: (n: string): Field => ({ labelTh: 'ผู้โอน', labelEn: 'Payer', value: mono(n) }),
+  transRef: (r: string): Field => ({ labelTh: 'รหัสอ้างอิง', labelEn: 'Ref', value: mono(r) }),
+  fee: (n: number): Field => ({ labelTh: 'ค่าธรรมเนียม', labelEn: 'Fee', value: amount(n, 'THB') }),
+  channel: (c: string): Field => ({ labelTh: 'ช่องทาง', labelEn: 'Channel', value: mono(c) }),
+  promptpay: (p: string): Field => ({ labelTh: 'พร้อมเพย์', labelEn: 'PromptPay', value: mono(p) }),
   confidence: (c: number): Field => ({
     icon: '🎯',
     labelTh: 'ความแม่นยำ',
@@ -182,13 +188,21 @@ export function registered(name: string): OutgoingMessage {
 // ═══════════════ Upload progress (edit-in-place friendly) ═══════════════
 export function uploading(step = 0): OutgoingMessage {
   const steps = [
-    { icon: '⏳', th: 'กำลังอัปโหลด', en: 'Uploading' },
-    { icon: '🔄', th: 'กำลังประมวลผล', en: 'Processing' },
-    { icon: '🛡', th: 'กำลังตรวจสอบ', en: 'Validating' },
-    { icon: '✅', th: 'พร้อมดำเนินการ', en: 'Ready' },
+    { icon: '⏳', th: 'กำลังอัปโหลด', en: 'Uploading', pct: 18 },
+    { icon: '🔄', th: 'กำลังประมวลผล', en: 'Processing', pct: 46 },
+    { icon: '🛡', th: 'กำลังตรวจสอบ', en: 'Validating', pct: 74 },
+    { icon: '✅', th: 'พร้อมดำเนินการ', en: 'Ready', pct: 100 },
   ];
   const s = steps[Math.min(step, steps.length - 1)];
-  return card({ icon: s.icon, titleTh: s.th, titleEn: s.en });
+  const fill = Math.round(s.pct / 10);
+  const bar = `[${'█'.repeat(fill)}${'░'.repeat(10 - fill)}] ${s.pct}%`;
+  return card({
+    icon: s.icon,
+    titleTh: s.th,
+    titleEn: s.en,
+    groups: [[{ labelTh: 'สถานะ', labelEn: 'Status', value: `<code>${bar}</code>` }]],
+    note: 'CT · AGENT (OCR) — scanning',
+  });
 }
 
 // ═══════════════ Slip preview (post-OCR) ═══════════════
@@ -200,6 +214,13 @@ export interface SlipReadyData {
   last4?: string | null;
   bank?: string | null;
   receiverName?: string | null;
+  senderName?: string | null;
+  senderBank?: string | null;
+  senderLast4?: string | null;
+  transRef?: string | null;
+  feeThb?: number | null;
+  channel?: string | null;
+  promptpay?: string | null;
   confidence?: number | null;
   chatRate?: number | null;
   historyLine?: string | null;
@@ -223,7 +244,13 @@ export function slipReady(d: SlipReadyData): OutgoingMessage {
   if (d.receiverName) fields.push(F.receiver(d.receiverName));
   if (d.bank) fields.push(F.bank(d.bank));
   if (d.last4) fields.push(F.last4(d.last4));
+  if (d.senderName) fields.push(F.sender(d.senderName));
+  if (d.date) fields.push(F.date(d.date));
   if (d.time) fields.push(F.time(d.time));
+  if (d.channel) fields.push(F.channel(d.channel));
+  if (d.transRef) fields.push(F.transRef(d.transRef));
+  if (d.feeThb != null) fields.push(F.fee(d.feeThb));
+  if (d.promptpay) fields.push(F.promptpay(d.promptpay));
   if (conf != null) fields.push(F.confidence(conf));
 
   const isOk = gotAmount && !lowConf;
@@ -320,7 +347,8 @@ export function liveInitial(ledgerRef: string, adminName?: string): OutgoingMess
     icon: '🔄',
     titleTh: 'กำลังประมวลผล',
     titleEn: 'Processing',
-    groups: [fields],
+    groups: [fields, [{ labelTh: 'สถานะ', labelEn: 'Status', value: '<code>[██░░░░░░░░] 20%</code>' }]],
+    note: 'CT · AGENT (OCR) — boot vision.engine',
   });
 }
 
@@ -329,7 +357,13 @@ export function liveOcrUpdate(opts: {
   thb?: number | null;
   receiver?: string | null;
   bank?: string | null;
+  last4?: string | null;
   time?: string | null;
+  date?: string | null;
+  sender?: string | null;
+  transRef?: string | null;
+  channel?: string | null;
+  feeThb?: number | null;
   confidence?: number | null;
   sellRate?: number | null;
   marketRate?: number | null;
@@ -341,7 +375,13 @@ export function liveOcrUpdate(opts: {
   ];
   if (opts.receiver) slip.push(F.receiver(opts.receiver));
   if (opts.bank) slip.push(F.bank(opts.bank));
+  if (opts.last4) slip.push(F.last4(opts.last4));
+  if (opts.sender) slip.push(F.sender(opts.sender));
+  if (opts.date) slip.push(F.date(opts.date));
   if (opts.time) slip.push(F.time(opts.time));
+  if (opts.channel) slip.push(F.channel(opts.channel));
+  if (opts.transRef) slip.push(F.transRef(opts.transRef));
+  if (opts.feeThb != null) slip.push(F.fee(opts.feeThb));
   if (opts.confidence != null) slip.push(F.confidence(opts.confidence));
 
   const rate: Field[] = [];
@@ -356,6 +396,7 @@ export function liveOcrUpdate(opts: {
     titleTh: 'รอ USDT',
     titleEn: 'Waiting USDT',
     groups,
+    note: 'CT · AGENT (OCR) — fields locked',
   });
 }
 
@@ -592,7 +633,8 @@ export function pinnedAccounts(items: PinnedAccountItem[]): OutgoingMessage {
   }
   const fields: Field[] = items.map((it, i) => ({
     labelTh: `${i + 1}. ${it.bank}`,
-    value: mono(`••••${it.last4}`),
+    labelEn: 'Account',
+    value: mono(it.last4),
   }));
   return card({
     icon: '📌',
@@ -611,7 +653,7 @@ export function pinUpdated(
 ): OutgoingMessage {
   const pinned = action === 'pin';
   const fields: Field[] = [
-    { icon: '🏦', labelTh: bank, value: mono(`••••${last4}`) },
+    { icon: '🏦', labelTh: bank, value: mono(last4) },
   ];
   if (count != null) fields.push({ icon: '📌', labelTh: 'ใช้งานวันนี้', value: mono(`${count} / 3 Accounts`) });
   return card({
@@ -649,6 +691,7 @@ export function waitUsdt(d: WaitUsdtData): OutgoingMessage {
   if (d.receiverName) slipFields.push(F.receiver(d.receiverName));
   if (d.bank) slipFields.push(F.bank(d.bank));
   if (d.last4) slipFields.push(F.last4(d.last4));
+  if (d.date) slipFields.push(F.date(d.date));
   if (d.time) slipFields.push(F.time(d.time));
   if (conf != null) slipFields.push(F.confidence(conf));
 
@@ -1225,13 +1268,13 @@ export function receiverBrief(r: ReceiverCardData | null, bank: string | null, l
     return [
       SEP,
       `⚠️ <b>บัญชีใหม่</b> <i>(New Receiver)</i>`,
-      `🏦 ${escapeHtml(bank ?? '—')} · ${mono(`••••${last4}`)}`,
+      `🏦 ${escapeHtml(bank ?? '—')} · ${mono(last4 || '—')}`,
       '<i>ยังไม่เคยมีประวัติในระบบ</i>',
     ].join('\n');
   }
   const star = r.status === 'trusted' ? ' ⭐ Trusted' : r.status === 'blacklist' ? ' 🚫 BLACKLIST' : '';
   const lines: string[] = [SEP];
-  lines.push(`🏦 ${escapeHtml(r.bank ?? '—')} · ${mono(`••••${r.last4}`)}${star}`);
+  lines.push(`🏦 ${escapeHtml(r.bank ?? '—')} · ${mono(r.last4 || '—')}${star}`);
   if (r.name) lines.push(`👤 ${mono(r.name)}`);
   lines.push(`📈 ${r.totalTx ?? 0} รายการ · ${amount(r.totalThb ?? 0, 'THB')}`);
   if (r.todayCount) lines.push(`📊 วันนี้ ${r.todayCount} รายการ · ${amount(r.todayThb ?? 0, 'THB')}`);
@@ -1356,7 +1399,7 @@ export function visionSlipVerification(data: VisionSlipVerificationData): Outgoi
       icon: '🟢',
       labelTh: 'ตรงกับปักหมุด',
       labelEn: 'Account Matched',
-      value: `<b>${escapeHtml(data.matchedBank || '')} ••••${escapeHtml(data.matchedLast4 || '')}</b>`
+      value: `<b>${escapeHtml(data.matchedBank || '')} ${escapeHtml(data.matchedLast4 || '')}</b>`
     });
     if (data.todayCountForAccount != null) {
       matchGroup.push({
@@ -1428,7 +1471,7 @@ export function summaryBannerToday(data: {
     titleTh: 'สรุปวันนี้',
     titleEn: 'Today Summary',
     groups: [[
-      { icon: '🏦', labelTh: 'บัญชีรับ', labelEn: 'Account', value: mono(`${escapeHtml(data.bank)} ••••${escapeHtml(data.last4)}`) },
+      { icon: '🏦', labelTh: 'บัญชีรับ', labelEn: 'Account', value: mono(`${escapeHtml(data.bank)} ${escapeHtml(data.last4)}`) },
       { icon: '📌', labelTh: 'จำนวน', labelEn: 'Count', value: `<b>${data.receiverCount}</b> รายการ` },
       { icon: '💵', labelTh: 'รวมเงิน', labelEn: 'Total THB', value: amount(data.totalThb, 'THB') },
       { icon: '🚀', labelTh: 'รวม USDT', labelEn: 'Total USDT', value: amount(data.totalUsdt, 'USDT') },

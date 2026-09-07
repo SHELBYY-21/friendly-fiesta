@@ -1,6 +1,6 @@
 import type { OutgoingMessage } from '../telegram';
 import { RULE } from './tokens';
-import { displayLedger, maskAcct, rateCode, thbInt, usdt } from './format';
+import { displayLedger, showAcct, rateCode, thbInt, usdt } from './format';
 
 export const NOTICE_ICON = {
   dup: '⚠️',
@@ -53,7 +53,7 @@ export function rateLine(desk: number | null | undefined, mkt?: number | null): 
 }
 
 export function payeeLine(bank?: string | null, last4?: string | null, name?: string | null): string[] {
-  const rows = [scanRow('ผู้รับ', 'PAYEE', `${esc(bank || '\u2014')}  ${esc(maskAcct(last4))}`)];
+  const rows = [scanRow('ผู้รับ', 'PAYEE', `${esc(bank || '\u2014')}  ${esc(showAcct(last4))}`)];
   if (name) rows.push(scanRow('ชื่อ', 'NAME', esc(name)));
   return rows;
 }

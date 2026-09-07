@@ -54,6 +54,13 @@ export function maskAcct(last4: string | null | undefined): string {
   return t ? `••••${t}` : '••••????';
 }
 
+/** Full account as printed. Never hide digits. */
+export function showAcct(acct: string | null | undefined): string {
+  const raw = String(acct ?? '').replace(/[•*]+/g, '').trim();
+  if (!raw || raw === '????') return '—';
+  return raw;
+}
+
 export function thbInt(n: number): string {
   const v = Number(n) || 0;
   return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Math.round(v));
@@ -89,14 +96,14 @@ export function quoteBlock(d: { thb: number; usdt: number; desk: number; mkt: nu
   const pnl = p == null ? '—' : `${p >= 0 ? '+' : ''}${thbInt(p)} THB`;
   return quote(
     [
-      '◆ ยอดรับเข้า',
+      '◆ ยอดรับเข้า (AMOUNT)',
       `<b>${thbCard(d.thb)}</b> THB`,
-      '◆ รอโอน',
+      '◆ รอโอน (PAYOUT)',
       `<b>${usdt(d.usdt)}</b> USDT`,
-      '◆ กำไรสุทธิ',
+      '◆ กำไรสุทธิ (PNL)',
       `<b>${pnl}</b>`,
-      `เราขาย  <code>${rateCode(d.desk)}</code>`,
-      `เรทอ้างอิง  <code>${rateCode(d.mkt)}</code>`,
+      `เราขาย (DESK)  <code>${rateCode(d.desk)}</code>`,
+      `เรทอ้างอิง (MKT)  <code>${rateCode(d.mkt)}</code>`,
     ].join('\n'),
   );
 }

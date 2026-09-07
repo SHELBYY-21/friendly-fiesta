@@ -19,11 +19,11 @@ const STEP_INDEX: Record<FlowStep, number> = {
 };
 
 const NOW: Record<FlowStep, string> = {
-  scan: 'กำลังอ่านสลิป',
-  match: 'กำลังเทียบบัญชี',
-  in: 'อ่านครบแล้ว → รอคนยืนยัน',
-  wait: 'รับเงินแล้ว → รอโอน USDT',
-  done: 'โอนครบแล้ว',
+  scan: 'กำลังอ่านสลิป (scanning)',
+  match: 'กำลังเทียบบัญชี (matching)',
+  in: 'อ่านครบแล้ว → รอคนยืนยัน (ready)',
+  wait: 'รับเงินแล้ว → รอโอน USDT (queued)',
+  done: 'โอนครบแล้ว (settled)',
 };
 
 const CHIP: Record<string, string> = {
@@ -35,11 +35,11 @@ const CHIP: Record<string, string> = {
   รอรวมยอด: 'รอโอน (WAIT)',
   โอนแล้ว: 'โอนสำเร็จ (DONE)',
   โอนสำเร็จ: 'โอนสำเร็จ (DONE)',
-  แจ้งเตือน: 'แจ้งเตือน',
-  ตั้งค่า: 'ตั้งค่า',
-  บัญชีรับ: 'บัญชีรับเงินวันนี้',
-  อัตราแลกเปลี่ยน: 'เราขาย',
-  รายการ: 'รายการ',
+  แจ้งเตือน: 'แจ้งเตือน (ALERT)',
+  ตั้งค่า: 'ตั้งค่า (SETTINGS)',
+  บัญชีรับ: 'บัญชีรับเงินวันนี้ (PINS)',
+  อัตราแลกเปลี่ยน: 'เราขาย (DESK)',
+  รายการ: 'รายการ (LEDGER)',
 };
 
 export function progress(step: FlowStep): string {
@@ -71,5 +71,10 @@ export function quote(text: string, expandable = true): string {
 }
 
 export function kv(th: string, en: string, value: string): string {
-  return `${th}  <i>${en}</i>\n${value}`;
+  return `${th}  <i>(${en})</i>\n${value}`;
+}
+
+export function term(cmd: string, en: string, value?: string): string {
+  const headLine = `> ${cmd}  <i>(${en})</i>`;
+  return value ? `${headLine}\n  ${value}` : headLine;
 }

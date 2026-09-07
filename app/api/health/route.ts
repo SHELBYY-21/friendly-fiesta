@@ -60,6 +60,9 @@ export async function GET(req: NextRequest) {
   const vision = Boolean(
     process.env.GROK_API_KEY?.trim() || process.env.XAI_API_KEY?.trim(),
   );
+  const typhoon = Boolean(
+    process.env.TYPHOON_API_KEY?.trim() || process.env.TYPHOON_OCR_API_KEY?.trim(),
+  );
   const ocrFallback = Boolean(process.env.OCR_SPACE_API_KEY?.trim());
   const slipVerify = configuredSlipProvider()?.name ?? false;
   const liveError = staleWebhookError(webhook);
@@ -71,6 +74,7 @@ export async function GET(req: NextRequest) {
       db,
       detail,
       vision,
+      typhoon,
       ocrFallback,
       slipVerify,
       pinGate: Boolean(process.env.DASHBOARD_PIN),

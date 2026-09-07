@@ -106,6 +106,7 @@ async function renderSettings(chatId: number) {
     pins: pinned.map((b) => ({
       bank: b.bank_name,
       last4: accountLast4(b.account_number) ?? '????',
+      account: b.account_number,
     })),
     admins: admins.map((a) => ({ name: a.name, role: a.role || 'admin' })),
   });
@@ -379,6 +380,7 @@ export async function handleCtCallback(opts: {
         mkt: next.mkt_rate,
         bank: next.bank ?? '—',
         last4: (next.account_masked ?? '').replace(/\D/g, '').slice(-4),
+        receiverAccount: next.account_masked,
         name: next.name,
         confidence: next.ocr_confidence ?? 95,
         ledger: next.ledger_ref,
@@ -409,6 +411,7 @@ function detailCard(p: PendingSlip) {
     usd: p.bot_usd,
     bank: p.bank ?? '—',
     last4: (p.account_masked ?? '').replace(/\D/g, '').slice(-4),
+    account: p.account_masked,
     name: p.name,
     pinMatch: p.pin_match,
     confidence: p.ocr_confidence,
@@ -453,6 +456,7 @@ async function doLock(
       batch,
       bank: next.bank ?? undefined,
       last4: (next.account_masked ?? '').replace(/\D/g, '').slice(-4),
+      account: next.account_masked,
       name: next.name,
     });
     const photoId = await sendHero(
@@ -570,6 +574,7 @@ async function doUndo(
     slipLast4: (next.account_masked ?? '').replace(/\D/g, '').slice(-4),
     pinBank: next.bank ?? '—',
     pinLast4: (next.account_masked ?? '').replace(/\D/g, '').slice(-4),
+    pinAccount: next.account_masked,
     lead: false,
     chips: next.thb_in ? [next.thb_in] : [500],
   }));
@@ -772,6 +777,7 @@ export async function handleCtText(opts: {
         mkt: saved.mkt,
         bank: next.bank ?? '—',
         last4: (next.account_masked ?? '').replace(/\D/g, '').slice(-4),
+        receiverAccount: next.account_masked,
         name: next.name,
         confidence: next.ocr_confidence ?? 95,
         ledger: next.ledger_ref,
@@ -806,6 +812,7 @@ export async function handleCtText(opts: {
         mkt: next.mkt_rate,
         bank: next.bank ?? '—',
         last4: (next.account_masked ?? '').replace(/\D/g, '').slice(-4),
+        receiverAccount: next.account_masked,
         name: next.name,
         confidence: next.ocr_confidence ?? 95,
         ledger: next.ledger_ref,

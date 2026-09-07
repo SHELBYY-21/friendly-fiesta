@@ -123,7 +123,7 @@ export default function RecentSlips({ slips, selectedSlipId, onSelectSlip, isLiv
                 <StatusBadge status={slip.verificationStatus} />
               </div>
               <p className="mt-2 text-xs text-[color:var(--muted)]">
-                {slip.extractedData.receiver} •••• {slip.extractedData.last4}
+                {slip.extractedData.receiver} {slip.extractedData.last4}
               </p>
             </div>
           </button>
