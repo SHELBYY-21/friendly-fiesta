@@ -11,11 +11,13 @@
     "validate:env": "node -r ts-node/register scripts/validate-env.ts",
     "migrate:help": "echo \"Uses STAGING_DATABASE_URL environment variable. Example: STAGING_DATABASE_URL='******host:5432/db' npm run migrate:staging-node\"",
     "migrate:staging": "psql \"$STAGING_DATABASE_URL\" -v ON_ERROR_STOP=1 -f supabase/patch-v10-production-safety.sql",
-    "migrate:staging-node": "node scripts/run-migration.js"
+    "migrate:staging-node": "node scripts/run-migration.js",
+    "composio:smoke": "node scripts/composio-smoke.mjs"
   },
   "dependencies": {
     "@circle-fin/developer-controlled-wallets": "^10.8.0",
     "@circle-fin/smart-contract-platform": "^10.8.0",
+    "@composio/core": "^0.17.0",
     "@jest/globals": "^30.4.1",
     "@supabase/server": "^1.4.1",
     "@supabase/supabase-js": "^2.45.4",
@@ -28,7 +30,8 @@
     "promptparse": "^1.6.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "slipverify": "^0.1.0"
+    "slipverify": "^0.1.0",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
