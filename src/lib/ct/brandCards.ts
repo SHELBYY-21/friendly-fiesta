@@ -5,10 +5,10 @@ import { renderHeroPng } from './cardImage';
 export type BrandKind = 'success' | 'wait' | 'start' | 'vault';
 
 const FILE: Record<BrandKind, string> = {
-  success: 'webhook-success-1080x560.png',
-  wait: 'webhook-wait-1080x560.png',
-  start: 'og-1200x630.png',
-  vault: 'og-1200x630.png',
+  success: 'webhook-success-1080x560.jpg',
+  wait: 'webhook-wait-1080x560.jpg',
+  start: 'og-1200x630.jpg',
+  vault: 'og-1200x630.jpg',
 };
 
 function fromDisk(name: string): Buffer | null {

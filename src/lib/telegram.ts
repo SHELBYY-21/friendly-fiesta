@@ -148,18 +148,26 @@ export async function uploadSlipBuffer(buffer: Buffer, fileId: string): Promise<
   return supabaseAdmin.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
+function photoBlob(buf: Buffer): { blob: Blob; filename: string } {
+  const jpeg = buf.length > 2 && buf[0] === 0xff && buf[1] === 0xd8;
+  const filename = jpeg ? 'ce.jpg' : 'ce.png';
+  const type = jpeg ? 'image/jpeg' : 'image/png';
+  return { blob: new Blob([new Uint8Array(buf)], { type }), filename };
+}
+
 export async function sendPhoto(
   chatId: number,
   png: Buffer,
   caption: OutgoingMessage,
 ): Promise<number> {
   if (!TOKEN) throw new Error('BOT_TOKEN_NOT_CONFIGURED');
+  const { blob, filename } = photoBlob(png);
   const form = new FormData();
   form.append('chat_id', String(chatId));
   form.append('caption', caption.text);
   form.append('parse_mode', 'HTML');
   if (caption.reply_markup) form.append('reply_markup', JSON.stringify(caption.reply_markup));
-  form.append('photo', new Blob([new Uint8Array(png)], { type: 'image/png' }), 'ct.png');
+  form.append('photo', blob, filename);
   const response = await fetch(`${API}/sendPhoto`, { method: 'POST', body: form });
   const json = await response.json().catch(() => null);
   if (!response.ok || !json?.ok) throw new Error(`Telegram sendPhoto: ${json?.description ?? `HTTP ${response.status}`}`);
@@ -174,17 +182,18 @@ export async function editPhoto(
 ): Promise<boolean> {
   try {
     if (!TOKEN) throw new Error('BOT_TOKEN_NOT_CONFIGURED');
+    const { blob, filename } = photoBlob(png);
     const form = new FormData();
     form.append('chat_id', String(chatId));
     form.append('message_id', String(messageId));
     form.append('media', JSON.stringify({
       type: 'photo',
-      media: 'attach://ct.png',
+      media: `attach://${filename}`,
       caption: caption.text,
       parse_mode: 'HTML',
     }));
     if (caption.reply_markup) form.append('reply_markup', JSON.stringify(caption.reply_markup));
-    form.append('ct.png', new Blob([new Uint8Array(png)], { type: 'image/png' }), 'ct.png');
+    form.append(filename, blob, filename);
     const response = await fetch(`${API}/editMessageMedia`, { method: 'POST', body: form });
     const json = await response.json().catch(() => null);
     if (!response.ok || !json?.ok) throw new Error(json?.description ?? `HTTP ${response.status}`);

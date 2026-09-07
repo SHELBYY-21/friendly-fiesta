@@ -190,9 +190,9 @@ export function cardExamples() {
       method: 'sendPhoto',
       chat_id: '{{chat_id}}',
       parse_mode: 'HTML',
-      start: { photo: 'attach://og-1200x630.png', caption: 'CE VAULT LIVE' },
-      wait: { photo: 'attach://webhook-wait-1080x560.png', caption: 'รอโอน (waiting)' },
-      done: { photo: 'attach://webhook-success-1080x560.png', caption: 'โอนสำเร็จ (sent)' },
+      start: { photo: 'attach://og-1200x630.jpg', caption: 'CE VAULT LIVE' },
+      wait: { photo: 'attach://webhook-wait-1080x560.jpg', caption: 'รอโอน (waiting)' },
+      done: { photo: 'attach://webhook-success-1080x560.jpg', caption: 'โอนสำเร็จ (sent)' },
     },
   };
 }

@@ -394,10 +394,11 @@ const scanB = renderScanPng({ sweep: 0.8, live: true });
 assert(!scan.equals(scanB), 'scan beam moves between frames');
 const { brandCard, heroPng } = require('../src/lib/ct/brandCards');
 const doneCard = brandCard('success');
-assert(doneCard.slice(0, 4).equals(pngMagic), 'success card is png');
+const jpegMagic = Buffer.from([0xff, 0xd8, 0xff]);
+assert(doneCard.slice(0, 3).equals(jpegMagic) || doneCard.slice(0, 4).equals(pngMagic), 'success card is jpeg or png');
 assert(doneCard.length > 800, 'success card has body');
 const waitCard = heroPng('locked');
-assert(waitCard.slice(0, 4).equals(pngMagic), 'wait card is png');
+assert(waitCard.slice(0, 3).equals(jpegMagic) || waitCard.slice(0, 4).equals(pngMagic), 'wait card is jpeg or png');
 
 const vault = CT.vaultBanner({
   mode: 'today', dateLabel: '26 Aug', clock: '03:59',

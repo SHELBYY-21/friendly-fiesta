@@ -11,7 +11,7 @@
         },
         {
           "type": "paragraph",
-          "text": "LIVE · CT"
+          "text": "LIVE · CE"
         },
         {
           "type": "blockquote",
@@ -461,15 +461,15 @@
     "chat_id": "{{chat_id}}",
     "parse_mode": "HTML",
     "start": {
-      "photo": "attach://og-1200x630.png",
+      "photo": "attach://og-1200x630.jpg",
       "caption": "CE VAULT LIVE"
     },
     "wait": {
-      "photo": "attach://webhook-wait-1080x560.png",
+      "photo": "attach://webhook-wait-1080x560.jpg",
       "caption": "รอโอน (waiting)"
     },
     "done": {
-      "photo": "attach://webhook-success-1080x560.png",
+      "photo": "attach://webhook-success-1080x560.jpg",
       "caption": "โอนสำเร็จ (sent)"
     }
   }
