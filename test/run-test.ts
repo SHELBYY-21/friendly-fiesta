@@ -11,6 +11,7 @@ const {
   parseSaveSlipArgs,
   slipFingerprint,
   requiresAdminAccess,
+  normalizeBankCode,
 } = require('../src/lib/botSecurity');
 const { pickExplicitThbAmount } = require('../src/lib/ocrAmount');
 const UI = require('../src/lib/botUi');
@@ -136,6 +137,15 @@ assert(livePin?.bank === 'KTB', `live pin bank KTB (got ${livePin?.bank})`);
 assert(livePin?.account === '6661260343', `live pin account (got ${livePin?.account})`);
 assert(livePin?.name === 'สุพัตรา อั้นเจริญ', `live pin name (got ${livePin?.name})`);
 assert(livePin?.limit === 500000, `live pin limit (got ${livePin?.limit})`);
+const scbPin = parseDeskPin(`ชื่อ : เรืองรอง ชมขวัญ
+เลขบัญชี : 4371699895
+ธนาคาร : ไทยพาณิชย
+วงเงิน : ???`);
+assert(scbPin?.bank === 'SCB', `ไทยพาณิชย maps to SCB (got ${scbPin?.bank})`);
+assert(scbPin?.account === '4371699895', `scb pin account (got ${scbPin?.account})`);
+assert(scbPin?.name === 'เรืองรอง ชมขวัญ', `scb pin name (got ${scbPin?.name})`);
+assert(scbPin?.limit == null, 'วงเงิน ??? is unknown not a number');
+assert(normalizeBankCode('ไทยพาณิชย') === 'SCB', 'ธนาคารไทยพาณิช without ์');
 const livePins = [{ id: 's', bank_name: 'KTB', account_number: '6661260343', label: 'สุพัตรา' }];
 assert(accountLast4Candidates('6661260343').includes('0343'), 'true last4 0343');
 assert(accountLast4Candidates('6661260343').includes('6034'), 'KTB mask 6034');
@@ -373,6 +383,12 @@ assert(scan.slice(0, 4).equals(pngMagic), 'scan png signature');
 assert(scan.length > 800, 'scan png has body');
 const scanB = renderScanPng({ sweep: 0.8, live: true });
 assert(!scan.equals(scanB), 'scan beam moves between frames');
+const { brandCard, heroPng } = require('../src/lib/ct/brandCards');
+const doneCard = brandCard('success');
+assert(doneCard.slice(0, 4).equals(pngMagic), 'success card is png');
+assert(doneCard.length > 800, 'success card has body');
+const waitCard = heroPng('locked');
+assert(waitCard.slice(0, 4).equals(pngMagic), 'wait card is png');
 
 const vault = CT.vaultBanner({
   mode: 'today', dateLabel: '26 Aug', clock: '03:59',

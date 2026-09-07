@@ -133,12 +133,12 @@ export function parseDeskPin(text: string): DeskPin | null {
   if (account.length < 4) return null;
 
   const bankLine = raw.match(/(?:bank|ธนาคาร)\s*[:：]\s*([^\n]+)/i);
-  const headTok = raw.split('\n')[0].match(/BBL|KBANK|SCB|KTB|BAY|TTB|GSB|CIMB|กรุงเทพ|กสิกร|กรุงไทย|ไทยพาณิชย์/i);
+  const headTok = raw.split('\n')[0].match(/BBL|KBANK|SCB|KTB|BAY|TTB|GSB|CIMB|กรุงเทพ|กสิกร|กรุงไทย|ไทยพาณิช/i);
   const bank =
     (bankLine ? normalizeBankCode(bankLine[1]) : null) ||
     (headTok ? normalizeBankCode(headTok[0]) : null) ||
     (() => {
-      const tok = raw.match(/กรุงเทพ|กสิกรไทย|กสิกร|กรุงไทย|BBL|KBANK|SCB|KTB|BAY/i);
+      const tok = raw.match(/กรุงเทพ|กสิกรไทย|กสิกร|กรุงไทย|ไทยพาณิช|BBL|KBANK|SCB|KTB|BAY/i);
       return tok ? normalizeBankCode(tok[0]) : null;
     })();
   if (!bank) return null;

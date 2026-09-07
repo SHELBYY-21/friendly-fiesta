@@ -628,10 +628,10 @@ export function pinView(items: Array<{
   if (!items.length) {
     lines.push('ยังไม่มีบัญชีรับเงินวันนี้ (no pin today)');
     lines.push('วางข้อความหมุดได้เลย เช่น (paste pin text)');
-    lines.push('<blockquote>ธนาคาร : กสิกร(kbank)');
-    lines.push('เลข : 145-3-58306-2');
-    lines.push('ชื่อ : เอกรินทร์');
-    lines.push('วงเงิน : 50,000</blockquote>');
+    lines.push('<blockquote>ชื่อ : เรืองรอง ชมขวัญ');
+    lines.push('เลขบัญชี : 4371699895');
+    lines.push('ธนาคาร : ไทยพาณิชย์');
+    lines.push('วงเงิน : ???</blockquote>');
     return msg(lines.join('\n'));
   }
   items.forEach((it, i) => {

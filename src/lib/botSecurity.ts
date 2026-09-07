@@ -91,7 +91,7 @@ export function normalizeBankCode(value: string | null | undefined): string | nu
   if (/กสิกร|ไลน์\s*bk|line\s*bk/i.test(raw)) return 'KBANK';
   if (/กรุงเทพ|บางกอก/i.test(raw)) return 'BBL';
   if (/กรุงไทย/i.test(raw)) return 'KTB';
-  if (/ไทยพาณิชย์/i.test(raw)) return 'SCB';
+  if (/ไทยพาณิช|พาณิชย์|scb/i.test(raw)) return 'SCB';
   if (/กรุงศรี/i.test(raw)) return 'BAY';
   if (/ออมสิน/i.test(raw)) return 'GSB';
   if (/ทหารไทย|ทีทีบี/i.test(raw)) return 'TTB';

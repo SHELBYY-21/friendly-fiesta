@@ -24,7 +24,7 @@ import { opsRates, applyDeskRate } from './rates';
 import { commitIncomingLock, dueSummary, settleAllDue } from './queue';
 import { outgoingLedgerRef, settleBlockReason, SKIP_TH } from './settleGuard';
 import { shouldSend, clockBkk, displayLedger, adminKeyboard, thbCard, usdt } from './format';
-import { renderHeroPng } from './cardImage';
+import { heroPng } from './brandCards';
 import { gateOcr } from './gate';
 import { renderGateCard } from './photo';
 import * as C from './copy';
@@ -194,7 +194,7 @@ async function sendHero(
   sub?: string,
   meta?: string,
 ): Promise<number> {
-  const png = renderHeroPng(kind, { hero, sub, meta });
+  const png = heroPng(kind, { hero, sub, meta });
   if (messageId) {
     const ok = await editPhoto(chatId, messageId, png, card);
     if (ok) return messageId;

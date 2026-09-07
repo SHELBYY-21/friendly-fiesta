@@ -37,7 +37,7 @@ import { routeIncomingSlip, routeOutgoingSlip } from '@/lib/actions';
 import { handleCtPhoto } from '@/lib/ct/photo';
 import { stillFromTelegram } from '@/lib/ct/livePhoto';
 import { handleCtCallback, handleCtText, isCtCallback, adminKeyboard } from '@/lib/ct/callbacks';
-import { renderHeroPng } from '@/lib/ct/cardImage';
+import { brandCard, stickerKind } from '@/lib/ct/brandCards';
 import * as C from '@/lib/ct/copy';
 import { findReceiversByLast4, upsertReceiverOnDeposit } from '@/lib/receivers';
 import { getSticker, validateStickers, type StickerState } from '@/config/stickers';
@@ -74,7 +74,16 @@ const OCR_AUTO_MIN = getOcrAutoMin();
 // fire-and-forget — ไม่ block flow หลัก ไม่ throw
 function sticker(chatId: number, key: StickerState): void {
   const id = getSticker(key);
-  if (id) sendSticker(chatId, id).catch(() => undefined);
+  if (id) {
+    sendSticker(chatId, id).catch(() => undefined);
+    return;
+  }
+  const kind = stickerKind(key);
+  if (!kind || kind === 'wait' && key === 'PROCESSING') return;
+  const png = brandCard(kind, { hero: key, sub: kind === 'success' ? 'DONE' : 'WAIT', meta: 'CT' });
+  sendPhoto(chatId, png, {
+    text: kind === 'success' ? 'โอนสำเร็จ (sent)' : kind === 'wait' ? 'รอโอน (waiting)' : 'CT DESK',
+  }).catch(() => undefined);
 }
 
 export const runtime = 'nodejs';
@@ -363,7 +372,7 @@ async function handleUpdate(update: any): Promise<void> {
       await sendMessage(chatId, UI.error('บัญชีนี้ยังไม่ได้รับสิทธิ์ — ให้ SuperAdmin เพิ่ม Telegram ID ก่อน'));
       return;
     }
-    const png = renderHeroPng('vault', { hero: 'CT DESK', sub: 'LIVE', meta: existing.name });
+    const png = brandCard('start', { hero: 'CT DESK', sub: 'LIVE', meta: existing.name });
     await sendPhoto(chatId, png, {
       text: C.welcome(existing.name).text,
       reply_markup: adminKeyboard(),

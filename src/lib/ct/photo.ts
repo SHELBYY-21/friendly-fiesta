@@ -15,7 +15,8 @@ import { applyQrToOcr, type SlipQrResult } from './slipQr';
 import { inspectSlipImage } from './slipInquiry';
 import * as C from './copy';
 import { cardDuplicate, cardAlreadyQueued } from './notice';
-import { renderHeroPng, renderScanPng } from './cardImage';
+import { renderScanPng } from './cardImage';
+import { heroPng } from './brandCards';
 import { AiTransition, aiReceived } from './aiTransition';
 import { decodeStillFrame } from './livePhoto';
 import type { Admin } from '@/types/transactions';
@@ -89,7 +90,7 @@ async function sendHero(
   sub?: string,
   meta?: string,
 ): Promise<number> {
-  const png = renderHeroPng(kind, { hero, sub, meta });
+  const png = heroPng(kind, { hero, sub, meta });
   if (messageId) {
     const ok = await editPhoto(chatId, messageId, png, card);
     if (ok) return messageId;
