@@ -18,6 +18,7 @@ if (!process.env.COMPOSIO_API_KEY) {
 }
 
 const userId = process.env.COMPOSIO_TEST_USER_ID || 'ce-vault-desk';
+const mint = process.env.COMPOSIO_CONNECT === '1' || process.argv.includes('--connect');
 const composio = new Composio();
 const session = await composio.create(userId, {
   toolkits: ['github'],
@@ -28,18 +29,37 @@ const search = await session.search({ query: 'github zen quote', toolkits: ['git
 const slug =
   search?.results?.[0]?.primaryToolSlugs?.[0] || 'GITHUB_GET_THE_ZEN_OF_GITHUB';
 
-const out = { sessionId: session.sessionId, userId, tool: slug };
+const accounts = ((await composio.connectedAccounts.list({
+  userIds: [userId],
+  toolkitSlugs: ['github'],
+})).items || []);
+const pending = accounts.find((a) => String(a.status).toUpperCase() === 'INITIALIZING');
+const active = accounts.find((a) => String(a.status).toUpperCase() === 'ACTIVE');
+
+const out = {
+  sessionId: session.sessionId,
+  userId,
+  tool: slug,
+  githubStatus: active ? 'ACTIVE' : pending ? 'INITIALIZING' : 'NONE',
+};
 
 try {
   const result = await session.execute(slug, {});
   out.ok = true;
   out.preview = JSON.stringify(result).slice(0, 1000);
-  out.logId = result?.logId || result?.log_id || result?.request_id || search?.session?.id || null;
+  out.logId = result?.logId || result?.log_id || result?.request_id || null;
 } catch (err) {
   out.ok = false;
   out.error = err instanceof Error ? err.message.slice(0, 400) : String(err).slice(0, 400);
-  const req = await session.authorize('github');
-  out.connectUrl = req.redirectUrl || req.redirect_url || req.url || null;
+  if (pending) {
+    out.accountId = pending.id;
+    out.hint = 'finish the existing Connect Link — a new authorize() would expire the last one';
+  } else if (mint) {
+    const req = await session.authorize('github');
+    out.connectUrl = req.redirectUrl || req.redirect_url || req.url || null;
+  } else {
+    out.hint = 'run: npm run composio:connect';
+  }
 }
 
 console.log(JSON.stringify(out, null, 2));

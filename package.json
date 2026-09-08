@@ -12,7 +12,9 @@
     "migrate:help": "echo \"Uses STAGING_DATABASE_URL environment variable. Example: STAGING_DATABASE_URL='******host:5432/db' npm run migrate:staging-node\"",
     "migrate:staging": "psql \"$STAGING_DATABASE_URL\" -v ON_ERROR_STOP=1 -f supabase/patch-v10-production-safety.sql",
     "migrate:staging-node": "node scripts/run-migration.js",
-    "composio:smoke": "node scripts/composio-smoke.mjs"
+    "composio:smoke": "node scripts/composio-smoke.mjs",
+    "composio:connect": "COMPOSIO_CONNECT=1 node scripts/composio-smoke.mjs",
+    "composio:oauth": "node scripts/composio-oauth-debug.mjs"
   },
   "dependencies": {
     "@circle-fin/developer-controlled-wallets": "^10.8.0",
