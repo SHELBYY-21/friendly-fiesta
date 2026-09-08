@@ -395,7 +395,7 @@ assert(pack.sendRichMessage.method === 'sendRichMessage', 'example method sendRi
 assert(pack.sendPhoto.wait.photo.includes('webhook-wait'), 'example wait photo');
 assert(pack.sendRichMessage.pin.blocks.some((b: { type: string }) => b.type === 'table'), 'pin card json table');
 assert(hasBalancedTelegramHtml(inReady.text), 'IN_READY html balanced');
-assert(!/[👑✨🌿💎🤍🟢🔴💰📈🎯💵🏦👤⚠❤🔥⚡]/.test(inReady.text), 'IN_READY has no public emoji');
+assert(/[👑💎⚡✨]/u.test(inReady.text), 'IN_READY uses static brand emoji');
 
 const { stillFromTelegram, decodeStillFrame, isLivePhoto } = require('../src/lib/ct/livePhoto');
 assert(stillFromTelegram({ live_photo: { photo: [{ file_id: 'lp1', file_unique_id: 'u1' }] }, photo: [{ file_id: 'p1' }] }).fileId === 'lp1', 'live photo prefers still frame');
@@ -451,7 +451,7 @@ assert(vault.text.includes('◈') && vault.text.includes('VAULT'), 'empty vault 
 assert(vault.text.includes('quiet.'), 'empty vault microcopy');
 assert(vault.text.includes('ผลรวมวันนี้') && vault.text.includes('ฝาก') && vault.text.includes('ค้างเคลียร์'), 'vault totals banner');
 assert(hasBalancedTelegramHtml(vault.text), 'vault html balanced');
-assert(!/[👑✨🌿💎🤍🟢🔴💰📈🎯💵🏦👤⚠❤🔥⚡]/.test(vault.text), 'vault has no public emoji');
+assert(/[👑💎]/u.test(vault.text), 'vault uses static brand emoji');
 
 const {
   matchReplyCommand,

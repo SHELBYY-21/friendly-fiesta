@@ -2,7 +2,7 @@ import type { OutgoingMessage } from '../telegram';
 import {
   esc, ik, btn, urlBtn, displayLedger, showAcct, thbInt, thbCard, usdt, rateCode, quoteBlock, totalsBanner, deskUrl,
 } from './format';
-import { head as tokenHead, progress, rule, NODE, kv, quote } from './tokens';
+import { head as tokenHead, progress, rule, NODE, kv, quote, IN_DOT, OUT_DOT } from './tokens';
 import type { FlowStep } from './tokens';
 import { richDone, richInReady, richStart, richWait, richVault } from './cardJson';
 import { bankLabel } from '../botSecurity';
@@ -49,7 +49,7 @@ export function welcome(name: string): OutgoingMessage {
     [
       head('สรุปยอด', `CE VAULT · ${esc(name)}`),
       '',
-      '<blockquote>เขียว = ฝาก (IN)   แดง = โอน (OUT)\nส่งสลิปได้เลย</blockquote>',
+      `<blockquote>${IN_DOT} ฝาก (IN)   ${OUT_DOT} โอน (OUT)\nส่งสลิปได้เลย</blockquote>`,
     ].join('\n'),
     ik([[btn('เลือกห้อง', 'room:list', 'primary'), urlBtn('เปิดโต๊ะ', deskUrl())]]),
     richStart(name),

@@ -1,4 +1,7 @@
-/** CE Vault terminal visual tokens. */
+/** CE Vault terminal visual tokens.
+ * Telegram bots cannot send animated emoji. Static emoji + Unicode bars only.
+ * Animation = editMessage frames (AiTransition) + ▓░░░░ fill.
+ */
 
 export const MARK = '\u25C8';
 export const NODE = '\u2B22';
@@ -6,6 +9,17 @@ export const RAIL = '\u2503';
 export const RULE = '\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501';
 export const DOT_ON = '\u25CF';
 export const DOT_OFF = '\u25CB';
+
+export const CROWN = '\u{1F451}';
+export const GEM = '\u{1F48E}';
+export const BOLT = '\u26A1';
+export const SPARK = '\u2728';
+export const HOUR = '\u23F3';
+export const SPIN = '\u{1F504}';
+export const OK = '\u2705';
+export const IN_DOT = '\u{1F7E2}';
+export const OUT_DOT = '\u{1F534}';
+export const CASH = '\u{1F4B0}';
 
 export const STEPS = ['OCR', 'MATCH', 'IN', 'WAIT', 'DONE'] as const;
 export type FlowStep = 'scan' | 'match' | 'in' | 'wait' | 'done';
@@ -16,6 +30,22 @@ const STEP_INDEX: Record<FlowStep, number> = {
   in: 2,
   wait: 3,
   done: 4,
+};
+
+const STEP_PCT: Record<FlowStep, number> = {
+  scan: 20,
+  match: 40,
+  in: 60,
+  wait: 80,
+  done: 100,
+};
+
+const STEP_EMOJI: Record<FlowStep, string> = {
+  scan: HOUR,
+  match: SPIN,
+  in: IN_DOT,
+  wait: CASH,
+  done: OK,
 };
 
 const NOW: Record<FlowStep, string> = {
@@ -43,17 +73,32 @@ const CHIP: Record<string, string> = {
   เลือกห้อง: 'เลือกห้อง (ROOMS)',
 };
 
+/** 16-cell Unicode bar. Telegram shows this as static text; fill changes per edit. */
+export function bar(pct: number, width = 16): string {
+  const p = Math.max(0, Math.min(100, Math.round(pct)));
+  const fill = Math.round((p / 100) * width);
+  return `${'\u2593'.repeat(fill)}${'\u2591'.repeat(width - fill)} ${p}%`;
+}
+
+export function brandLine(): string {
+  return `${CROWN}${GEM}  <b>CE · VAULT</b>  ${GEM}${CROWN}`;
+}
+
 export function progress(step: FlowStep): string {
   const idx = STEP_INDEX[step];
   const dots = STEPS.map((_, i) => (i <= idx ? DOT_ON : DOT_OFF)).join('\u2500\u2500');
-  return `${dots}  <b>${STEPS[idx]}</b>  ·  ${NOW[step]}`;
+  const load = step === 'done' ? `${OK} DONE` : `${BOLT}${SPARK} LOADING`;
+  return [
+    dots + `  <b>${STEPS[idx]}</b>`,
+    `${STEP_EMOJI[step]} ${load}  ·  ${NOW[step]}`,
+    `<code>${bar(STEP_PCT[step])}</code>`,
+  ].join('\n');
 }
 
 export function head(status: string, meta?: string): string {
   const chip = CHIP[status] ?? status;
-  return meta
-    ? `${MARK}  <b>CE</b>  ·  <b>${chip}</b>\n${meta}`
-    : `${MARK}  <b>CE</b>  ·  <b>${chip}</b>`;
+  const line = `${brandLine()}\n${MARK}  <b>${chip}</b>`;
+  return meta ? `${line}\n${meta}` : line;
 }
 
 export function rule(): string {

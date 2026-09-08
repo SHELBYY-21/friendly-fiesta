@@ -1,4 +1,6 @@
 import { editMessage, sendChatAction, editPhoto, type OutgoingMessage } from '../telegram';
+import { bar, brandLine, BOLT, SPARK, HOUR, SPIN, OK, IN_DOT } from './tokens';
+
 import { renderScanPng, type StillFrame } from './cardImage';
 
 const MIN_GAP_MS = 280;
@@ -49,10 +51,18 @@ const SWEEP: Record<AiStage, number> = {
   done: 1,
 };
 
-function bar(pct: number): string {
-  const p = Math.max(0, Math.min(100, Math.round(pct / 10) * 10));
-  const fill = Math.round(p / 10);
-  return `[${'█'.repeat(fill)}${'░'.repeat(10 - fill)}] ${p}%`;
+function stageMark(stage: AiStage): string {
+  if (stage === 'done') return OK;
+  if (stage === 'match' || stage === 'security') return SPIN;
+  if (stage === 'calc' || stage === 'ledger') return IN_DOT;
+  if (stage === 'ocr' || stage === 'extract') return BOLT;
+  return HOUR;
+}
+
+function loadLine(stage: AiStage, pct: number): string {
+  const mark = stageMark(stage);
+  const label = stage === 'done' ? `${OK} DONE` : `${BOLT}${SPARK} LOADING`;
+  return `${mark} ${label}\n<code>${bar(pct)}</code>`;
 }
 
 function esc(s: string): string {
@@ -75,7 +85,7 @@ function frame(stage: AiStage, ctx: AiContext): OutgoingMessage {
   const chip = live
     ? '<b>LIVE PHOTO</b> · still frame'
     : '<b>SLIP PHOTO</b> · scanning';
-  const lines: string[] = ['◈  <b>CE</b>  ·  <b>AGENT (OCR)</b>', `${chip} (กำลังสแกน)`];
+  const lines: string[] = [brandLine(), '◈  <b>AGENT (OCR)</b>', `${chip} (กำลังสแกน)`];
 
   const amountLine = ctx.thb != null ? field('ยอดเงิน', 'AMOUNT', `${money(ctx.thb)} THB`) : '';
   const payeeLine = (ctx.bank || ctx.account || ctx.last4 || ctx.name)
@@ -103,24 +113,24 @@ function frame(stage: AiStage, ctx: AiContext): OutgoingMessage {
         'Reading the still image — not the clip.',
         'กำลังอ่านภาพนิ่ง ไม่ใช่คลิป</blockquote>',
         '> boot     vision.engine',
-        bar(12),
+        loadLine('received', 12),
       );
       break;
     case 'init':
-      lines.push('', '> init     still.frame', bar(22), '<blockquote>Scanning slip (กำลังเปิดสลิป)</blockquote>');
+      lines.push('', '> init     still.frame', loadLine('init', 22), '<blockquote>Scanning slip (กำลังเปิดสลิป)</blockquote>');
       break;
     case 'ocr':
       lines.push(
         '',
         '> ocr      amount / payee / ref',
         '<i>OCR Vision</i>',
-        bar(42),
+        loadLine('ocr', 42),
         '<blockquote>Reading amount / payee / reference',
         'กำลังอ่านยอด ผู้รับ รหัสอ้างอิง</blockquote>',
       );
       break;
     case 'extract':
-      lines.push('', '> extract  fields', '<i>Extracting fields (ถอดรายละเอียด)</i>', bar(58));
+      lines.push('', '> extract  fields', '<i>Extracting fields (ถอดรายละเอียด)</i>', loadLine('extract', 58));
       if (amountLine) lines.push(amountLine);
       if (timeLine) lines.push(timeLine);
       if (refLine) lines.push(refLine);
@@ -131,26 +141,26 @@ function frame(stage: AiStage, ctx: AiContext): OutgoingMessage {
       if (typeLine) lines.push(typeLine);
       break;
     case 'match':
-      lines.push('', '> match    pin.today', '<i>Matching pin (เทียบบัญชี)</i>', bar(72));
+      lines.push('', '> match    pin.today', '<i>Matching pin (เทียบบัญชี)</i>', loadLine('match', 72));
       if (payeeLine) lines.push(payeeLine);
       if (amountLine) lines.push(amountLine);
       if (ocrLine) lines.push(ocrLine);
       break;
     case 'security':
-      lines.push('', '> security watermark / qr / pin', '<i>Security check</i>', bar(82), '<blockquote>ตรวจลายน้ำ · QR · หมุดวันนี้ (watermark · QR · today pin)</blockquote>');
+      lines.push('', '> security watermark / qr / pin', '<i>Security check</i>', loadLine('security', 82), '<blockquote>ตรวจลายน้ำ · QR · หมุดวันนี้ (watermark · QR · today pin)</blockquote>');
       break;
     case 'calc':
-      lines.push('', '> calc     desk.rate', '<i>Desk rate (เราขาย)</i>', bar(90));
+      lines.push('', '> calc     desk.rate', '<i>Desk rate (เราขาย)</i>', loadLine('calc', 90));
       if (amountLine) lines.push(amountLine);
       if (payoutLine) lines.push(payoutLine);
       if (payeeLine) lines.push(payeeLine);
       break;
     case 'ledger':
-      lines.push('', '> ledger   write', '<i>Building ledger (เขียนเลขที่)</i>', bar(95));
+      lines.push('', '> ledger   write', '<i>Building ledger (เขียนเลขที่)</i>', loadLine('ledger', 95));
       if (ctx.ref) lines.push(field('เลขที่', 'REF', esc(ctx.ref)));
       break;
     case 'done':
-      lines.push('', '<blockquote expandable>TRANSACTION READY (พร้อมคิว)');
+      lines.push('', loadLine('done', 100), '<blockquote expandable>TRANSACTION READY (พร้อมคิว)');
       lines.push(`ยอดรับเข้า (AMOUNT)  <b>${ctx.thb != null ? money(ctx.thb, 0) : '—'}</b> THB`);
       lines.push(`ผู้รับ (PAYEE)  ${bank}  <code>${acct}</code>`);
       if (ctx.name) lines.push(esc(ctx.name));
