@@ -137,6 +137,18 @@ export function urlBtn(text: string, url: string) {
   return { text, url };
 }
 
+export function webAppBtn(text: string, url: string) {
+  return { text, web_app: { url } };
+}
+
+const DEFAULT_MINIAPP = 'https://ce-empire-miniapp.vercel.app';
+
+export function miniAppUrl(screen: 'vault' | 'io' | 'done' = 'vault'): string {
+  const raw = (process.env.NEXT_PUBLIC_MINIAPP_URL || process.env.MINIAPP_URL || DEFAULT_MINIAPP).replace(/\/$/, '');
+  const base = raw.startsWith('https://') && !/localhost/.test(raw) ? raw : DEFAULT_MINIAPP;
+  return `${base}/?screen=${encodeURIComponent(screen)}`;
+}
+
 export function ik(rows: Array<Array<Record<string, unknown>>>) {
   return { inline_keyboard: rows };
 }
@@ -146,7 +158,7 @@ export function adminKeyboard() {
     keyboard: [
       [{ text: 'ยอดวันนี้' }, { text: 'รอส่ง' }, { text: 'อัตรา' }],
       [{ text: 'บัญชีรับ' }, { text: 'ตั้งค่า' }, { text: 'วันใหม่' }],
-      [{ text: 'เลือกห้อง' }],
+      [{ text: 'เลือกห้อง' }, { text: 'เปิด VAULT', web_app: { url: miniAppUrl('vault') } }],
     ],
     resize_keyboard: true,
     is_persistent: true,

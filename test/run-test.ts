@@ -465,8 +465,10 @@ const {
 } = require('../src/lib/ct/callbacks');
 const { adminKeyboard } = require('../src/lib/ct/format');
 
-const pad = adminKeyboard().keyboard.flat().map((b: { text: string }) => b.text);
+const padBtns = adminKeyboard().keyboard.flat() as Array<{ text: string; web_app?: { url: string } }>;
+const pad = padBtns.filter((b) => !b.web_app).map((b) => b.text);
 assert(JSON.stringify(pad) === JSON.stringify(['ยอดวันนี้', 'รอส่ง', 'อัตรา', 'บัญชีรับ', 'ตั้งค่า', 'วันใหม่', 'เลือกห้อง']), 'reply pad labels');
+assert(padBtns.some((b) => b.text === 'เปิด VAULT' && b.web_app), 'reply pad launches Mini App for sendData');
 const padMap: Record<string, string> = {
   'ยอดวันนี้': 'vault',
   'รอส่ง': 'pending',
@@ -511,7 +513,7 @@ function collectCbs(card: { reply_markup?: any }): string[] {
   const rows = card.reply_markup?.inline_keyboard ?? [];
   return rows.flat().map((b: any) => b.callback_data).filter(Boolean);
 }
-function collectBtns(card: { reply_markup?: any }): Array<{ text: string; callback_data?: string; style?: string }> {
+function collectBtns(card: { reply_markup?: any }): Array<{ text: string; callback_data?: string; style?: string; web_app?: { url: string } }> {
   const rows = card.reply_markup?.inline_keyboard ?? [];
   return rows.flat();
 }
@@ -616,5 +618,62 @@ const tap = parseTelegramUpdate({
   callback_query: { id: 'cq', from: { id: 55 }, data: 'ct:keep:CE-1042', message: { chat: { id: -1001 } } },
 });
 assert(tap.kind === 'callback' && tap.callbackData === 'ct:keep:CE-1042', 'callback parsed');
+
+const webapp = parseTelegramUpdate({
+  update_id: 10,
+  message: {
+    chat: { id: -1001, type: 'supergroup' },
+    from: { id: 55 },
+    web_app_data: { data: JSON.stringify({ v: 1, action: 'vault:batch' }), button_text: 'เปิด VAULT' },
+  },
+});
+assert(webapp.kind === 'webapp' && webapp.webAppData.includes('vault:batch') && webapp.chatId === -1001, 'web_app_data parsed');
+
+const { settlementState, requiredUsdt, canConfirmSettlement, mapSettlementAction, cardSettlement } = require('../src/lib/ct/settlementRich');
+const readyCard = { depositThb: 10000, depositCount: 2, roomRate: 40, sentUsdt: null };
+assert(requiredUsdt(readyCard) === 250, 'required USDT is thb/rate');
+assert(settlementState(readyCard) === 'READY', 'no send is READY');
+assert(settlementState({ ...readyCard, sentUsdt: 250 }) === 'MATCHED', 'exact send is MATCHED');
+assert(settlementState({ ...readyCard, sentUsdt: 260 }) === 'EXCESS', 'over send is EXCESS');
+assert(settlementState({ ...readyCard, sentUsdt: 200 }) === 'SHORT', 'under send is SHORT');
+assert(settlementState({ ...readyCard, settled: true, sentUsdt: 250 }) === 'SETTLED', 'flag is SETTLED');
+assert(canConfirmSettlement(readyCard) === true, 'READY with queue can confirm');
+assert(canConfirmSettlement({ ...readyCard, settled: true }) === false, 'SETTLED cannot confirm');
+assert(mapSettlementAction('settlement_confirm') === 'vault:batch', 'python confirm maps to batch');
+assert(mapSettlementAction('settlement_details') === 'vault:pending', 'python details maps to pending');
+assert(mapSettlementAction('drop-table') === null, 'unknown webapp action rejected');
+
+const settleUi = cardSettlement(readyCard);
+assert(hasBalancedTelegramHtml(settleUi.text), 'settlement card HTML is balanced');
+assert(settleUi.text.includes('เคลียร์ยอด') && settleUi.text.includes('READY'), 'settlement card has status');
+assert(!settleUi.text.includes('disable'), 'no fake disabled button field');
+const settleCbs = collectCbs(settleUi);
+assert(settleCbs.includes('vault:batch') && settleCbs.includes('vault:today'), 'settlement uses live CT callbacks');
+assert(collectBtns(settleUi).some((b) => b.web_app && String(b.web_app.url).includes('ce-empire-miniapp')), 'settlement has Mini App button');
+assert(settleUi.text.length < 4096, 'settlement card within Telegram limit');
+
+const { parseWebAppPayload, verifyWebAppInitData } = require('../src/lib/ct/webAppInit');
+assert(parseWebAppPayload('{"v":1,"action":"vault:batch"}').action === 'vault:batch', 'json payload parsed');
+assert(parseWebAppPayload('settlement_confirm').action === 'settlement_confirm', 'plain action parsed');
+assert(parseWebAppPayload('{"action":"rm -rf"}') === null, 'payload allowlist rejects junk');
+const { createHmac } = require('crypto');
+const token = '123456:TESTTOKEN';
+const user = JSON.stringify({ id: 55 });
+const auth = String(Math.floor(Date.now() / 1000));
+const fields: Record<string, string> = { auth_date: auth, query_id: 'AA', user };
+const dataCheck = Object.keys(fields).sort().map((k) => `${k}=${fields[k]}`).join('\n');
+const secret = createHmac('sha256', 'WebAppData').update(token).digest();
+const hash = createHmac('sha256', secret).update(dataCheck).digest('hex');
+const initData = `auth_date=${auth}&query_id=AA&user=${encodeURIComponent(user)}&hash=${hash}`;
+assert(verifyWebAppInitData(initData, token).ok === true, 'initData HMAC verifies');
+assert(verifyWebAppInitData(initData, token).userId === 55, 'initData user id parsed');
+assert(verifyWebAppInitData(initData.replace(hash, '0'.repeat(64)), token).ok === false, 'bad hash rejected');
+
+const { miniAppUrl, webAppBtn } = require('../src/lib/ct/format');
+assert(miniAppUrl('done').startsWith('https://') && miniAppUrl('done').includes('screen=done'), 'mini app https + screen');
+assert(webAppBtn('เปิด VAULT', miniAppUrl()).web_app.url.startsWith('https://'), 'web_app button shape');
+assert(JSON.stringify(adminKeyboard()).includes('web_app'), 'reply keyboard launches Mini App for sendData');
+assert(collectBtns(CT.welcome('CE')).some((b) => b.web_app), 'welcome exposes Mini App');
+assert(hasBalancedTelegramHtml(CT.cardSettledBatch({ count: 2, thb: 10000, usdt: 250, adminName: 'A' }).text), 'batch settled HTML');
 
 console.log('🎉 ALL TESTS PASSED SUCCESSFULLY!');

@@ -36,7 +36,7 @@ import { parseAmounts } from '@/lib/amounts';
 import { routeIncomingSlip, routeOutgoingSlip } from '@/lib/actions';
 import { handleCtPhoto } from '@/lib/ct/photo';
 import { stillFromTelegram } from '@/lib/ct/livePhoto';
-import { handleCtCallback, handleCtText, isCtCallback } from '@/lib/ct/callbacks';
+import { handleCtCallback, handleCtText, handleWebAppData, isCtCallback } from '@/lib/ct/callbacks';
 import { brandCard, stickerKind } from '@/lib/ct/brandCards';
 import * as C from '@/lib/ct/copy';
 import { ensureBotCommandScopes, isPrivateOnlyCommand } from '@/lib/telegram/botCommands';
@@ -221,6 +221,17 @@ async function handleUpdate(update: any): Promise<void> {
   void ensureBotCommandScopes().catch((e) => console.warn('setMyCommands', e instanceof Error ? e.message : e));
 
   if (isGroup && isPrivateOnlyCommand(cmd)) return;
+
+  const webAppRaw = typeof msg.web_app_data?.data === 'string' ? msg.web_app_data.data : null;
+  if (webAppRaw) {
+    if (!admin) {
+      if (!isGroup) await sendMessage(chatId, UI.error('คำสั่งนี้ใช้ได้เฉพาะผู้ดูแลระบบ — ติดต่อ SuperAdmin เพื่อเพิ่มสิทธิ์'));
+      return;
+    }
+    const handled = await handleWebAppData({ chatId, userId, admin, data: webAppRaw });
+    if (!handled) await sendMessage(chatId, C.expiredToastCard());
+    return;
+  }
 
   if ((requiresAdminAccess(text) || Boolean(msg.photo)) && !admin) {
     if (!isGroup) {

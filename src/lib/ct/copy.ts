@@ -1,11 +1,14 @@
 import type { OutgoingMessage } from '../telegram';
 import {
-  esc, ik, btn, urlBtn, displayLedger, showAcct, thbInt, thbCard, usdt, rateCode, quoteBlock, totalsBanner, deskUrl,
+  esc, ik, btn, urlBtn, webAppBtn, miniAppUrl, displayLedger, showAcct, thbInt, thbCard, usdt, rateCode, quoteBlock, totalsBanner, deskUrl,
 } from './format';
 import { head as tokenHead, progress, rule, NODE, kv, quote, IN_DOT, OUT_DOT } from './tokens';
 import type { FlowStep } from './tokens';
 import { richDone, richInReady, richStart, richWait, richVault } from './cardJson';
+import { cardSettlement } from './settlementRich';
 import { bankLabel } from '../botSecurity';
+
+export { cardSettlement };
 
 function msg(text: string, keyboard?: unknown, rich?: OutgoingMessage['rich']): OutgoingMessage {
   return { text, reply_markup: keyboard, rich };
@@ -51,7 +54,7 @@ export function welcome(name: string): OutgoingMessage {
       '',
       `<blockquote>${IN_DOT} ฝาก (IN)   ${OUT_DOT} โอน (OUT)\nส่งสลิปได้เลย</blockquote>`,
     ].join('\n'),
-    ik([[btn('เลือกห้อง', 'room:list', 'primary'), urlBtn('เปิดโต๊ะ', deskUrl())]]),
+    ik([[btn('เลือกห้อง', 'room:list', 'primary'), webAppBtn('เปิด VAULT', miniAppUrl('vault')), urlBtn('เปิดโต๊ะ', deskUrl())]]),
     richStart(name),
   );
 }
@@ -99,7 +102,7 @@ export function settingsCard(d: {
     ik([
       [btn('ใช้ห้องนี้', 'room:here', 'success'), btn('เลือกห้องอื่น', 'room:list', 'primary')],
       [btn('อัตรา', 'vault:rateask'), btn('บัญชีรับ', 'pin:view'), btn('เพิ่มผู้ดูแล', 'admin:add')],
-      [btn('วันใหม่', 'vault:newday'), urlBtn('เปิดโต๊ะ', deskUrl())],
+      [btn('วันใหม่', 'vault:newday'), webAppBtn('เปิด VAULT', miniAppUrl('vault')), urlBtn('เปิดโต๊ะ', deskUrl())],
     ]),
   );
 }
@@ -132,7 +135,7 @@ export function roomPicker(d: {
     const label = `${active ? '✓ ' : ''}${r.name}${rate}`.slice(0, 34);
     rows.push([btn(label, `room:use:${r.chatId}`, active ? 'success' : 'primary')]);
   }
-  rows.push([btn('ตั้งค่า', 'vault:set'), urlBtn('เปิดโต๊ะ', deskUrl())]);
+  rows.push([btn('ตั้งค่า', 'vault:set'), webAppBtn('เปิด VAULT', miniAppUrl('vault')), urlBtn('เปิดโต๊ะ', deskUrl())]);
   return msg(
     [
       head('เลือกห้อง', 'หลายห้องปฏิบัติการ (multi-room)'),
@@ -235,7 +238,7 @@ export function cardInReady(d: {
   }
   rows.push([btn('แก้ไข', `slip:edit:${d.short}`), btn('พักรายการ', `slip:hold:${d.short}`)]);
   rows.push([btn('ยกเลิก', `slip:cancel:${d.short}`, 'danger')]);
-  rows.push([urlBtn('เปิดโต๊ะ', deskUrl())]);
+  rows.push([webAppBtn('เปิด VAULT', miniAppUrl('vault')), urlBtn('เปิดโต๊ะ', deskUrl())]);
   return msg(lines.filter(Boolean).join('\n'), ik(rows), richInReady({
     thb: d.thb,
     usdt: hasDesk ? d.shouldSend : 0,
@@ -381,7 +384,7 @@ export function cardLocked(d: {
   rows.push([btn('แก้ไข', `slip:edit:${d.short}`), btn('พัก', `slip:open:${d.short}`)]);
   if (d.canUndo) rows.push([btn('ยกเลิก', `slip:undo:${d.short}`, 'danger')]);
   else rows.push([btn('ลบ', `slip:delask:${d.short}`, 'danger')]);
-  rows.push([urlBtn('เปิดโต๊ะ', deskUrl())]);
+  rows.push([webAppBtn('เปิด VAULT', miniAppUrl('vault')), urlBtn('เปิดโต๊ะ', deskUrl())]);
   const queued = Boolean(d.queued || d.batch);
   const ready = Boolean(d.batch?.ready);
   const batchLines = d.batch && d.batch.count
@@ -418,20 +421,17 @@ export function cardSettledBatch(d: {
   thb: number;
   usdt: number;
   adminName: string;
+  desk?: number;
 }): OutgoingMessage {
-  return msg(
-    [
-      head('โอนสำเร็จ', `ส่งรวม ${d.count} ใบ (batch)`),
-      tape('done'),
-      '',
-      `ยอดรับเข้า (IN)      <b>${thbInt(d.thb)} THB</b>`,
-      `เงินออก (OUT)     <b>${usdt(d.usdt)} USDT</b>`,
-      '',
-      esc(d.adminName),
-      'clear.',
-    ].join('\n'),
-    ik([[urlBtn('เปิดโต๊ะ', deskUrl())]]),
-  );
+  const rate = d.desk && d.desk > 0 ? d.desk : (d.usdt > 0 ? d.thb / d.usdt : 0);
+  return cardSettlement({
+    depositThb: d.thb,
+    depositCount: d.count,
+    roomRate: rate,
+    sentUsdt: d.usdt,
+    settled: true,
+    statusMessage: d.adminName,
+  });
 }
 
 export function cardDeleteAsk(d: { ledger: string; thb: number; short: string }): OutgoingMessage {
@@ -469,7 +469,7 @@ export function cardSettled(d: {
     ].join('\n'),
     ik([
       [btn('ดูรายการ', `slip:open:${d.short}`), btn('คัดลอกเลขที่', `slip:copy:${d.short}`)],
-      [btn('ดูยอด', 'vault:today', 'primary')],
+      [btn('ดูยอด', 'vault:today', 'primary'), webAppBtn('เปิด VAULT', miniAppUrl('done'))],
     ]),
     richDone({
       thb: d.thb,
@@ -609,7 +609,7 @@ export function vaultBanner(d: {
 function vaultButtons(pendingShorts: string[]) {
   const rows: Array<Array<Record<string, unknown>>> = [
     [btn('รอส่ง', 'vault:pending', 'primary'), btn('อัตรา', 'vault:rateask'), btn('ตั้งค่า', 'vault:set')],
-    [btn('เลือกห้อง', 'room:list', 'primary'), urlBtn('เปิดโต๊ะ', deskUrl())],
+    [btn('เลือกห้อง', 'room:list', 'primary'), webAppBtn('เปิด VAULT', miniAppUrl('vault')), urlBtn('เปิดโต๊ะ', deskUrl())],
   ];
   if (pendingShorts.length) {
     rows.unshift([btn('บันทึกส่งรวม', 'vault:batch', 'danger')]);

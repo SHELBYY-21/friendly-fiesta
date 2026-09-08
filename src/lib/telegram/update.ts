@@ -1,4 +1,4 @@
-export type TelegramUpdateKind = 'message' | 'callback' | 'ignored';
+export type TelegramUpdateKind = 'message' | 'callback' | 'webapp' | 'ignored';
 
 export type ParsedTelegramUpdate = {
   updateId: number;
@@ -11,6 +11,7 @@ export type ParsedTelegramUpdate = {
   livePhoto: boolean;
   callbackId: string | null;
   callbackData: string | null;
+  webAppData: string | null;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -67,6 +68,7 @@ export function parseTelegramUpdate(body: unknown): ParsedTelegramUpdate | null 
       livePhoto: false,
       callbackId: typeof callback.id === 'string' ? callback.id : null,
       callbackData: typeof callback.data === 'string' ? callback.data : null,
+      webAppData: null,
     };
   }
 
@@ -83,6 +85,7 @@ export function parseTelegramUpdate(body: unknown): ParsedTelegramUpdate | null 
       livePhoto: false,
       callbackId: null,
       callbackData: null,
+      webAppData: null,
     };
   }
 
@@ -90,9 +93,11 @@ export function parseTelegramUpdate(body: unknown): ParsedTelegramUpdate | null 
   const from = asRecord(msg.from);
   const text = typeof msg.text === 'string' ? msg.text.trim() : null;
   const caption = typeof msg.caption === 'string' ? msg.caption.trim() : null;
+  const webApp = asRecord(msg.web_app_data);
+  const webAppData = typeof webApp?.data === 'string' ? webApp.data : null;
   return {
     updateId,
-    kind: 'message',
+    kind: webAppData ? 'webapp' : 'message',
     chatId: asId(chat?.id),
     userId: asId(from?.id),
     text: text || null,
@@ -101,5 +106,6 @@ export function parseTelegramUpdate(body: unknown): ParsedTelegramUpdate | null 
     livePhoto: Boolean(msg.live_photo) || Boolean(msg.video),
     callbackId: null,
     callbackData: null,
+    webAppData,
   };
 }

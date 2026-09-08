@@ -1,4 +1,4 @@
-import { deskUrl, pnlThb, rateCode, thbCard, thbInt, usdt, type BtnStyle } from './format';
+import { deskUrl, miniAppUrl, pnlThb, rateCode, thbCard, thbInt, usdt, type BtnStyle } from './format';
 
 export type RichBlock = Record<string, unknown>;
 export type InputRichMessage = { blocks: RichBlock[] } | { html: string };
@@ -42,7 +42,7 @@ function details(summary: string, body: string): RichBlock {
 }
 
 function buttons(
-  items: Array<{ text: string; callback_data?: string; url?: string; style?: BtnStyle | 'link' }>,
+  items: Array<{ text: string; callback_data?: string; url?: string; web_app?: { url: string }; style?: BtnStyle | 'link' }>,
   align: 'left' | 'center' = 'left',
 ): RichBlock {
   return {
@@ -53,6 +53,7 @@ function buttons(
       style: b.style,
       callback_data: b.callback_data,
       url: b.url,
+      web_app: b.web_app,
     })),
   };
 }
@@ -80,6 +81,7 @@ export function richStart(name = 'CE'): InputRichMessage {
       quote('เขียว = ฝาก\nแดง = โอน\nส่งสลิปได้เลย'),
       buttons([
         { text: 'เลือกห้อง', callback_data: 'room:list', style: 'primary' },
+        { text: 'เปิด VAULT', web_app: { url: miniAppUrl('vault') } },
         { text: 'เปิดโต๊ะ', url: deskUrl(), style: 'link' },
       ]),
     ],
@@ -114,6 +116,7 @@ export function richWait(d: QuoteNums & { ledger: string; short: string }): Inpu
       buttons([
         { text: 'บันทึกส่ง', callback_data: `slip:settle:${d.short}`, style: 'danger' },
         { text: 'บันทึกส่งรวม', callback_data: 'vault:batch', style: 'danger' },
+        { text: 'เปิด VAULT', web_app: { url: miniAppUrl('vault') } },
       ]),
     ],
   };
@@ -127,6 +130,7 @@ export function richDone(d: QuoteNums & { ledger: string; short: string }): Inpu
       table(quoteRows(d), { caption: 'ปิดรายการ' }),
       buttons([
         { text: 'ดูยอด', callback_data: 'vault:today', style: 'primary' },
+        { text: 'เปิด VAULT', web_app: { url: miniAppUrl('done') } },
         { text: 'เปิดโต๊ะ', url: deskUrl(), style: 'link' },
       ]),
     ],
@@ -145,7 +149,38 @@ export function richVault(d: { inThb: number; outUsdt: number; pendingUsdt: numb
       ]),
       buttons([
         { text: 'เลือกห้อง', callback_data: 'room:list', style: 'primary' },
+        { text: 'เปิด VAULT', web_app: { url: miniAppUrl('vault') } },
         { text: 'เปิดโต๊ะ', url: deskUrl(), style: 'link' },
+      ]),
+    ],
+  };
+}
+
+export function richSettlement(d: {
+  depositThb: number;
+  depositCount: number;
+  required: number;
+  sent: number | null;
+  state: string;
+  rate: number;
+}): InputRichMessage {
+  return {
+    blocks: [
+      heading('เคลียร์ยอด'),
+      paragraph(`${d.state} · ${d.depositCount} รายการ`),
+      table([
+        ['รายการ', 'ยอด'],
+        ['ฝากรวม', `${thbCard(d.depositThb)} THB`],
+        [`ต้องส่ง @ ${rateCode(d.rate)}`, `${usdt(d.required)} USDT`],
+        ['ส่งแล้ว', d.sent == null ? 'รอส่ง' : `${usdt(d.sent)} USDT`],
+      ]),
+      buttons([
+        {
+          text: d.state === 'SETTLED' ? 'โอนสำเร็จ' : 'บันทึกส่งรวม',
+          callback_data: d.state === 'SETTLED' ? 'vault:today' : 'vault:batch',
+          style: d.state === 'SETTLED' ? 'success' : 'danger',
+        },
+        { text: 'เปิด VAULT', web_app: { url: miniAppUrl(d.state === 'SETTLED' ? 'done' : 'vault') } },
       ]),
     ],
   };
@@ -184,6 +219,7 @@ export function cardExamples() {
       wait: richWait(slip),
       done: richDone(slip),
       vault: richVault({ inThb: 10000, outUsdt: 0, pendingUsdt: 272.48 }),
+      settlement: richSettlement({ depositThb: 10000, depositCount: 2, required: 272.48, sent: null, state: 'READY', rate: 36.7 }),
       pin: richPin({ name: 'เรืองรอง ชมขวัญ', bank: 'SCB', account: '4371699895', limit: '???' }),
     },
     sendPhoto: {

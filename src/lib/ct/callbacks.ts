@@ -28,6 +28,8 @@ import { heroPng } from './brandCards';
 import { gateOcr } from './gate';
 import { renderGateCard } from './photo';
 import * as C from './copy';
+import { mapSettlementAction } from './settlementRich';
+import { parseWebAppPayload } from './webAppInit';
 import type { Admin } from '@/types/transactions';
 import { saveTyphoonSetting } from '../systemSettings';
 
@@ -202,6 +204,26 @@ async function sendHero(
   const id = await sendPhoto(chatId, png, card);
   if (messageId) await deleteMessage(chatId, messageId);
   return id;
+}
+
+export async function handleWebAppData(opts: {
+  chatId: number;
+  userId: number;
+  admin: Admin;
+  data: string;
+}): Promise<boolean> {
+  const payload = parseWebAppPayload(opts.data);
+  if (!payload) return false;
+  const action = mapSettlementAction(payload.action);
+  if (!action) return false;
+  await handleCtCallback({
+    id: 'webapp',
+    chatId: opts.chatId,
+    userId: opts.userId,
+    admin: opts.admin,
+    data: action,
+  });
+  return true;
 }
 
 export async function handleCtCallback(opts: {
