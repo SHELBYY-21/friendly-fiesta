@@ -25,6 +25,7 @@ import { commitIncomingLock, dueSummary, settleAllDue } from './queue';
 import { outgoingLedgerRef, settleBlockReason, SKIP_TH } from './settleGuard';
 import { shouldSend, clockBkk, displayLedger, adminKeyboard, thbCard, usdt } from './format';
 import { heroPng } from './brandCards';
+import { buildSlipViewModel, renderSlipCard, renderSlipDetails } from './slipView';
 import { gateOcr } from './gate';
 import { renderGateCard } from './photo';
 import * as C from './copy';
@@ -54,7 +55,7 @@ export function isCtCallback(data: string): boolean {
 export const SLIP_ACTIONS = new Set([
   'lock', 'queue', 'force', 'forceask', 'settle', 'undo', 'delask', 'delete',
   'open', 'copy', 'hold', 'cancel', 'retry', 'edit', 'note', 'amt', 'unit',
-  'pinthis', 'pinslot', 'noop',
+  'pinthis', 'pinslot', 'noop', 'details',
 ]);
 
 export const VAULT_ACTIONS = new Set(['today', 'pending', 'rateask', 'newday', 'recent', 'all', 'set', 'batch']);
@@ -168,6 +169,35 @@ async function addAdminById(chatId: number, tgId: number) {
   const row = await upsertAdmin(tgId, `Admin ${tgId}`);
   await sendMessage(chatId, C.adminAdded(tgId, row.name));
   await sendMessage(chatId, await renderSettings(chatId));
+}
+
+
+function slipModelFromPending(p: PendingSlip, operator?: string | null) {
+  const note = String(p.note || '');
+  const date = (note.match(/DATE:([^|]+)/) || [])[1]?.trim() || null;
+  const time = (note.match(/TIME:([^|]+)/) || [])[1]?.trim() || null;
+  const reference = (note.match(/REF:([^|]+)/) || [])[1]?.trim() || null;
+  return buildSlipViewModel({
+    short: p.short_ref,
+    ledger: p.ledger_ref,
+    amount: p.thb_in ?? 0,
+    bank: p.bank || '—',
+    account: p.account_masked,
+    accountName: p.name,
+    date,
+    time,
+    reference,
+    roomRate: p.desk_rate ?? 0,
+    ocrOk: (p.thb_in ?? 0) > 0,
+    confidence: p.ocr_confidence,
+    expectedUsdt: p.should_send,
+    cleared: false,
+    operator: operator ?? p.admin_name,
+    audit: {
+      ocrVerifiedAt: p.created_at ?? null,
+      operator: operator ?? p.admin_name,
+    },
+  });
 }
 
 async function load(chatId: number, ref: string, cbId: string, roomId?: number): Promise<PendingSlip | null> {
@@ -405,7 +435,11 @@ export async function handleCtCallback(opts: {
       return;
     case 'open':
       await answerCallback(id);
-      await redraw(chatId, messageId, detailCard(p));
+      await redraw(chatId, messageId, renderSlipCard(slipModelFromPending(p, admin.name)));
+      return;
+    case 'details':
+      await answerCallback(id, 'DETAILS');
+      await redraw(chatId, messageId, renderSlipDetails(slipModelFromPending(p, admin.name)));
       return;
     case 'copy':
       await answerCallback(id, displayLedger(p.ledger_ref));
