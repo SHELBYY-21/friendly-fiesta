@@ -5,7 +5,7 @@ import {
 import { head as tokenHead, progress, rule, NODE, kv, quote } from './tokens';
 import type { FlowStep } from './tokens';
 import { richDone, richInReady, richStart, richWait, richVault } from './cardJson';
-import { buildSlipViewFromParts, renderSlipView } from './slipView';
+import { buildSlipViewFromParts, renderSlipCard } from './slipView';
 import { bankLabel } from '../botSecurity';
 
 function msg(text: string, keyboard?: unknown, rich?: OutgoingMessage['rich']): OutgoingMessage {
@@ -195,9 +195,8 @@ export function cardInReady(d: {
   raw?: string | null;
 }): OutgoingMessage {
   void d.review;
-  void d.confidence;
-  void d.adminName;
   void d.fresh;
+  // adminName / confidence used in slip model
   void d.senderName;
   void d.senderLast4;
   void d.senderBank;
@@ -210,6 +209,7 @@ export function cardInReady(d: {
   void d.raw;
   void d.mkt;
   const hasDesk = d.desk > 0;
+  // OCR verified card — calculation shown; payment NOT cleared until settle/accept path marks cleared
   const view = buildSlipViewFromParts({
     short: d.short,
     ledger: d.ledger,
@@ -221,11 +221,11 @@ export function cardInReady(d: {
     time: d.time,
     reference: d.transRef,
     roomRate: d.desk,
-    sentUsdt: hasDesk ? d.shouldSend : 0,
-    status: hasDesk && d.thb > 0 ? 'CLEARED' : 'PENDING',
-    canConfirm: hasDesk && d.thb > 0,
+    confidence: d.confidence,
+    operator: d.adminName,
+    cleared: false,
   });
-  const base = renderSlipView(view);
+  const base = renderSlipCard(view);
   // Keep desk tip when rate missing
   const tip = hasDesk ? '' : '\n\nกรุณาตั้งอัตราห้องก่อน เช่น <code>36.65</code>';
   // Extra ops row (queue/hold/cancel) under primary CONFIRM/EDIT
