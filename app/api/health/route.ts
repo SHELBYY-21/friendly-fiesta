@@ -5,6 +5,7 @@ import { configuredSlipProvider } from '@/lib/ct/slipInquiry';
 import { ensureTelegramWebhook } from '@/lib/ct/telegramWebhook';
 import { opsChatId } from '@/lib/ct/deskChat';
 import { resolveTyphoonKey } from '@/lib/typhoon';
+import { aksonOcrKey } from '@/lib/aksonOcr';
 
 export const runtime = 'nodejs';
 export const revalidate = 0;
@@ -62,7 +63,8 @@ export async function GET(req: NextRequest) {
     process.env.GROK_API_KEY?.trim() || process.env.XAI_API_KEY?.trim(),
   );
   const typhoon = Boolean(await resolveTyphoonKey());
-  const ocrFallback = Boolean(process.env.OCR_SPACE_API_KEY?.trim());
+  const aksonOcr = Boolean(aksonOcrKey());
+  const ocrFallback = Boolean(process.env.OCR_SPACE_API_KEY?.trim()) || aksonOcr;
   const slipVerify = configuredSlipProvider()?.name ?? false;
   const liveError = staleWebhookError(webhook);
 
@@ -75,6 +77,7 @@ export async function GET(req: NextRequest) {
       vision,
       typhoon,
       ocrFallback,
+      aksonOcr,
       slipVerify,
       pinGate: Boolean(process.env.DASHBOARD_PIN),
       opsChat: Boolean(process.env.OPS_CHAT_ID || process.env.NOTIFY_CHAT_ID || chatId),
