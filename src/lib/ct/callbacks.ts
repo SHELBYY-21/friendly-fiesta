@@ -54,7 +54,7 @@ export function isCtCallback(data: string): boolean {
 export const SLIP_ACTIONS = new Set([
   'lock', 'queue', 'force', 'forceask', 'settle', 'undo', 'delask', 'delete',
   'open', 'copy', 'hold', 'cancel', 'retry', 'edit', 'note', 'amt', 'unit',
-  'pinthis', 'pinslot',
+  'pinthis', 'pinslot', 'noop',
 ]);
 
 export const VAULT_ACTIONS = new Set(['today', 'pending', 'rateask', 'newday', 'recent', 'all', 'set', 'batch']);
@@ -335,6 +335,11 @@ export async function handleCtCallback(opts: {
     await armAdminPrompt(chatId, userId);
     await answerCallback(id, 'กรุณาส่งไอดี');
     await sendMessage(chatId, C.askAdminId());
+    return;
+  }
+
+  if (cb.domain === 'slip' && cb.action === 'noop') {
+    await answerCallback(id);
     return;
   }
 

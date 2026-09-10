@@ -5,6 +5,7 @@ import {
 import { head as tokenHead, progress, rule, NODE, kv, quote } from './tokens';
 import type { FlowStep } from './tokens';
 import { richDone, richInReady, richStart, richWait, richVault } from './cardJson';
+import { buildSlipViewFromParts, renderSlipView } from './slipView';
 import { bankLabel } from '../botSecurity';
 
 function msg(text: string, keyboard?: unknown, rich?: OutgoingMessage['rich']): OutgoingMessage {
@@ -26,12 +27,12 @@ function rawBlock(raw?: string | null, max = 900): string {
 
 export function skeletonScan(bank: string, last4: string): OutgoingMessage {
   return msg(
-    `${head('AGENT', 'กำลังอ่านสลิป (scan)')}\n${tape('scan')}\n${kv('ผู้รับ', 'PAYEE', `${esc(bank)}  <code>${esc(showAcct(last4))}</code>`)}`,
+    `${head('SLIP', 'CE VAULT')}\n${kv('ผู้รับ', 'PAYEE', `${esc(bank)}  <code>${esc(showAcct(last4))}</code>`)}`,
   );
 }
 
 export function skeletonRead(): OutgoingMessage {
-  return msg(`${head('AGENT', 'เทียบบัญชีรับ (match)')}\n${tape('match')}`);
+  return msg(`${head('SLIP', 'CE VAULT')}`);
 }
 
 export function skeletonVault(): OutgoingMessage {
@@ -193,57 +194,60 @@ export function cardInReady(d: {
   slipType?: string | null;
   raw?: string | null;
 }): OutgoingMessage {
+  void d.review;
+  void d.confidence;
+  void d.adminName;
+  void d.fresh;
+  void d.senderName;
+  void d.senderLast4;
+  void d.senderBank;
+  void d.senderAccount;
+  void d.feeThb;
+  void d.channel;
+  void d.promptpay;
+  void d.balanceThb;
+  void d.slipType;
+  void d.raw;
+  void d.mkt;
   const hasDesk = d.desk > 0;
-  const payeeAcct = showAcct(d.receiverAccount || d.last4);
-  const payerAcct = showAcct(d.senderAccount || d.senderLast4);
-  const detail = [
-    d.slipType ? `ประเภท  ${esc(d.slipType)}` : '',
-    [d.date, d.time].filter(Boolean).length ? `เวลา  ${esc([d.date, d.time].filter(Boolean).join('  '))}` : '',
-    d.channel ? `ช่องทาง  ${esc(d.channel)}` : '',
-    d.transRef ? `อ้างอิง  <code>${esc(d.transRef)}</code>` : '',
-    d.feeThb != null ? `ค่าธรรมเนียม  ${thbInt(d.feeThb)} THB` : '',
-    d.balanceThb != null ? `คงเหลือ  ${thbCard(d.balanceThb)} THB` : '',
-    '',
-    'ผู้รับ',
-    `${esc(bankLabel(d.bank))}  <code>${esc(payeeAcct)}</code>`,
-    esc(d.name || '—'),
-    d.promptpay ? `พร้อมเพย์  <code>${esc(d.promptpay)}</code>` : '',
-    '',
-    'ผู้โอน',
-    `${esc(bankLabel(d.senderBank || '—'))}  <code>${esc(payerAcct)}</code>`,
-    esc(d.senderName || '—'),
-    '',
-    `OCR  ${Math.round(d.confidence)}%`,
-    d.review ? 'ยอดหรือบัญชียังไม่มั่นใจ' : 'สลิปตรงบัญชีแล้ว',
-  ].filter((x) => x !== undefined);
-  const lines = [
-    head('ยอดรับเข้า', `<code>${esc(displayLedger(d.ledger))}</code>`),
-    quoteBlock({ thb: d.thb, usdt: hasDesk ? d.shouldSend : 0, desk: d.desk, mkt: d.mkt ?? null }),
-    tape('in'),
-    `<blockquote expandable>${detail.filter(Boolean).join('\n')}</blockquote>`,
-    'กด <b>ยืนยัน</b> เพื่อรับฝาก',
-  ];
-  if (d.fresh) lines.push(`บัญชีใหม่  ${esc(bankLabel(d.bank))}  <code>${esc(payeeAcct)}</code>`);
-  if (!hasDesk) lines.push('กรุณาตั้งอัตราห้องก่อน เช่น <code>36.65</code>');
-  if (d.raw) lines.push(rawBlock(d.raw));
-  const rows: Array<Array<Record<string, unknown>>> = [];
-  if (hasDesk) {
-    rows.push([
-      btn('ยืนยัน', `slip:lock:${d.short}`, 'success'),
-      btn('บันทึกไว้ก่อน', `slip:queue:${d.short}`, 'primary'),
-    ]);
-  }
-  rows.push([btn('แก้ไข', `slip:edit:${d.short}`), btn('พักรายการ', `slip:hold:${d.short}`)]);
-  rows.push([btn('ยกเลิก', `slip:cancel:${d.short}`, 'danger')]);
-  rows.push([urlBtn('เปิดโต๊ะ', deskUrl())]);
-  return msg(lines.filter(Boolean).join('\n'), ik(rows), richInReady({
-    thb: d.thb,
-    usdt: hasDesk ? d.shouldSend : 0,
-    desk: d.desk,
-    mkt: d.mkt ?? null,
-    ledger: d.ledger,
+  const view = buildSlipViewFromParts({
     short: d.short,
-  }));
+    ledger: d.ledger,
+    amount: d.thb,
+    bank: d.bank,
+    account: d.receiverAccount || d.last4,
+    accountName: d.name,
+    date: d.date,
+    time: d.time,
+    reference: d.transRef,
+    roomRate: d.desk,
+    sentUsdt: hasDesk ? d.shouldSend : 0,
+    status: hasDesk && d.thb > 0 ? 'CLEARED' : 'PENDING',
+    canConfirm: hasDesk && d.thb > 0,
+  });
+  const base = renderSlipView(view);
+  // Keep desk tip when rate missing
+  const tip = hasDesk ? '' : '\n\nกรุณาตั้งอัตราห้องก่อน เช่น <code>36.65</code>';
+  // Extra ops row (queue/hold/cancel) under primary CONFIRM/EDIT
+  const kb = (base.reply_markup as { inline_keyboard?: Array<Array<Record<string, unknown>>> } | undefined)
+    ?.inline_keyboard?.slice() || [];
+  if (hasDesk) {
+    kb.push([btn('บันทึกไว้ก่อน', `slip:queue:${d.short}`, 'primary')]);
+  }
+  kb.push([btn('พักรายการ', `slip:hold:${d.short}`), btn('ยกเลิก', `slip:cancel:${d.short}`, 'danger')]);
+  kb.push([urlBtn('เปิดโต๊ะ', deskUrl())]);
+  return msg(
+    `${base.text}${tip}`,
+    ik(kb),
+    richInReady({
+      thb: d.thb,
+      usdt: hasDesk ? d.shouldSend : 0,
+      desk: d.desk,
+      mkt: d.mkt ?? null,
+      ledger: d.ledger,
+      short: d.short,
+    }),
+  );
 }
 
 export function cardOcrWeak(d: {
@@ -269,7 +273,7 @@ export function cardOcrWeak(d: {
   rows.push([btn('ลองใหม่', `slip:retry:${d.short}`), btn('ยกเลิก', `slip:cancel:${d.short}`, 'danger')]);
   return msg(
     [
-      head('แจ้งเตือน', `อ่านสลิปไม่ชัด (OCR weak)  ${Math.round(d.confidence)}%`),
+      head('แจ้งเตือน', 'อ่านสลิปไม่ชัด — กรุณายืนยันยอด'),
       tape('scan'),
       kv('ผู้รับ', 'PAYEE', `${esc(bankLabel(d.bank))}  <code>${esc(showAcct(d.account || d.last4))}</code>`),
       kv('ชื่อ', 'NAME', esc(d.name || '—')),
@@ -512,7 +516,6 @@ export function cardDetail(d: {
       kv('ผู้รับ', 'PAYEE', `${esc(bankLabel(d.bank))}  <code>${esc(showAcct(d.account || d.last4))}</code>`),
       kv('ชื่อ', 'NAME', esc(d.name || '—')),
       `บัญชีรับ (PIN)    ${d.pinMatch ? 'ตรง (match)' : 'ไม่ตรง (mismatch)'}`,
-      `ความมั่นใจ (OCR)  ${d.confidence != null ? `${Math.round(d.confidence)}%` : '—'}`,
       esc(d.adminIn),
       `เวลาเข้า (IN TIME)     ${esc(d.inTime)}`,
       `เวลาออก (OUT TIME)     ${d.outTime ? esc(d.outTime) : '—'}`,
