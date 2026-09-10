@@ -146,7 +146,7 @@ export async function addCountUpEffect(_from: number, _to: number): Promise<Appl
 }
 
 export async function addFadeEffect(): Promise<AppliedEffect> {
-  return getEffectManager().apply('fade', null);
+  return getEffectManager().apply('fade');
 }
 
 /** Map settlement state → one effect (financial values untouched). */
