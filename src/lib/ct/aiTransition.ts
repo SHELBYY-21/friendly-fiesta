@@ -215,7 +215,13 @@ export class AiTransition {
 }
 
 export function aiReceived(opts?: { live?: boolean }): OutgoingMessage {
-  return frame('received', { live: Boolean(opts?.live) });
+  const live = Boolean(opts?.live);
+  // Quiet open — no OCR status spam (UX: OCR → Extract → Calculate → Clear)
+  return {
+    text: live
+      ? '◈ <b>CE VAULT</b> · SLIP\nLive Photo · still frame'
+      : '◈ <b>CE VAULT</b> · SLIP',
+  };
 }
 
 export function aiVerifiedCard(ctx: AiContext): OutgoingMessage {

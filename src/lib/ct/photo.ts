@@ -17,7 +17,7 @@ import * as C from './copy';
 import { cardDuplicate, cardAlreadyQueued } from './notice';
 import { renderScanPng } from './cardImage';
 import { heroPng } from './brandCards';
-import { AiTransition, aiReceived } from './aiTransition';
+import { aiReceived } from './aiTransition';
 import { decodeStillFrame } from './livePhoto';
 import type { Admin } from '@/types/transactions';
 import type { PinnedBank } from '../banks';
@@ -129,39 +129,15 @@ export async function handleCtPhoto(opts: { chatId: number; userId: number; admi
   }
   const fingerprint = fingerprints[0];
 
-  const ai = new AiTransition(chatId, cardId, Boolean(livePhoto), still);
+  // Quiet OCR: no AiTransition status spam (OCR → Extract → Calculate → Clear)
   const matchedPin = matchSlipPins(slip.bank, slip.receiverLast4, slip.senderLast4, pins);
   const pinMatch = Boolean(matchedPin);
   const thb = slip.thbAmount && slip.thbAmount > 0 ? slip.thbAmount : null;
   const last4Early = accountLast4(matchedPin?.account_number) ?? slip.receiverLast4 ?? slip.senderLast4;
-  const ctx = {
-    thb,
-    usdt: null as number | null,
-    bank: matchedPin?.bank_name ?? slip.bank ?? todayPin?.bank_name ?? null,
-    last4: last4Early,
-    ref: slip.transRef,
-    time: slip.time,
-    date: slip.date,
-    name: slip.receiverName ?? slip.senderName,
-    sender: slip.senderName,
-    channel: slip.channel,
-    fee: slip.feeThb,
-    confidence: slip.confidence,
-    account: slip.receiverAccount || matchedPin?.account_number || last4Early,
-    senderAccount: slip.senderAccount,
-    senderBank: slip.senderBank,
-    balance: slip.balanceThb,
-    slipType: slip.slipType,
-  };
-  await ai.step('ocr', ctx);
-  await ai.step('extract', ctx);
-  await ai.step('match', ctx);
   const qrVerified = Boolean(qr?.inquiry?.valid);
   let gate = gateOcr({ thb, confidence: slip.confidence, pinMatch, hasCurrency: thb != null, qrVerified });
   if (qr?.inquiry && qr.inquiry.valid === false) gate = 'OCR_WEAK';
   const usdtDue = thb && rates.desk ? shouldSend(thb, rates.desk) : null;
-  ctx.usdt = usdtDue;
-  await ai.step('calc', ctx);
   const notes = [
     isOcrJunkAmount(thb) ? 'OCR_JUNK:AMOUNT_TOO_LARGE' : null,
     qr?.transRef ? `QR:${qr.transRef}` : null,
