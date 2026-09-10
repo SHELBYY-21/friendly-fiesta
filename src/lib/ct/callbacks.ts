@@ -48,7 +48,7 @@ export function parseCb(data: string): {
 
 export function isCtCallback(data: string): boolean {
   const d = (data || '').split(':')[0];
-  return d === 'vault' || d === 'slip' || d === 'pin' || d === 'admin' || d === 'room';
+  return d === 'vault' || d === 'slip' || d === 'pin' || d === 'admin' || d === 'room' || d === 'settleui';
 }
 
 export const SLIP_ACTIONS = new Set([
@@ -214,6 +214,15 @@ export async function handleCtCallback(opts: {
 }): Promise<void> {
   const { id, chatId, userId, admin, data, messageId } = opts;
   const cb = parseCb(data);
+  if (cb.domain === 'settleui') {
+    if (!messageId) {
+      await answerCallback(id);
+      return;
+    }
+    const { handleSettleUiCallback } = await import('./settlementCallbacks');
+    await handleSettleUiCallback({ id, chatId, userId, messageId, data });
+    return;
+  }
   const roomId = await resolveOpsRoom(userId, chatId);
 
   if (cb.domain === 'room') {
@@ -730,6 +739,16 @@ export async function handleCtText(opts: {
   const t = opts.text.trim();
   const view = opts.chatId;
   const room = await resolveOpsRoom(opts.userId, opts.chatId);
+  {
+    const { handleSettleUiText, openSettlementUi } = await import('./settlementCallbacks');
+    if (/^(?:SETTLE|SETTLEMENT|\/settle)$/i.test(t)) {
+      await openSettlementUi(opts.chatId, opts.userId);
+      return true;
+    }
+    if (await handleSettleUiText({ chatId: opts.chatId, userId: opts.userId, text: t })) {
+      return true;
+    }
+  }
   const typhoonCmd = t.match(/^\/typhoon(?:@[a-z0-9_]+)?(?:\s+(.+))?$/i);
   if (typhoonCmd) {
     const key = (typhoonCmd[1] || '').trim();

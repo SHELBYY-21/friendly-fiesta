@@ -1,0 +1,19 @@
+/* CE VAULT Settlement — desk motion (Telegram uses editMessage, not CSS) */
+.settle-card {
+  background: var(--settle-bg, #0A0A0A);
+  color: #E8E8E4;
+  transition: opacity var(--settle-card-duration, 180ms) var(--settle-card-ease, ease),
+    transform var(--settle-card-duration, 180ms) var(--settle-card-ease, ease);
+}
+.settle-card.is-enter {
+  opacity: 0;
+  transform: translateY(var(--settle-card-ty, 8px));
+}
+.settle-ready { box-shadow: 0 0 0 1px color-mix(in srgb, var(--settle-cyan, #6EE7E5) 35%, transparent); }
+.settle-matched, .settle-settled, .settle-excess {
+  box-shadow: 0 0 24px color-mix(in srgb, var(--settle-gold, #C9A84C) 28%, transparent);
+}
+.settle-short { box-shadow: 0 0 16px color-mix(in srgb, var(--settle-purple, #7C5CFF) 30%, transparent); }
+@media (prefers-reduced-motion: reduce) {
+  .settle-card { transition: none !important; }
+}
