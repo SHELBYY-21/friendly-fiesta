@@ -261,6 +261,58 @@ export function renderHeroPng(kind: 'vault' | 'locked' | 'settled', d: {
   return encodePng(buf, W, H);
 }
 
+
+/** Crop to bright paper region so the bank slip fills the scan panel. */
+export function focusStill(still: StillFrame): StillFrame {
+  const src = still.data;
+  const w = still.width;
+  const h = still.height;
+  if (w < 32 || h < 32) return still;
+  let minX = w;
+  let minY = h;
+  let maxX = 0;
+  let maxY = 0;
+  let hits = 0;
+  const step = Math.max(2, Math.floor(Math.min(w, h) / 160));
+  for (let y = 0; y < h; y += step) {
+    for (let x = 0; x < w; x += step) {
+      const i = (y * w + x) * 4;
+      const lum = (Number(src[i]) + Number(src[i + 1]) + Number(src[i + 2])) / 3;
+      if (lum >= 168) {
+        hits += 1;
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (hits < 50) return still;
+  const bw = maxX - minX + 1;
+  const bh = maxY - minY + 1;
+  if (bw < w * 0.22 || bh < h * 0.18) return still;
+  const padX = Math.round(bw * 0.06);
+  const padY = Math.round(bh * 0.06);
+  minX = Math.max(0, minX - padX);
+  minY = Math.max(0, minY - padY);
+  maxX = Math.min(w - 1, maxX + padX);
+  maxY = Math.min(h - 1, maxY + padY);
+  const cw = maxX - minX + 1;
+  const ch = maxY - minY + 1;
+  const out = Buffer.alloc(cw * ch * 4);
+  for (let y = 0; y < ch; y++) {
+    for (let x = 0; x < cw; x++) {
+      const si = ((minY + y) * w + (minX + x)) * 4;
+      const di = (y * cw + x) * 4;
+      out[di] = src[si];
+      out[di + 1] = src[si + 1];
+      out[di + 2] = src[si + 2];
+      out[di + 3] = src[si + 3] ?? 255;
+    }
+  }
+  return { data: out, width: cw, height: ch };
+}
+
 export type ScanReadout = {
   amount?: string;
   payee?: string;
@@ -270,12 +322,81 @@ export type ScanReadout = {
   payout?: string;
 };
 
-/** Wallet-News-style scan: still frame of the slip + sweeping cyan beam + OCR HUD. */
+/** Wallet-News-style scan: focused slip still + cyan beam + bottom HUD. */
 export function renderScanPng(opts: {
   still?: StillFrame | null;
   sweep: number;
   live?: boolean;
   readout?: ScanReadout | null;
+  badge?: string | null;
+}): Buffer {
+  const buf = canvas();
+  const accent = opts.live ? MINT : CYAN;
+  const GOLD = [201, 168, 76];
+  chrome(buf, accent);
+  text(buf, 'CE', 108, 42, 5, INK);
+  const tag = opts.live ? 'LIVE' : 'SCAN';
+  fill(buf, 108, 88, tag.length * 14 + 20, 28, accent);
+  text(buf, tag, 118, 92, 2, BG);
+  fill(buf, 40, 132, W - 80, 2, accent);
+
+  const focused = opts.still ? focusStill(opts.still) : null;
+  const hasReadout = Boolean(
+    opts.readout &&
+      (opts.readout.amount || opts.readout.payee || opts.readout.time || opts.readout.ref || opts.readout.ocr || opts.readout.payout),
+  );
+
+  // Large slip stage — nearly full width; HUD as bottom strip (does not shrink slip)
+  const panelX = 40;
+  const panelY = 148;
+  const panelW = W - 80;
+  const panelH = hasReadout ? 300 : 340;
+  fill(buf, panelX, panelY, panelW, panelH, PANEL);
+  // gold inner frame
+  fill(buf, panelX, panelY, panelW, 2, GOLD);
+  fill(buf, panelX, panelY + panelH - 2, panelW, 2, GOLD);
+  fill(buf, panelX, panelY, 2, panelH, GOLD);
+  fill(buf, panelX + panelW - 2, panelY, 2, panelH, GOLD);
+
+  if (focused) {
+    blitStill(buf, focused, panelX + 10, panelY + 10, panelW - 20, panelH - 20);
+    // light edge only — keep slip readable
+    for (let y = panelY; y < panelY + panelH; y++) {
+      const edgeY = Math.min(y - panelY, panelY + panelH - y);
+      const a = edgeY < 14 ? (1 - edgeY / 14) * 0.18 : 0;
+      if (a <= 0) continue;
+      for (let x = panelX; x < panelX + panelW; x++) blend(buf, x, y, BG, a);
+    }
+  } else {
+    const cx = panelX + Math.round(panelW / 2);
+    const cy = panelY + Math.round(panelH / 2);
+    glow(buf, cx, cy, 220, accent, 0.28);
+    ring(buf, cx, cy, 70, accent, 0.35);
+    ring(buf, cx, cy, 120, accent, 0.22);
+    diamond(buf, cx, cy, 14, accent);
+  }
+
+  const t = Math.max(0, Math.min(1, opts.sweep));
+  const beamY = panelY + 14 + Math.round(t * (panelH - 28));
+  scanBeam(buf, beamY, accent, panelX + 6, panelX + panelW - 6);
+
+  const badge = (opts.badge || (opts.live ? 'STILL FRAME' : 'READING SLIP')).slice(0, 28);
+  text(buf, badge, 56, 508, 3, accent);
+
+  if (hasReadout && opts.readout) {
+    const stripY = panelY + panelH + 12;
+    fill(buf, panelX, stripY, panelW, 72, PANEL);
+    fill(buf, panelX, stripY, 4, 72, accent);
+    const bits: string[] = [];
+    if (opts.readout.amount) bits.push(opts.readout.amount.replace(/,/g, ''));
+    if (opts.readout.payee) bits.push(opts.readout.payee.replace(/,/g, '').slice(0, 14));
+    if (opts.readout.payout) bits.push(opts.readout.payout.replace(/,/g, ''));
+    if (opts.readout.ref) bits.push(opts.readout.ref.replace(/,/g, '').slice(0, 12));
+    text(buf, bits.join('  ·  ').slice(0, 42) || 'OCR HUD', 56, stripY + 24, 3, INK);
+    if (opts.readout.ocr) text(buf, `OCR ${opts.readout.ocr}`.slice(0, 20), 56, stripY + 48, 2, MUTED);
+  }
+
+  return encodePng(buf, W, H);
 }): Buffer {
   const buf = canvas();
   const accent = opts.live ? MINT : CYAN;

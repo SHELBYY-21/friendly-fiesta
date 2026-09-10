@@ -15,9 +15,8 @@ import { applyQrToOcr, type SlipQrResult } from './slipQr';
 import { inspectSlipImage } from './slipInquiry';
 import * as C from './copy';
 import { cardDuplicate, cardAlreadyQueued } from './notice';
-import { renderScanPng } from './cardImage';
+import { renderScanPng, type StillFrame } from './cardImage';
 import { heroPng } from './brandCards';
-import { aiReceived } from './aiTransition';
 import { decodeStillFrame } from './livePhoto';
 import type { Admin } from '@/types/transactions';
 import type { PinnedBank } from '../banks';
@@ -42,20 +41,69 @@ async function pinsForToday(chatId: number): Promise<PinnedBank[]> {
   }
 }
 
-async function rejectDuplicate(chatId: number, fingerprint: string): Promise<boolean> {
+async function rejectDuplicate(opts: {
+  chatId: number;
+  fingerprint: string;
+  cardId?: number;
+  still?: StillFrame | null;
+  slip?: SlipExtract | null;
+}): Promise<boolean> {
+  const { chatId, fingerprint, cardId, still, slip } = opts;
   const [ledger, pending] = await Promise.all([
     findSlipByFingerprint(fingerprint),
     findPendingByFingerprint(fingerprint),
   ]);
-  if (ledger) {
-    await sendMessage(chatId, cardDuplicate(ledger.ledgerRef));
-    return true;
+  if (!ledger && !pending) return false;
+
+  const fromPending = pending
+    ? {
+        ledger: pending.ledger_ref,
+        short: pending.short_ref,
+        thb: pending.thb_in ?? slip?.thbAmount ?? null,
+        usdt: pending.should_send ?? null,
+        desk: pending.desk_rate ?? null,
+        bank: pending.bank ?? slip?.bank ?? null,
+        account: pending.account_masked ?? slip?.receiverAccount ?? slip?.receiverLast4 ?? null,
+        name: pending.name ?? slip?.receiverName ?? null,
+        status: pending.status,
+      }
+    : {
+        ledger: ledger?.ledgerRef || '',
+        short: null,
+        thb: slip?.thbAmount ?? null,
+        usdt: null,
+        desk: null,
+        bank: slip?.bank ?? null,
+        account: slip?.receiverAccount ?? slip?.receiverLast4 ?? null,
+        name: slip?.receiverName ?? null,
+        status: 'LEDGER',
+      };
+
+  const card = pending
+    ? cardAlreadyQueued(fromPending.ledger, fromPending)
+    : cardDuplicate(fromPending.ledger, fromPending);
+
+  const badge = pending ? 'ALREADY QUEUED' : 'DUPLICATE';
+  const readout = {
+    amount: fromPending.thb != null ? `${Number(fromPending.thb).toLocaleString('en-US')} THB` : undefined,
+    payee: fromPending.account || undefined,
+    payout: fromPending.usdt != null ? `${Number(fromPending.usdt).toFixed(2)} USDT` : undefined,
+    ref: (fromPending.short || fromPending.ledger || '').slice(-12) || undefined,
+  };
+  const png = renderScanPng({
+    still: still || null,
+    sweep: 0.72,
+    live: false,
+    readout,
+    badge,
+  });
+  if (cardId) {
+    const ok = await editPhoto(chatId, cardId, png, card);
+    if (!ok) await sendMessage(chatId, card);
+  } else {
+    await sendPhoto(chatId, png, card).catch(async () => sendMessage(chatId, card));
   }
-  if (pending) {
-    await sendMessage(chatId, cardAlreadyQueued(pending.ledger_ref));
-    return true;
-  }
-  return false;
+  return true;
 }
 
 async function ingestSlip(chatId: number, fileId: string, buffer: Buffer, cardIdP: Promise<number>): Promise<{
@@ -113,8 +161,12 @@ export async function handleCtPhoto(opts: { chatId: number; userId: number; admi
     return;
   }
   const still = decodeStillFrame(buffer);
-  const opening = aiReceived({ live: Boolean(livePhoto) });
-  const scanPng = renderScanPng({ still, sweep: 0.16, live: Boolean(livePhoto) });
+  const opening = {
+    text: livePhoto
+      ? '◈ <b>CE VAULT</b> · SLIP\nLive Photo · focusing still frame'
+      : '◈ <b>CE VAULT</b> · SLIP\nกำลังโฟกัสสลิป · OCR เงียบ',
+  };
+  const scanPng = renderScanPng({ still, sweep: 0.22, live: Boolean(livePhoto), badge: livePhoto ? 'STILL FRAME' : 'SCANNING SLIP' });
   const cardIdP = sendPhoto(chatId, scanPng, opening).catch(() => sendMessage(chatId, opening));
   const read = await ingestSlip(chatId, fileId, buffer, cardIdP);
   if (!read) return;
@@ -125,7 +177,7 @@ export async function handleCtPhoto(opts: { chatId: number; userId: number; admi
     ? [qrSlipFingerprint(qr.transRef, qr.sendingBankCode), fileFp]
     : [fileFp];
   for (const fp of fingerprints) {
-    if (await rejectDuplicate(chatId, fp)) return;
+    if (await rejectDuplicate({ chatId, fingerprint: fp, cardId, still, slip })) return;
   }
   const fingerprint = fingerprints[0];
 
