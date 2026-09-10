@@ -191,7 +191,7 @@ function slipModelFromPending(p: PendingSlip, operator?: string | null) {
     ocrOk: (p.thb_in ?? 0) > 0,
     confidence: p.ocr_confidence,
     expectedUsdt: p.should_send,
-    cleared: false,
+    cleared: (p.thb_in ?? 0) > 0 && (p.desk_rate ?? 0) > 0,
     operator: operator ?? p.admin_name,
     audit: {
       ocrVerifiedAt: p.created_at ?? null,

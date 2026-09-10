@@ -1,9 +1,10 @@
 /**
- * OCR Flow helpers — silent OCR; clearance is a separate stage.
+ * OCR Flow — speed-focused, no status spam.
+ * OCR → Extract → Calculate → Clear
  */
 import type { SlipExtract } from '../ocr';
 import { shouldSend } from './format';
-import { buildSlipViewModel, renderSlipCard, type SlipViewModel } from './slipView';
+import { buildSlipViewModel, renderSlipView, type SlipViewModel } from './slipView';
 import type { OutgoingMessage } from '../telegram';
 
 function money2(n: number): number {
@@ -17,8 +18,6 @@ export function extractToSlipView(
     ledger: string;
     roomRate: number;
     operator?: string | null;
-    cleared?: boolean;
-    matchedSettlementId?: string | null;
   },
 ): SlipViewModel {
   const amount = slip.thbAmount != null ? money2(slip.thbAmount) : 0;
@@ -36,26 +35,16 @@ export function extractToSlipView(
     reference: slip.transRef,
     confidence: slip.confidence,
     roomRate: rate,
-    ocrOk: amount > 0,
     expectedUsdt: expected > 0 ? expected : null,
-    cleared: Boolean(opts.cleared),
-    matchedSettlementId: opts.matchedSettlementId,
+    sentUsdt: expected > 0 ? expected : null,
+    cleared: expected > 0,
     operator: opts.operator,
-    audit: {
-      ocrVerifiedAt: amount > 0 ? new Date().toISOString() : null,
-      operator: opts.operator ?? null,
-    },
   });
 }
 
 export function messageForExtract(
   slip: SlipExtract,
-  opts: {
-    short: string;
-    ledger: string;
-    roomRate: number;
-    operator?: string | null;
-  },
+  opts: { short: string; ledger: string; roomRate: number; operator?: string | null },
 ): OutgoingMessage {
-  return renderSlipCard(extractToSlipView(slip, opts));
+  return renderSlipView(extractToSlipView(slip, opts));
 }

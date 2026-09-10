@@ -209,7 +209,8 @@ export function cardInReady(d: {
   void d.raw;
   void d.mkt;
   const hasDesk = d.desk > 0;
-  // OCR verified card — calculation shown; payment NOT cleared until settle/accept path marks cleared
+  // Final Design: OCR → Extract → Calculate → Clear (ready for CONFIRM)
+  // No OCR status on main card; confidence only in DETAILS
   const view = buildSlipViewFromParts({
     short: d.short,
     ledger: d.ledger,
@@ -221,9 +222,10 @@ export function cardInReady(d: {
     time: d.time,
     reference: d.transRef,
     roomRate: d.desk,
+    sentUsdt: hasDesk ? d.shouldSend : null,
     confidence: d.confidence,
     operator: d.adminName,
-    cleared: false,
+    cleared: hasDesk && d.thb > 0,
   });
   const base = renderSlipCard(view);
   // Keep desk tip when rate missing

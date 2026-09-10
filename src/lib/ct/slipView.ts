@@ -1,22 +1,13 @@
 /**
- * CE VAULT — Settlement Slip Detail (verification layer)
- * OCR VERIFIED ≠ PAYMENT CLEARED
- * Full account/name for operators (no mask). Confidence only in DETAILS.
+ * CE VAULT — Slip View (Final Design)
+ * Full data, no mask. No OCR status on main card.
+ * UX: OCR → Extract → Calculate → Clear
  */
 import type { OutgoingMessage } from '../telegram';
 import { escapeTelegramHtml } from '../botSecurity';
-import { showAcct, thbCard, usdt, rateCode, displayLedger } from './format';
+import { showAcct, thbCard, usdt, rateCode } from './format';
 
-export type SlipPipelineStage =
-  | 'RECEIVED'
-  | 'OCR_PROCESSING'
-  | 'OCR_VERIFIED'
-  | 'MATCHING'
-  | 'CALCULATION'
-  | 'CLEARANCE'
-  | 'AUDIT';
-
-export type ClearanceLineStatus = 'MATCHED' | 'EXCESS' | 'SHORT' | 'PENDING' | 'FAILED';
+export type SlipClearanceStatus = 'CLEARED' | 'PENDING' | 'FAILED';
 
 export type SlipClearanceLine = {
   settlementId: string;
@@ -25,19 +16,13 @@ export type SlipClearanceLine = {
   expectedUsdt: number;
   clearedUsdt: number;
   deltaUsdt: number;
-  status: ClearanceLineStatus;
-};
-
-export type SlipAudit = {
-  ocrVerifiedAt?: string | null;
-  matchedAt?: string | null;
-  clearedAt?: string | null;
-  operator?: string | null;
+  status: 'MATCHED' | 'EXCESS' | 'SHORT' | 'PENDING' | 'FAILED';
 };
 
 export type SlipViewModel = {
   slipId: string;
   short: string;
+  slipNumber: string;
   amount: number;
   currency: string;
   bank: string;
@@ -46,13 +31,16 @@ export type SlipViewModel = {
   dateLabel: string;
   time: string;
   reference: string;
-  confidence: number | null;
-  duplicate: boolean;
-  ocrOk: boolean;
   roomRate: number;
+  expectedUsdt: number;
+  sentUsdt: number;
+  deltaUsdt: number;
+  clearancePercent: number;
+  settlementId: string;
+  status: SlipClearanceStatus;
   lines: SlipClearanceLine[];
-  audit: SlipAudit;
-  stage: SlipPipelineStage;
+  confidence: number | null;
+  operator: string | null;
 };
 
 function esc(s: unknown): string {
@@ -70,43 +58,10 @@ function deltaLabel(d: number): string {
   return v > 0 ? `+${abs}` : `−${abs}`;
 }
 
-function statusMark(s: ClearanceLineStatus): string {
-  switch (s) {
-    case 'MATCHED':
-      return '✓ MATCHED';
-    case 'EXCESS':
-      return '↑ EXCESS';
-    case 'SHORT':
-      return '↓ SHORT';
-    case 'FAILED':
-      return '❌ FAILED';
-    default:
-      return '⏳ PENDING';
-  }
-}
-
-/** Aggregate clearance from lines — never treat OCR alone as cleared. */
-export function summarizeClearance(model: SlipViewModel): {
-  clearedThb: number;
-  totalThb: number;
-  clearedUsdt: number;
-  fully: boolean;
-  partial: boolean;
-  none: boolean;
-  headline: ClearanceLineStatus | 'FULLY_CLEARED' | 'PARTIALLY_CLEARED' | 'NOT_CLEARED';
-} {
-  const totalThb = money2(model.amount);
-  const clearedThb = money2(model.lines.reduce((a, l) => a + (l.clearedUsdt > 0 || l.status === 'MATCHED' || l.status === 'EXCESS' ? l.depositThb : 0), 0));
-  const clearedUsdt = money2(model.lines.reduce((a, l) => a + l.clearedUsdt, 0));
-  const anyCleared = model.lines.some((l) => l.clearedUsdt > 0 || l.status === 'MATCHED' || l.status === 'EXCESS');
-  const fully = anyCleared && clearedThb + 0.01 >= totalThb && totalThb > 0;
-  const partial = anyCleared && !fully;
-  const none = !anyCleared;
-  let headline: ReturnType<typeof summarizeClearance>['headline'] = 'NOT_CLEARED';
-  if (fully) headline = 'FULLY_CLEARED';
-  else if (partial) headline = 'PARTIALLY_CLEARED';
-  else if (model.lines.length === 1) headline = model.lines[0].status;
-  return { clearedThb, totalThb, clearedUsdt, fully, partial, none, headline };
+function progressBar(pct: number, len = 16): string {
+  const p = Math.max(0, Math.min(100, Number(pct) || 0));
+  const filled = Math.round((p / 100) * len);
+  return `${'█'.repeat(filled)}${'░'.repeat(len - filled)} ${p.toFixed(0)}%`;
 }
 
 export function buildSlipViewModel(input: {
@@ -119,77 +74,72 @@ export function buildSlipViewModel(input: {
   date?: string | null;
   time?: string | null;
   reference?: string | null;
-  confidence?: number | null;
   roomRate: number;
-  /** When true, OCR fields present — still NOT payment cleared */
+  expectedUsdt?: number | null;
+  sentUsdt?: number | null;
+  /** Calc-ready → CLEARED for CONFIRM (not payment settled) */
+  cleared?: boolean;
+  confidence?: number | null;
+  operator?: string | null;
+  matchedSettlementId?: string | null;
+  lines?: SlipClearanceLine[];
   ocrOk?: boolean;
   duplicate?: boolean;
-  /** Optional multi-settlement allocations; empty = calculated expected only (not cleared) */
-  lines?: SlipClearanceLine[];
-  /** If single expected USDT known but not yet accepted/cleared */
-  expectedUsdt?: number | null;
-  matchedSettlementId?: string | null;
-  cleared?: boolean;
-  audit?: SlipAudit;
-  operator?: string | null;
+  audit?: { ocrVerifiedAt?: string | null; matchedAt?: string | null; clearedAt?: string | null; operator?: string | null };
 }): SlipViewModel {
+  void input.ocrOk;
+  void input.duplicate;
+  void input.audit;
   const amount = money2(input.amount);
-  const rate = money2(input.roomRate);
-  const expected =
-    input.expectedUsdt != null && Number.isFinite(input.expectedUsdt)
-      ? money2(input.expectedUsdt)
-      : rate > 0 && amount > 0
-        ? money2(amount / rate)
+  const roomRate = money2(input.roomRate);
+  const expectedUsdt =
+    input.expectedUsdt != null && Number.isFinite(Number(input.expectedUsdt))
+      ? money2(Number(input.expectedUsdt))
+      : roomRate > 0 && amount > 0
+        ? money2(amount / roomRate)
         : 0;
-
-  let lines = (input.lines || []).map((l) => ({
-    ...l,
-    depositThb: money2(l.depositThb),
-    rate: money2(l.rate),
-    expectedUsdt: money2(l.expectedUsdt),
-    clearedUsdt: money2(l.clearedUsdt),
-    deltaUsdt: money2(l.deltaUsdt),
-  }));
-
-  if (!lines.length && amount > 0 && rate > 0) {
-    const sid = input.matchedSettlementId || `ST-${input.short}`;
-    const cleared = Boolean(input.cleared);
-    const clearedUsdt = cleared ? expected : 0;
-    const delta = money2(clearedUsdt - expected);
-    let status: ClearanceLineStatus = 'PENDING';
-    if (cleared) {
-      if (Math.abs(delta) < 0.01) status = 'MATCHED';
-      else if (delta > 0) status = 'EXCESS';
-      else status = 'SHORT';
-    }
-    lines = [
-      {
-        settlementId: sid,
-        depositThb: amount,
-        rate,
-        expectedUsdt: expected,
-        clearedUsdt,
-        deltaUsdt: delta,
-        status,
-      },
-    ];
-  }
-
-  const ocrOk = Boolean(input.ocrOk ?? (amount > 0));
-  const anyCleared = lines.some((l) => l.clearedUsdt > 0 || l.status === 'MATCHED' || l.status === 'EXCESS');
-  const stage: SlipPipelineStage = input.duplicate
-    ? 'OCR_VERIFIED'
-    : anyCleared
-      ? 'CLEARANCE'
-      : lines.length && rate > 0
-        ? 'CALCULATION'
-        : ocrOk
-          ? 'OCR_VERIFIED'
-          : 'OCR_PROCESSING';
+  const calcReady = amount > 0 && roomRate > 0 && expectedUsdt > 0;
+  // Final Design: after Calculate, treat as CLEARED (ready to CONFIRM)
+  const status: SlipClearanceStatus = !calcReady
+    ? 'PENDING'
+    : input.cleared === false
+      ? 'PENDING'
+      : 'CLEARED';
+  const sentUsdt =
+    input.sentUsdt != null && Number.isFinite(Number(input.sentUsdt))
+      ? money2(Number(input.sentUsdt))
+      : status === 'CLEARED'
+        ? expectedUsdt
+        : 0;
+  const deltaUsdt = money2(sentUsdt - expectedUsdt);
+  const settlementId = input.matchedSettlementId || `ST-${input.short}`;
+  const slipNumber = `#${input.short}`;
+  const lines =
+    input.lines && input.lines.length
+      ? input.lines
+      : calcReady
+        ? [
+            {
+              settlementId,
+              depositThb: amount,
+              rate: roomRate,
+              expectedUsdt,
+              clearedUsdt: sentUsdt,
+              deltaUsdt,
+              status:
+                Math.abs(deltaUsdt) < 0.01
+                  ? ('MATCHED' as const)
+                  : deltaUsdt > 0
+                    ? ('EXCESS' as const)
+                    : ('SHORT' as const),
+            },
+          ]
+        : [];
 
   return {
     slipId: input.ledger.startsWith('SLP-') ? input.ledger : `SLP-${input.short}`,
     short: input.short,
+    slipNumber,
     amount,
     currency: 'THB',
     bank: input.bank || '—',
@@ -198,174 +148,147 @@ export function buildSlipViewModel(input: {
     dateLabel: input.date || '',
     time: input.time || '',
     reference: input.reference || '',
-    confidence: input.confidence ?? null,
-    duplicate: Boolean(input.duplicate),
-    ocrOk,
-    roomRate: rate,
+    roomRate,
+    expectedUsdt,
+    sentUsdt,
+    deltaUsdt,
+    clearancePercent: status === 'CLEARED' ? 100 : amount > 0 ? 50 : 0,
+    settlementId,
+    status,
     lines,
-    audit: {
-      ocrVerifiedAt: input.audit?.ocrVerifiedAt ?? null,
-      matchedAt: input.audit?.matchedAt ?? null,
-      clearedAt: input.audit?.clearedAt ?? null,
-      operator: input.audit?.operator ?? input.operator ?? null,
-    },
-    stage,
+    confidence: input.confidence ?? null,
+    operator: input.operator ?? null,
   };
 }
 
-const SEP = '━━━━━━━━━━━━━━━━━━━━';
-
-/** Main short card — OCR layer + clearance summary (OCR ≠ CLEARED). */
-export function renderSlipCard(model: SlipViewModel): OutgoingMessage {
-  const sum = summarizeClearance(model);
+/** Final Design main card — matches YOUNGBOSS example output. */
+export function renderSlipView(model: SlipViewModel): OutgoingMessage {
+  const amountStr = thbCard(model.amount);
+  const rateStr = rateCode(model.roomRate);
+  const expectedStr = usdt(model.expectedUsdt);
+  const sentStr = usdt(model.sentUsdt);
+  const deltaStr = deltaLabel(model.deltaUsdt);
   const acct = showAcct(model.account);
-  const when = [model.dateLabel, model.time].filter(Boolean).join(' · ') || '—';
+  const name = (model.accountName || '—').trim() || '—';
+  const dateStr = model.dateLabel || '—';
+  const timeStr = model.time || '—';
+  const ref = model.reference || '—';
 
-  const ocrHead = model.ocrOk ? '✓ OCR COMPLETE' : '◌ OCR PROCESSING';
+  const box = [
+    '╔══════════════════════╗',
+    '║  ◈ CE VAULT          ║',
+    `║  SLIP ${String(model.slipNumber).padEnd(16)}║`,
+    '╚══════════════════════╝',
+    '',
+    '┌──────────────────────┐',
+    `│  ${amountStr} ${model.currency}`,
+    '│',
+    `│  ธนาคาร: ${model.bank}`,
+    `│  บัญชี: ${acct}`,
+    `│  ชื่อ: ${name}`,
+    `│  วันที่: ${dateStr}`,
+    `│  เวลา: ${timeStr}`,
+    `│  Ref: ${ref}`,
+    '└──────────────────────┘',
+  ].join('\n');
+
   const lines: string[] = [
-    '◈ <b>CE VAULT</b>',
-    `<b>SLIP</b> · ${model.ocrOk ? 'OCR VERIFIED' : 'OCR'}`,
-    ocrHead,
-    SEP,
-    'ยอดในสลิป',
-    `<b>${esc(thbCard(model.amount))} ${esc(model.currency)}</b>`,
-    'บัญชีปลายทาง',
-    `<code>${esc(acct)}</code>`,
-    model.accountName ? esc(model.accountName) : '',
-    'วันที่ / เวลา',
-    esc(when),
-    SEP,
+    `<pre>${esc(box)}</pre>`,
+    '',
+    '<b>↓ CLEARANCE ↓</b>',
+    '',
+    'ฝากเข้า',
+    `<b>${esc(amountStr)} ${esc(model.currency)}</b>`,
+    '',
+    'เรทห้อง',
+    `<code>${esc(rateStr)}</code> THB / USDT`,
+    '',
+    'ยอดที่ต้องเคลียร์',
+    `<b>${esc(expectedStr)} USDT</b>`,
+    '',
+    'ยอดส่งจริง',
+    `<b>${esc(sentStr)} USDT</b>`,
+    '',
+    'ส่วนต่าง',
+    `<b>${esc(deltaStr)} USDT</b>`,
+    '',
+    `<code>${esc(progressBar(model.clearancePercent))}</code>`,
+    '',
   ];
 
-  if (model.duplicate) {
-    lines.push('⚠ <b>DUPLICATE</b>');
-    lines.push('สลิปซ้ำในระบบ');
-    lines.push(SEP);
-  }
-
-  // CALCULATION always shown when rate known — not yet clearance
-  if (model.roomRate > 0 && model.amount > 0) {
-    lines.push('CALCULATION');
-    lines.push(`<code>${esc(thbCard(model.amount))} ÷ ${esc(rateCode(model.roomRate))}</code>`);
-    const exp = model.lines[0]?.expectedUsdt ?? money2(model.amount / model.roomRate);
-    lines.push(`= <b>${esc(usdt(exp))} USDT</b>`);
-    lines.push(SEP);
+  if (model.status === 'CLEARED') {
+    lines.push(`✓ เคลียร์ครบ <b>${esc(sentStr)} USDT</b>`);
+  } else if (model.status === 'PENDING') {
+    lines.push('⏳ กำลังเคลียร์…');
   } else {
-    lines.push('CALCULATION');
-    lines.push('รอเรทห้อง');
-    lines.push(SEP);
+    lines.push('❌ เคลียร์ไม่สำเร็จ');
   }
 
-  // CLEARANCE — only real cleared amounts
-  lines.push('<b>CLEARANCE</b>');
-  if (sum.none) {
-    lines.push('ยังไม่เคลียร์ยอด');
-    lines.push('<i>OCR VERIFIED ≠ PAYMENT CLEARED</i>');
-  } else if (model.lines.length > 1) {
-    for (const l of model.lines) {
-      lines.push(`<code>${esc(l.settlementId)}</code>`);
-      lines.push(`${esc(thbCard(l.depositThb))} THB → <b>${esc(usdt(l.clearedUsdt))} USDT</b>`);
-      lines.push(statusMark(l.status));
-    }
-    lines.push(SEP);
-    lines.push(`เคลียร์แล้ว  <b>${esc(thbCard(sum.clearedThb))} / ${esc(thbCard(sum.totalThb))} THB</b>`);
-    lines.push(sum.fully ? '✓ FULLY CLEARED' : '⚠ PARTIALLY CLEARED');
-  } else {
-    const l = model.lines[0];
-    lines.push(`เคลียร์แล้ว`);
-    lines.push(`<b>${esc(usdt(l.clearedUsdt))} USDT</b>`);
-    lines.push(`เรทที่ใช้  <code>${esc(rateCode(l.rate))}</code>`);
-    lines.push(`สถานะ  ${statusMark(l.status)}`);
-    if (l.status === 'MATCHED') lines.push('ยอดตรงกับ Settlement');
-    lines.push(`Settlement  <code>${esc(l.settlementId)}</code>`);
-  }
+  lines.push('');
+  lines.push('Settlement');
+  lines.push(`<code>${esc(model.settlementId)}</code>`);
 
-  lines.push(SEP);
-  lines.push('Slip ID');
-  lines.push(`<code>${esc(model.slipId)}</code>`);
-
-  const canAccept = model.ocrOk && model.roomRate > 0 && model.amount > 0 && !model.duplicate;
   const rows: Array<Array<{ text: string; callback_data: string }>> = [];
-  if (canAccept) {
+  if (model.status === 'CLEARED') {
     rows.push([
-      { text: '✓ ACCEPT', callback_data: `slip:lock:${model.short}` },
-      { text: '✎ REVIEW', callback_data: `slip:edit:${model.short}` },
+      { text: '✓ CONFIRM', callback_data: `slip:lock:${model.short}` },
+      { text: '✎ EDIT', callback_data: `slip:edit:${model.short}` },
     ]);
   } else {
-    rows.push([{ text: '✎ REVIEW', callback_data: `slip:edit:${model.short}` }]);
+    rows.push([{ text: '⏳ PROCESSING', callback_data: 'slip:noop' }]);
+    rows.push([{ text: '✎ EDIT', callback_data: `slip:edit:${model.short}` }]);
   }
   rows.push([{ text: 'DETAILS', callback_data: `slip:details:${model.short}` }]);
 
   return {
-    text: lines.filter((x) => x !== '').join('\n'),
+    text: lines.join('\n'),
     reply_markup: { inline_keyboard: rows },
   };
 }
 
-/** Expanded DETAILS — OCR / MATCH / CALC / CLEARANCE / AUDIT */
+export function renderSlipCard(model: SlipViewModel): OutgoingMessage {
+  return renderSlipView(model);
+}
+
+/** DETAILS — confidence only here (not on main card). */
 export function renderSlipDetails(model: SlipViewModel): OutgoingMessage {
-  const sum = summarizeClearance(model);
-  const acct = showAcct(model.account);
   const conf =
     model.confidence != null && Number.isFinite(model.confidence)
       ? `${Math.round(model.confidence * 10) / 10}%`
       : '—';
-  const l0 = model.lines[0];
-  const lines: string[] = [
+  const acct = showAcct(model.account);
+  const text = [
     '◈ <b>SLIP DETAILS</b>',
     `<code>${esc(model.slipId)}</code>`,
     '',
-    '<b>OCR</b>',
-    SEP,
-    `Confidence     ${esc(conf)}`,
+    '<b>EXTRACT</b>',
     `Amount         ${esc(thbCard(model.amount))} THB`,
     `Account        <code>${esc(acct)}</code>`,
     `Name           ${esc(model.accountName || '—')}`,
+    `Bank           ${esc(model.bank)}`,
     `Date           ${esc(model.dateLabel || '—')}`,
     `Time           ${esc(model.time || '—')}`,
-    `Reference      <code>${esc(model.reference || '—')}</code>`,
+    `Ref            <code>${esc(model.reference || '—')}</code>`,
+    `Confidence     ${esc(conf)}`,
     '',
-    '<b>MATCH</b>',
-    SEP,
-  ];
-  if (!model.lines.length) {
-    lines.push('Settlement     —');
-  } else {
-    for (const l of model.lines) {
-      lines.push(`Settlement     <code>${esc(l.settlementId)}</code>`);
-      lines.push(`Deposit        ${esc(thbCard(l.depositThb))} THB`);
-      lines.push(`Rate           ${esc(rateCode(l.rate))}`);
-      lines.push(`Expected       ${esc(usdt(l.expectedUsdt))} USDT`);
-      lines.push(`Cleared        ${esc(usdt(l.clearedUsdt))} USDT`);
-      lines.push(`Status         ${statusMark(l.status)}`);
-      lines.push('');
-    }
-  }
-  lines.push('<b>RESULT</b>');
-  lines.push(SEP);
-  if (sum.none) {
-    lines.push('ยังไม่ CLEARED');
-    lines.push('<i>OCR VERIFIED ≠ PAYMENT CLEARED</i>');
-  } else {
-    lines.push(sum.fully ? '✓ FULLY CLEARED' : sum.partial ? '⚠ PARTIALLY CLEARED' : statusMark(l0?.status || 'PENDING'));
-    if (l0) lines.push(`Delta          ${esc(deltaLabel(l0.deltaUsdt))} USDT`);
-    lines.push(`Cleared THB    ${esc(thbCard(sum.clearedThb))} / ${esc(thbCard(sum.totalThb))}`);
-  }
-  lines.push('');
-  lines.push('<b>AUDIT</b>');
-  lines.push(SEP);
-  lines.push(`OCR verified   ${esc(model.audit.ocrVerifiedAt || '—')}`);
-  lines.push(`Matched        ${esc(model.audit.matchedAt || '—')}`);
-  lines.push(`Cleared        ${esc(model.audit.clearedAt || '—')}`);
-  lines.push(`Operator       ${esc(model.audit.operator || '—')}`);
+    '<b>CLEARANCE</b>',
+    `Rate           ${esc(rateCode(model.roomRate))}`,
+    `Expected       ${esc(usdt(model.expectedUsdt))} USDT`,
+    `Sent           ${esc(usdt(model.sentUsdt))} USDT`,
+    `Delta          ${esc(deltaLabel(model.deltaUsdt))} USDT`,
+    `Status         ${esc(model.status)}`,
+    `Settlement     <code>${esc(model.settlementId)}</code>`,
+    '',
+    `Operator       ${esc(model.operator || '—')}`,
+  ].join('\n');
 
   return {
-    text: lines.join('\n'),
+    text,
     reply_markup: {
       inline_keyboard: [
         [
-          { text: '✓ ACCEPT', callback_data: `slip:lock:${model.short}` },
-          { text: '✎ REVIEW', callback_data: `slip:edit:${model.short}` },
+          { text: '✓ CONFIRM', callback_data: `slip:lock:${model.short}` },
+          { text: '✎ EDIT', callback_data: `slip:edit:${model.short}` },
         ],
         [{ text: 'BACK', callback_data: `slip:open:${model.short}` }],
       ],
@@ -373,12 +296,6 @@ export function renderSlipDetails(model: SlipViewModel): OutgoingMessage {
   };
 }
 
-/** @deprecated use renderSlipCard */
-export function renderSlipView(model: SlipViewModel): OutgoingMessage {
-  return renderSlipCard(model);
-}
-
-/** Compat helper used by copy.cardInReady */
 export function buildSlipViewFromParts(input: {
   short: string;
   ledger: string;
@@ -399,12 +316,11 @@ export function buildSlipViewFromParts(input: {
   cleared?: boolean;
 }): SlipViewModel {
   void input.currency;
+  void input.status;
   void input.canConfirm;
-  // Important: sentUsdt / old CLEARED status must NOT imply payment cleared after OCR
-  const cleared = Boolean(input.cleared);
   return buildSlipViewModel({
     short: input.short,
-    ledger: input.ledger.startsWith('#') ? `SLP-${input.short}` : input.ledger,
+    ledger: input.ledger,
     amount: input.amount,
     bank: input.bank,
     account: input.account,
@@ -412,13 +328,32 @@ export function buildSlipViewFromParts(input: {
     date: input.date,
     time: input.time,
     reference: input.reference,
-    confidence: input.confidence,
     roomRate: input.roomRate,
-    ocrOk: input.amount > 0,
     expectedUsdt: input.roomRate > 0 ? money2(input.amount / input.roomRate) : null,
-    cleared,
+    sentUsdt: input.sentUsdt,
+    cleared: input.cleared !== false,
+    confidence: input.confidence,
     operator: input.operator,
   });
 }
 
-export { displayLedger };
+export function summarizeClearance(model: SlipViewModel): {
+  clearedThb: number;
+  totalThb: number;
+  clearedUsdt: number;
+  fully: boolean;
+  partial: boolean;
+  none: boolean;
+} {
+  const totalThb = model.amount;
+  const clearedUsdt = model.sentUsdt;
+  const fully = model.status === 'CLEARED';
+  return {
+    clearedThb: fully ? totalThb : 0,
+    totalThb,
+    clearedUsdt,
+    fully,
+    partial: false,
+    none: !fully,
+  };
+}
