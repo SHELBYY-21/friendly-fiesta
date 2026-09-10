@@ -2,7 +2,7 @@
 // อ่านสลิป — ลำดับความสำคัญ:
 //   1) Typhoon OCR + v2.5 (ถ้ามี TYPHOON_API_KEY) — สลิปไทย
 //   2) Grok Vision (ถ้ามี GROK_API_KEY) — structured ทั้งชุด
-//   3) OCR.space + smart-slip-verifier parser
+//   3) AksonOCR / OCR.space + smart-slip-verifier parser
 // ============================================================
 import { analyzeSlipWithGrok, analyzeUsdtWithGrok, SlipExtract, UsdtExtract } from './grokVision';
 import { analyzeSlipWithTyphoon } from './typhoon';
@@ -10,6 +10,7 @@ import { pickExplicitThbAmount } from './ocrAmount';
 import { parseSlipText } from '../bot/parse';
 import { parseSmartSlip } from './ct/smartSlip';
 import { normalizeBankCode } from './botSecurity';
+import { extractTextWithAkson } from './aksonOcr';
 
 export type { SlipExtract, UsdtExtract };
 
@@ -75,7 +76,7 @@ export async function analyzeSlipFast(
   const typhoonP = raceMs(analyzeSlipWithTyphoon(dataUrl), 22000, null).catch(() => null);
   const grokP = raceMs(analyzeSlipWithGrok(dataUrl), 18000, null).catch(() => null);
   const ocrP = publicUrlP
-    .then((url) => raceMs(extractSlipTextFromOcrSpace(url), 10000, null).then((ocr) => ({ url, ocr })))
+    .then((url) => raceMs(extractSlipTextFallback(url), 10000, null).then((ocr) => ({ url, ocr })))
     .catch(async () => ({ url: await publicUrlP, ocr: null }));
 
   const [typhoon, grok, pack] = await Promise.all([typhoonP, grokP, ocrP]);
@@ -85,7 +86,7 @@ export async function analyzeSlipFast(
 export async function analyzeSlip(imageUrl: string): Promise<SlipExtract> {
   const typhoonP = raceMs(analyzeSlipWithTyphoon(imageUrl), 22000, null).catch(() => null);
   const grokP = raceMs(analyzeSlipWithGrok(imageUrl), 18000, null).catch(() => null);
-  const ocrP = raceMs(extractSlipTextFromOcrSpace(imageUrl), 10000, null).catch(() => null);
+  const ocrP = raceMs(extractSlipTextFallback(imageUrl), 10000, null).catch(() => null);
   const [typhoon, grok, pack] = await Promise.all([typhoonP, grokP, ocrP]);
   return mergeSlip(typhoon, grok, pack?.legacy ?? null, pack?.smart ?? null);
 }
@@ -94,6 +95,15 @@ export async function analyzeSlip(imageUrl: string): Promise<SlipExtract> {
 export async function extractThbAmount(imageUrl: string): Promise<number | null> {
   const r = await analyzeSlip(imageUrl);
   return r.thbAmount;
+}
+
+function packParsedText(text: string): {
+  legacy: ReturnType<typeof parseSlipText>;
+  smart: ReturnType<typeof parseSmartSlip>;
+} {
+  const legacy = parseSlipText(text);
+  if (legacy.amount == null) legacy.amount = pickExplicitThbAmount(text);
+  return { legacy, smart: parseSmartSlip(text) };
 }
 
 async function extractSlipTextFromOcrSpace(imageUrl: string): Promise<{
@@ -120,15 +130,27 @@ async function extractSlipTextFromOcrSpace(imageUrl: string): Promise<{
     const json: any = await res.json();
     const text: string | undefined = json?.ParsedResults?.[0]?.ParsedText;
     if (!text) return null;
-    const legacy = parseSlipText(text);
-    if (legacy.amount == null) legacy.amount = pickExplicitThbAmount(text);
-    return { legacy, smart: parseSmartSlip(text) };
+    return packParsedText(text);
   } catch {
     return null;
   }
 }
 
+/** Fallback OCR: race OCR.space + AksonOCR; prefer OCR.space pack, else Akson markdown. */
+async function extractSlipTextFallback(imageSrc: string): Promise<{
+  legacy: ReturnType<typeof parseSlipText>;
+  smart: ReturnType<typeof parseSmartSlip>;
+} | null> {
+  if (!imageSrc) return null;
+  const ocrP = raceMs(extractSlipTextFromOcrSpace(imageSrc), 10000, null).catch(() => null);
+  const aksonP = raceMs(extractTextWithAkson(imageSrc), 15000, null).catch(() => null);
+  const [ocr, aksonText] = await Promise.all([ocrP, aksonP]);
+  if (ocr) return ocr;
+  if (aksonText) return packParsedText(aksonText);
+  return null;
+}
+
 async function extractThbAmountFromOcrSpace(imageUrl: string): Promise<number | null> {
-  const parsed = await extractSlipTextFromOcrSpace(imageUrl);
+  const parsed = await extractSlipTextFallback(imageUrl);
   return parsed?.smart.amount ?? parsed?.legacy.amount ?? null;
 }
