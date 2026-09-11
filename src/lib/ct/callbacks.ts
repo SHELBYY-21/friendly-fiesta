@@ -28,10 +28,11 @@ import { heroPng } from './brandCards';
 import { gateOcr } from './gate';
 import { renderGateCard } from './photo';
 import * as C from './copy';
-import { mapSettlementAction } from './settlementRich';
+import { mapSettlementAction, claimSettlementConfirm } from './settlementRich';
 import { parseWebAppPayload } from './webAppInit';
 import type { Admin } from '@/types/transactions';
 import { saveTyphoonSetting } from '../systemSettings';
+import { readPayoutWallet } from './payoutWallet';
 
 export function parseCb(data: string): {
   domain: string;
@@ -272,6 +273,10 @@ export async function handleCtCallback(opts: {
 
   if (cb.domain === 'vault') {
     if (cb.action === 'batch') {
+      if (!claimSettlementConfirm(`tg:${roomId}:${userId}`)) {
+        await answerCallback(id, 'กำลังบันทึกอยู่');
+        return;
+      }
       const due = await dueSummary(roomId);
       if (!due.count) {
         await answerCallback(id, 'ยังไม่มีคิวรอส่ง');
@@ -286,11 +291,13 @@ export async function handleCtCallback(opts: {
         return;
       }
       await answerCallback(id, `โอนรวม ${done.count} ใบ${skipBit}`);
+      const payout = await readPayoutWallet(roomId);
       const card = C.cardSettledBatch({
         count: done.count,
         thb: done.thb,
         usdt: done.usdt,
         adminName: admin.name,
+        payout,
       });
       await sendHero(chatId, messageId, 'settled', card, `${usdt(done.usdt)} USDT`, `${done.count} TX`, 'CE');
       return;

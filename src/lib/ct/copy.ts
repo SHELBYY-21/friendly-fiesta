@@ -6,6 +6,7 @@ import { head as tokenHead, progress, rule, NODE, kv, quote, IN_DOT, OUT_DOT } f
 import type { FlowStep } from './tokens';
 import { richDone, richInReady, richStart, richWait, richVault } from './cardJson';
 import { cardSettlement } from './settlementRich';
+import type { PayoutWallet } from './payoutWallet';
 import { bankLabel } from '../botSecurity';
 
 export { cardSettlement };
@@ -422,6 +423,7 @@ export function cardSettledBatch(d: {
   usdt: number;
   adminName: string;
   desk?: number;
+  payout?: PayoutWallet | null;
 }): OutgoingMessage {
   const rate = d.desk && d.desk > 0 ? d.desk : (d.usdt > 0 ? d.thb / d.usdt : 0);
   return cardSettlement({
@@ -430,7 +432,11 @@ export function cardSettledBatch(d: {
     roomRate: rate,
     sentUsdt: d.usdt,
     settled: true,
-    statusMessage: d.adminName,
+    adminName: d.adminName,
+    rail: d.payout?.rail,
+    fromLabel: d.payout?.label,
+    fromAddress: d.payout?.fromAddress,
+    destAddress: d.payout?.destAddress,
   });
 }
 

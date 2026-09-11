@@ -629,7 +629,7 @@ const webapp = parseTelegramUpdate({
 });
 assert(webapp.kind === 'webapp' && webapp.webAppData.includes('vault:batch') && webapp.chatId === -1001, 'web_app_data parsed');
 
-const { settlementState, requiredUsdt, canConfirmSettlement, mapSettlementAction, cardSettlement } = require('../src/lib/ct/settlementRich');
+const { settlementState, requiredUsdt, canConfirmSettlement, mapSettlementAction, cardSettlement, claimSettlementConfirm, resetSettlementConfirm, validateSettlement, STATUS_CONFIG } = require('../src/lib/ct/settlementRich');
 const readyCard = { depositThb: 10000, depositCount: 2, roomRate: 40, sentUsdt: null };
 assert(requiredUsdt(readyCard) === 250, 'required USDT is thb/rate');
 assert(settlementState(readyCard) === 'READY', 'no send is READY');
@@ -639,18 +639,48 @@ assert(settlementState({ ...readyCard, sentUsdt: 200 }) === 'SHORT', 'under send
 assert(settlementState({ ...readyCard, settled: true, sentUsdt: 250 }) === 'SETTLED', 'flag is SETTLED');
 assert(canConfirmSettlement(readyCard) === true, 'READY with queue can confirm');
 assert(canConfirmSettlement({ ...readyCard, settled: true }) === false, 'SETTLED cannot confirm');
+assert(canConfirmSettlement({ ...readyCard, depositThb: 0 }) === false, 'zero deposit cannot confirm');
 assert(mapSettlementAction('settlement_confirm') === 'vault:batch', 'python confirm maps to batch');
 assert(mapSettlementAction('settlement_details') === 'vault:pending', 'python details maps to pending');
 assert(mapSettlementAction('drop-table') === null, 'unknown webapp action rejected');
+assert(STATUS_CONFIG.MATCHED.message.includes('ยอดตรง'), 'matched copy is Thai');
+assert(validateSettlement({ depositThb: 0, depositCount: 1, roomRate: 0 }).length >= 2, 'empty card lists deposit+rate errors');
+
+resetSettlementConfirm();
+assert(claimSettlementConfirm('tg:1:9') === true, 'first confirm allowed');
+assert(claimSettlementConfirm('tg:1:9') === false, 'duplicate confirm blocked inside 2s');
+assert(claimSettlementConfirm('tg:2:9') === true, 'other room still allowed');
 
 const settleUi = cardSettlement(readyCard);
 assert(hasBalancedTelegramHtml(settleUi.text), 'settlement card HTML is balanced');
 assert(settleUi.text.includes('เคลียร์ยอด') && settleUi.text.includes('READY'), 'settlement card has status');
+assert(settleUi.text.includes('กรุณาส่งตามจำนวนที่คำนวณ'), 'READY uses spec status line');
 assert(!settleUi.text.includes('disable'), 'no fake disabled button field');
 const settleCbs = collectCbs(settleUi);
 assert(settleCbs.includes('vault:batch') && settleCbs.includes('vault:today'), 'settlement uses live CT callbacks');
 assert(collectBtns(settleUi).some((b) => b.web_app && String(b.web_app.url).includes('ce-empire-miniapp')), 'settlement has Mini App button');
 assert(settleUi.text.length < 4096, 'settlement card within Telegram limit');
+
+const matchedUi = cardSettlement({ ...readyCard, sentUsdt: 250 });
+assert(matchedUi.text.includes('MATCHED') && matchedUi.text.includes('+0.00'), 'matched shows zero diff with sign');
+const excessUi = cardSettlement({ ...readyCard, sentUsdt: 260 });
+assert(excessUi.text.includes('EXCESS') && excessUi.text.includes('+10.00'), 'excess shows +diff');
+const shortUi = cardSettlement({ ...readyCard, sentUsdt: 200 });
+assert(shortUi.text.includes('SHORT') && shortUi.text.includes('-50.00'), 'short shows -diff');
+const settledUi = cardSettlement({ ...readyCard, sentUsdt: 250, settled: true, rail: 'sol-usdc', fromAddress: '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU', destAddress: '4Nd1m3NnENa8h8Xte1y9PxZJTSrwaXzbF6UvLSH5u8nN' });
+assert(settledUi.text.includes('SETTLED') && settledUi.text.includes('USDC'), 'settled sol rail shows USDC');
+assert(settledUi.text.includes('7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU'), 'from address shown in full');
+
+const { looksLikeSolAddr, looksLikeTronAddr, parsePayoutWallet, payoutInputErrors, normalizePayoutInput, railLabel } = require('../src/lib/ct/payoutWallet');
+const SOL_A = '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU';
+const TRON_A = `T${'1'.repeat(33)}`;
+assert(looksLikeSolAddr(SOL_A) === true, 'sol addr accepted');
+assert(looksLikeTronAddr(TRON_A) === true, 'tron addr accepted');
+assert(looksLikeTronAddr('0xabc') === false, 'eth is not tron');
+const wallet = normalizePayoutInput({ rail: 'sol-usdc', label: 'บ้าน A', fromAddress: SOL_A, destAddress: 'bad' });
+assert(payoutInputErrors(wallet).some((e: string) => e.includes('Solana')), 'bad dest flagged');
+assert(parsePayoutWallet({ rail: 'manual-trc20', label: 'A', fromAddress: TRON_A, destAddress: '', walletId: '', updatedAt: 'x' })?.rail === 'manual-trc20', 'parse trc20 wallet');
+assert(railLabel('sol-usdc').includes('Solana'), 'rail label is staff Thai');
 
 const { parseWebAppPayload, verifyWebAppInitData } = require('../src/lib/ct/webAppInit');
 assert(parseWebAppPayload('{"v":1,"action":"vault:batch"}').action === 'vault:batch', 'json payload parsed');
@@ -671,6 +701,8 @@ assert(verifyWebAppInitData(initData.replace(hash, '0'.repeat(64)), token).ok ==
 
 const { miniAppUrl, webAppBtn } = require('../src/lib/ct/format');
 assert(miniAppUrl('done').startsWith('https://') && miniAppUrl('done').includes('screen=done'), 'mini app https + screen');
+assert(miniAppUrl('done', { thb: 10000, count: 2, rate: 40, sent: 250, state: 'MATCHED' }).includes('thb=10000'), 'mini app carries live snapshot');
+assert(!miniAppUrl('vault').includes('thb='), 'vault pad url stays compact');
 assert(webAppBtn('เปิด VAULT', miniAppUrl()).web_app.url.startsWith('https://'), 'web_app button shape');
 assert(JSON.stringify(adminKeyboard()).includes('web_app'), 'reply keyboard launches Mini App for sendData');
 assert(collectBtns(CT.welcome('CE')).some((b) => b.web_app), 'welcome exposes Mini App');

@@ -33,6 +33,7 @@ export interface SummaryTodayProps {
   lastSync?: Date | null;
   syncStatus?: SyncStatus;
   owner?: { name: string; count: number };
+  compact?: boolean;
 }
 
 function n(v: number, d: number) {
@@ -67,6 +68,7 @@ export default function SummaryToday({
   lastSync,
   syncStatus,
   owner,
+  compact,
 }: SummaryTodayProps) {
   const inCount = daily.inCount ?? daily.transactionCount;
   const outCount = daily.outCount ?? 0;
@@ -94,6 +96,7 @@ export default function SummaryToday({
         <SyncBadge lastSync={lastSync} status={syncStatus} />
       </header>
 
+      {!compact && (
       <div className="kpi-strip" aria-label="สรุปยอดวันนี้">
         <article className="kpi is-in">
           <p>ฝาก</p>
@@ -116,6 +119,7 @@ export default function SummaryToday({
           <span>{over ? 'USDT · ตรวจหัวหน้า' : `USDT · คิว ${wait}`}</span>
         </article>
       </div>
+      )}
 
       <div className="sum-block" aria-label="สถานะการรับเงิน">
         <p className="sum-section">สถานะการรับเงิน</p>

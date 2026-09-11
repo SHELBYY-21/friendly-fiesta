@@ -143,10 +143,28 @@ export function webAppBtn(text: string, url: string) {
 
 const DEFAULT_MINIAPP = 'https://ce-empire-miniapp.vercel.app';
 
-export function miniAppUrl(screen: 'vault' | 'io' | 'done' = 'vault'): string {
+export type MiniAppScreen = 'vault' | 'io' | 'done';
+export type MiniAppSnap = {
+  thb?: number;
+  count?: number;
+  rate?: number;
+  sent?: number | null;
+  state?: string;
+};
+
+export function miniAppUrl(screen: MiniAppScreen = 'vault', snap?: MiniAppSnap): string {
   const raw = (process.env.NEXT_PUBLIC_MINIAPP_URL || process.env.MINIAPP_URL || DEFAULT_MINIAPP).replace(/\/$/, '');
   const base = raw.startsWith('https://') && !/localhost/.test(raw) ? raw : DEFAULT_MINIAPP;
-  return `${base}/?screen=${encodeURIComponent(screen)}`;
+  const q = new URLSearchParams();
+  q.set('screen', screen);
+  if (snap) {
+    if (Number.isFinite(snap.thb)) q.set('thb', String(Math.round(Number(snap.thb) * 100) / 100));
+    if (Number.isFinite(snap.count)) q.set('n', String(Math.max(0, Math.round(Number(snap.count)))));
+    if (Number.isFinite(snap.rate) && Number(snap.rate) > 0) q.set('rate', String(Number(snap.rate)));
+    if (snap.sent != null && Number.isFinite(snap.sent)) q.set('sent', String(Math.round(Number(snap.sent) * 100) / 100));
+    if (snap.state) q.set('st', String(snap.state).slice(0, 12));
+  }
+  return `${base}/?${q.toString()}`;
 }
 
 export function ik(rows: Array<Array<Record<string, unknown>>>) {

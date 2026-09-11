@@ -163,24 +163,46 @@ export function richSettlement(d: {
   sent: number | null;
   state: string;
   rate: number;
+  diff?: number | null;
+  message?: string | null;
+  rail?: string | null;
+  fromAddress?: string | null;
+  destAddress?: string | null;
 }): InputRichMessage {
+  const unit = d.rail === 'sol-usdc' ? 'USDC' : 'USDT';
+  const diffText =
+    d.diff == null
+      ? 'รอคำนวณ'
+      : `${d.diff > 0.005 ? '+' : d.diff < -0.005 ? '-' : '+'}${usdt(Math.abs(d.diff))} ${unit}`;
+  const rows: string[][] = [
+    ['รายการ', 'ยอด'],
+    ['ฝากรวม', `${thbCard(d.depositThb)} THB`],
+    [`ต้องส่ง @ ${rateCode(d.rate)}`, `${usdt(d.required)} ${unit}`],
+    ['ส่งแล้ว', d.sent == null ? 'รอส่ง' : `${usdt(d.sent)} ${unit}`],
+    ['ส่วนต่าง', diffText],
+  ];
+  if (d.rail) rows.push(['ราง', d.rail === 'sol-usdc' ? 'USDC · Solana' : 'USDT · TRC20 โอนมือ']);
+  if (d.fromAddress) rows.push(['จาก', d.fromAddress]);
+  if (d.destAddress) rows.push(['ไป', d.destAddress]);
   return {
     blocks: [
       heading('เคลียร์ยอด'),
       paragraph(`${d.state} · ${d.depositCount} รายการ`),
-      table([
-        ['รายการ', 'ยอด'],
-        ['ฝากรวม', `${thbCard(d.depositThb)} THB`],
-        [`ต้องส่ง @ ${rateCode(d.rate)}`, `${usdt(d.required)} USDT`],
-        ['ส่งแล้ว', d.sent == null ? 'รอส่ง' : `${usdt(d.sent)} USDT`],
-      ]),
+      table(rows),
+      ...(d.message ? [paragraph(d.message)] : []),
       buttons([
         {
           text: d.state === 'SETTLED' ? 'โอนสำเร็จ' : 'บันทึกส่งรวม',
           callback_data: d.state === 'SETTLED' ? 'vault:today' : 'vault:batch',
           style: d.state === 'SETTLED' ? 'success' : 'danger',
         },
-        { text: 'เปิด VAULT', web_app: { url: miniAppUrl(d.state === 'SETTLED' ? 'done' : 'vault') } },
+        { text: 'เปิด VAULT', web_app: { url: miniAppUrl(d.state === 'SETTLED' ? 'done' : 'vault', {
+          thb: d.depositThb,
+          count: d.depositCount,
+          rate: d.rate,
+          sent: d.sent,
+          state: d.state,
+        }) } },
       ]),
     ],
   };

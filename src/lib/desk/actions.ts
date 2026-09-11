@@ -11,6 +11,14 @@ import { findSlipByShort, patchSlip } from '@/lib/ct/store';
 import { HIGH_VALUE_THB, isOcrJunkAmount } from '@/lib/ct/settleGuard';
 import { invalidateBotGateCache, saveTyphoonSetting } from '@/lib/systemSettings';
 import {
+  normalizePayoutInput,
+  payoutInputErrors,
+  readPayoutWallet,
+  writePayoutWallet,
+  type PayoutWallet,
+} from '@/lib/ct/payoutWallet';
+import { claimSettlementConfirm } from '@/lib/ct/settlementRich';
+import {
   SESSION_COOKIE,
   SESSION_TTL_SECONDS,
   MAX_ATTEMPTS,
@@ -176,10 +184,46 @@ export async function settleDeskQueue(
   const targets = chatId ? chats.filter((id) => id === chatId) : chats;
   const skipped: Array<{ short: string; reason: string }> = [];
   for (const id of targets) {
+    if (!claimSettlementConfirm(`desk:${id}`)) continue;
     const r = await settleAllDue(id, actor, { dryRun: false, confirmHigh: false, confirmMismatch: false });
     skipped.push(...r.skipped);
   }
   return { ok: true, skipped };
+}
+
+export async function loadDeskPayout(
+  chatId?: number | null,
+): Promise<{ ok: true; wallet: PayoutWallet | null } | { ok: false; error: string }> {
+  const session = await assertDeskSession();
+  if (!session.ok) return session;
+  const id = chatId ?? (await opsChatId());
+  if (!id) return { ok: true, wallet: null };
+  return { ok: true, wallet: await readPayoutWallet(id) };
+}
+
+export async function saveDeskPayout(
+  input: {
+    label?: string;
+    fromAddress?: string;
+    walletId?: string;
+    rail?: string;
+    destAddress?: string;
+  },
+  chatId?: number | null,
+): Promise<{ ok: true; wallet: PayoutWallet } | { ok: false; error: string }> {
+  const session = await assertDeskSession();
+  if (!session.ok) return session;
+  const id = chatId ?? (await opsChatId());
+  if (!id) return { ok: false, error: 'NO_ROOM' };
+  const wallet = normalizePayoutInput(input);
+  const errors = payoutInputErrors(wallet);
+  if (errors.length) return { ok: false, error: errors[0] };
+  try {
+    await writePayoutWallet(id, wallet, 'desk');
+    return { ok: true, wallet };
+  } catch (e: unknown) {
+    return { ok: false, error: e instanceof Error ? e.message : 'payout_save_failed' };
+  }
 }
 
 export async function saveTyphoonKey(value: string): Promise<{ ok: true } | { ok: false; error: string }> {

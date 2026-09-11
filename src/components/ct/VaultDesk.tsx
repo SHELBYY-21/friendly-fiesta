@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import Image from 'next/image';
 import SummaryToday from '@/components/SummaryToday';
 import PinnedAccounts, { type PinnedAccount } from '@/components/PinnedAccounts';
@@ -8,7 +8,15 @@ import { useVaultLive } from '@/lib/ct/realtime';
 import { QueueTape } from '@/components/ct/TransactionFlow';
 import StaffPlaybook from '@/components/ct/StaffPlaybook';
 import DeskApiPanel from '@/components/ct/DeskApiPanel';
-import { keepDeskSlip, pinDeskAccount, resetDeskCycle, setDeskRate, settleDeskQueue } from '@/lib/desk/actions';
+import { keepDeskSlip, loadDeskPayout, pinDeskAccount, resetDeskCycle, saveDeskPayout, setDeskRate, settleDeskQueue } from '@/lib/desk/actions';
+import {
+  STATUS_CONFIG,
+  canConfirmSettlement,
+  requiredUsdt,
+  settlementDiff,
+  settlementState,
+  signedDiffText,
+} from '@/lib/ct/settlementMath';
 
 type TapeRow = {
   id: string;
@@ -89,6 +97,12 @@ export default function VaultDesk() {
   const [flash, setFlash] = useState<Set<string>>(new Set());
   const [rooms, setRooms] = useState<RoomChoice[]>([]);
   const [roomId, setRoomId] = useState<number | null>(null);
+  const [payoutRail, setPayoutRail] = useState<'sol-usdc' | 'manual-trc20'>('manual-trc20');
+  const [payoutLabel, setPayoutLabel] = useState('');
+  const [payoutFrom, setPayoutFrom] = useState('');
+  const [payoutDest, setPayoutDest] = useState('');
+  const [payoutNote, setPayoutNote] = useState<string | null>(null);
+  const [payoutSaving, setPayoutSaving] = useState(false);
   const seen = useRef<Set<string>>(new Set());
   const primed = useRef(false);
   const loadRef = useRef<() => Promise<void>>(async () => {});
@@ -149,6 +163,17 @@ export default function VaultDesk() {
       .catch(() => setCatalog([]));
   }, []);
 
+  useEffect(() => {
+    if (roomId == null) return;
+    void loadDeskPayout(roomId).then((r) => {
+      if (!r.ok) return;
+      setPayoutRail(r.wallet?.rail === 'sol-usdc' ? 'sol-usdc' : 'manual-trc20');
+      setPayoutLabel(r.wallet?.label ?? '');
+      setPayoutFrom(r.wallet?.fromAddress ?? '');
+      setPayoutDest(r.wallet?.destAddress ?? '');
+    });
+  }, [roomId]);
+
   const pinAccount = async (bankAccountId: string) => {
     if (pinning) return;
     setPinning(true);
@@ -195,6 +220,33 @@ export default function VaultDesk() {
       setError(err?.message ?? 'settle failed');
     } finally {
       setSettling(false);
+    }
+  };
+
+  const savePayout = async (e: FormEvent) => {
+    e.preventDefault();
+    if (payoutSaving) return;
+    setPayoutSaving(true);
+    setPayoutNote(null);
+    try {
+      const result = await saveDeskPayout({
+        rail: payoutRail,
+        label: payoutLabel,
+        fromAddress: payoutFrom,
+        destAddress: payoutDest,
+      }, roomId);
+      if (!result.ok) {
+        setPayoutNote(result.error);
+        return;
+      }
+      setPayoutNote(result.wallet.rail === 'sol-usdc' ? 'ใช้ราง USDC Solana วันนี้' : 'ใช้ราง TRC20 โอนมือวันนี้');
+      setPayoutLabel(result.wallet.label);
+      setPayoutFrom(result.wallet.fromAddress);
+      setPayoutDest(result.wallet.destAddress);
+    } catch (err: any) {
+      setPayoutNote(err?.message ?? 'บันทึกกระเป๋าไม่ได้');
+    } finally {
+      setPayoutSaving(false);
     }
   };
 
@@ -290,6 +342,24 @@ export default function VaultDesk() {
     .filter((r) => r.status === 'WAIT' || r.status === 'QUEUE' || r.status === 'SENT' || r.status === 'LOCK')
     .reduce((s, r) => s + (r.dueUsdt ?? r.expectedUsdt ?? r.usdt ?? 0), 0);
   const settleDue = Math.max(due, Math.round(waitDue * 100) / 100);
+  const settleCard = {
+    depositThb: v?.inThb ?? 0,
+    depositCount: v?.inCount ?? 0,
+    roomRate: desk,
+    sentUsdt: sent > 0 ? sent : null,
+    settled: settleDue <= 0 && sent > 0,
+    rail: payoutRail,
+    fromLabel: payoutLabel || null,
+    fromAddress: payoutFrom || null,
+    destAddress: payoutDest || null,
+  };
+  const settleSt = settlementState(settleCard);
+  const settleNeed = requiredUsdt(settleCard);
+  const settleDiff = settlementDiff(settleCard);
+  const settleBadge = STATUS_CONFIG[settleSt];
+  const settleUnit = payoutRail === 'sol-usdc' ? 'USDC' : 'USDT';
+  const settleSigned = signedDiffText(settleDiff, settleUnit);
+  const canBatch = canConfirmSettlement(settleCard) && settleDue > 0;
 
   return (
     <div className="desk-board">
@@ -365,6 +435,59 @@ export default function VaultDesk() {
           <strong>{money(settleDue, 2)}</strong>
         </article>
       </div>
+      <section className="desk-settle" data-state={settleSt} aria-label="เคลียร์ยอด">
+        <header className="desk-settle__head">
+          <p>เคลียร์ยอด</p>
+          <span className="desk-settle__chip">
+            {settleBadge.icon} {settleBadge.chip}
+            <em>{settleBadge.th}</em>
+          </span>
+        </header>
+        <dl className="desk-settle__grid">
+          <div>
+            <dt>ฝากรวม</dt>
+            <dd>{money(settleCard.depositThb)} THB</dd>
+            <small>{settleCard.depositCount} รายการ</small>
+          </div>
+          <div>
+            <dt>ยอดที่ต้องส่ง</dt>
+            <dd>{money(settleNeed, 2)} {settleUnit}</dd>
+            <small>{money(settleCard.depositThb)} ÷ {desk ? desk.toFixed(2) : '—'}</small>
+          </div>
+          <div>
+            <dt>ส่งไปแล้ว</dt>
+            <dd>{sent > 0 ? `${money(sent, 2)} ${settleUnit}` : 'รอส่ง'}</dd>
+          </div>
+          <div className="desk-settle__diff">
+            <dt>ส่วนต่าง</dt>
+            <dd>{settleSigned ?? 'รอคำนวณ'}</dd>
+            <small>{settleBadge.message.split(' (')[0]}</small>
+          </div>
+        </dl>
+        <div className="desk-settle__actions">
+          {settleSt === 'SETTLED' ? (
+            <button type="button" className="desk-settle__done" disabled>โอนสำเร็จ</button>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="desk-settle__go"
+                disabled={!canBatch || settling}
+                onClick={() => void settleQueue()}
+              >
+                {settling ? 'กำลังบันทึก' : 'บันทึกส่งรวม'}
+              </button>
+              <button
+                type="button"
+                className="desk-settle__cancel"
+                onClick={() => setMode('today')}
+              >
+                ดูยอดวันนี้
+              </button>
+            </>
+          )}
+        </div>
+      </section>
       <div className="agent-rail" />
       {error && <div className="noc-alert" role="alert">{error}</div>}
       <StaffPlaybook />
@@ -373,6 +496,7 @@ export default function VaultDesk() {
       <div className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <SummaryToday
           dateLabel={v ? `${v.dateLabel} ${v.clock}` : undefined}
+          compact
           daily={{
             transactionCount: v?.inCount ?? 0,
             totalThbReceived: v?.inThb ?? 0,
@@ -421,6 +545,59 @@ export default function VaultDesk() {
         </div>
         <p className={'desk-rate__hint' + (rateNote && !rateNote.startsWith('ใช้เรท') ? ' is-bad' : '')} role="status">
           {rateNote}
+        </p>
+      </form>
+      <form onSubmit={savePayout} className="desk-payout">
+        <label>กระเป๋าวันนี้ · เปลี่ยนได้ทุกวัน</label>
+        <div className="desk-payout__rails" role="group" aria-label="รางโอน">
+          <button
+            type="button"
+            className={'qd-pill' + (payoutRail === 'manual-trc20' ? ' is-on' : '')}
+            onClick={() => setPayoutRail('manual-trc20')}
+          >
+            TRC20 โอนมือ
+          </button>
+          <button
+            type="button"
+            className={'qd-pill' + (payoutRail === 'sol-usdc' ? ' is-on' : '')}
+            onClick={() => setPayoutRail('sol-usdc')}
+          >
+            USDC Solana
+          </button>
+        </div>
+        <div className="desk-rate__row">
+          <input
+            value={payoutLabel}
+            onChange={(e) => setPayoutLabel(e.target.value)}
+            placeholder="ชื่อเล่นกระเป๋า"
+            autoComplete="off"
+            className="field"
+            aria-label="ชื่อเล่นกระเป๋า"
+          />
+          <input
+            value={payoutFrom}
+            onChange={(e) => setPayoutFrom(e.target.value)}
+            placeholder={payoutRail === 'sol-usdc' ? 'ที่อยู่ Solana ต้นทาง' : 'ที่อยู่ TRON ต้นทาง'}
+            autoComplete="off"
+            className="field"
+            aria-label="ที่อยู่ต้นทาง"
+          />
+        </div>
+        <div className="desk-rate__row">
+          <input
+            value={payoutDest}
+            onChange={(e) => setPayoutDest(e.target.value)}
+            placeholder={payoutRail === 'sol-usdc' ? 'ที่อยู่ลูกค้า Solana' : 'ที่อยู่ลูกค้า TRON'}
+            autoComplete="off"
+            className="field"
+            aria-label="ที่อยู่ลูกค้า"
+          />
+          <button type="submit" disabled={payoutSaving} className="keep px-4 text-xs">
+            {payoutSaving ? 'กำลังบันทึก' : 'ใช้กระเป๋านี้'}
+          </button>
+        </div>
+        <p className={'desk-rate__hint' + (payoutNote && !payoutNote.startsWith('ใช้ราง') ? ' is-bad' : '')} role="status">
+          {payoutNote}
         </p>
       </form>
       <QueueTape
