@@ -2,6 +2,7 @@ const { matchPinnedBank, matchSlipPins, accountLast4Candidates } = require('../s
 const { statusChip, stateFromSlip } = require('../src/lib/ct/state');
 const { gateOcr, MAX_SLIP_THB } = require('../src/lib/ct/gate');
 const { canAutoQueue } = require('../src/lib/ct/queue');
+const { usdtFromThbDesk } = require('../src/lib/money');
 const {
   settleBlockReason,
   outgoingLedgerRef,
@@ -24,15 +25,18 @@ assert(matchPinnedBank('KTB', '6034', [ktb])?.id === 'k1', 'masked KTB slip matc
 assert(matchPinnedBank('SCB', '7573', [ktb]) == null, 'other bank last4 does not match KTB pin');
 assert(matchSlipPins('SCB', '0209', '7573', [scb])?.id === 's1', 'OCR swap still matches sender last4 to pin');
 assert(matchSlipPins('KTB', '6311', '0343', [ktb])?.id === 'k1', 'OCR swap still matches KTB pin');
-assert(gateOcr({ thb: 500, confidence: 96, pinMatch: true }) === 'IN_READY', 'matched high-confidence is ready');
+assert(gateOcr({ thb: 500, confidence: 96, pinMatch: true, qrVerified: false }) === 'IN_READY_REVIEW', 'OCR-only high-confidence stays Pending Review');
 assert(gateOcr({ thb: 500, confidence: 96, pinMatch: false }) === 'PIN_MISMATCH', 'no pin is mismatch');
 assert(gateOcr({ thb: 10_000_000, confidence: 99, pinMatch: true }) === 'OCR_WEAK', 'barcode 10M is OCR junk');
 assert(gateOcr({ thb: 10_000_000, confidence: 99, pinMatch: false }) === 'OCR_WEAK', '10M junk even when pin mismatches');
 assert(10_000_000 > MAX_SLIP_THB, '10M exceeds desk cap');
 assert(isOcrJunkAmount(10_000_000) === true, '10M flagged as OCR junk');
 assert(isOcrJunkAmount(31000) === false, '31k is not OCR junk');
-assert(canAutoQueue('IN_READY', 500, 41) === true, 'normal slip can auto-queue');
+assert(canAutoQueue('IN_READY', 500, 41) === false, 'auto-queue blocked without providerValid');
+assert(canAutoQueue('IN_READY', 500, 41, { providerValid: true }) === true, 'provider-valid IN_READY can auto-queue');
+assert(gateOcr({ thb: 500, confidence: 50, pinMatch: true, qrVerified: true }) === 'IN_READY', 'provider verified is ready');
 assert(canAutoQueue('IN_READY', 10_000_000, 41) === false, '10M cannot auto-queue');
+assert(usdtFromThbDesk(1000, 40) === 25, 'decimal helper 1000/40');
 assert(statusChip(stateFromSlip({ slipStatus: 'PIN_MISMATCH', expectedUsdt: 12, sentUsdt: null })) === 'ERR', 'mismatch shows ERR');
 assert(statusChip(stateFromSlip({ slipStatus: 'LOCKED', expectedUsdt: 24.39, sentUsdt: null })) === 'WAIT', 'locked slip is WAIT');
 assert(statusChip(stateFromSlip({ slipStatus: 'OCR_WEAK', expectedUsdt: 0, sentUsdt: null })) === 'ERR', 'quarantined junk stays ERR');

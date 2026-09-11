@@ -263,8 +263,8 @@ export function slipReady(d: SlipReadyData): OutgoingMessage {
   const suffix = d.historyLine ?? '';
   const msg = card({
     icon: isOk ? '✅' : '⚠️',
-    titleTh: isOk ? 'ตรวจสอบสลิปสำเร็จ' : 'ไม่สามารถอ่านข้อมูลได้',
-    titleEn: isOk ? 'OCR Verified' : 'OCR Failed',
+    titleTh: isOk ? 'อ่านสลิปได้ (ยังไม่ยืนยันเงิน)' : 'ไม่สามารถอ่านข้อมูลได้',
+    titleEn: isOk ? 'OCR Extracted' : 'OCR Failed',
     groups: fields.length ? [fields] : [],
     note,
   });

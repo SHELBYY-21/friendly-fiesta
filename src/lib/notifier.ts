@@ -6,7 +6,7 @@
 import { supabaseAdmin } from './supabaseAdmin';
 
 const TOKEN = process.env.BOT_TOKEN || '';
-const CHAT_ID = process.env.NOTIFY_CHAT_ID || ''; // เว้นว่าง = ปิดแจ้งเตือน
+const CHAT_ID = process.env.NOTIFY_CHAT_ID || process.env.OPS_CHAT_ID || ''; // เว้นว่าง = ปิดแจ้งเตือน
 
 const nf = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2 });
 const money = (n: number) => nf.format(Number(n) || 0);
@@ -119,4 +119,19 @@ export async function notifyDailySummary(): Promise<void> {
 // ─── สถานะระบบ (เรียกตอนบูต / /ping ในกลุ่มแจ้งเตือน) ───
 export async function notifyReady(): Promise<void> {
   await post(`⚡ <b>CEempire</b> พร้อมแล้วครับ ข้อมูลบัญชีทั้งหมดอัปเดตเรียบร้อย`);
+}
+
+
+// ─── Exception-only alert (severity + ops) ───
+export async function notifyException(input: {
+  severity: string;
+  code: string;
+  detail?: string;
+  action?: string;
+}): Promise<void> {
+  await post(
+    `⚠️ <b>ALERT ${input.severity}</b> · <code>${input.code}</code>\n` +
+      (input.detail ? `${input.detail}\n` : '') +
+      (input.action ? `<i>แนะนำ: ${input.action}</i>` : ''),
+  );
 }

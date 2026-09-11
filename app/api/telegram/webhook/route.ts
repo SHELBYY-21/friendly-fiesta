@@ -67,10 +67,11 @@ import {
   unpinBankAccount,
 } from '@/lib/banks';
 import { largestPhoto, parseTelegramUpdate } from '@/lib/telegram/update';
+import { assertCanMutateSettled, SettledMutationError } from '@/lib/ct/settleLock';
 
 // ตรวจ USDT (OCR vs พิมพ์เอง) ต้องตรงกันในระดับ 0.0001 (req 13)
 const USDT_TOLERANCE = 0.0001;
-// OCR มั่นใจ >= ค่านี้ → บันทึกขาเข้าทันที ไม่ต้องถาม
+// OCR confidence threshold for /save_slip amount acceptance (command = admin intent; photo auto-queue is gated separately)
 const OCR_AUTO_MIN = getOcrAutoMin();
 
 // fire-and-forget — ไม่ block flow หลัก ไม่ throw
@@ -1336,7 +1337,7 @@ async function handleCallback(cb: any): Promise<void> {
   // load transaction and verify minimal permissions
   const { data: tx } = await supabaseAdmin
     .from('transactions')
-    .select('id, type, admin_id, live_message_id, live_chat_id')
+    .select('id, type, admin_id, live_message_id, live_chat_id, status, settled_at')
     .eq('id', txId)
     .maybeSingle();
 
@@ -1348,6 +1349,11 @@ async function handleCallback(cb: any): Promise<void> {
   // ----- edit : allow owner or Admin to modify a committed transaction -----
   if (action === 'edit') {
     if (!isOwner && !await hasRole(['SuperAdmin','Admin'])) return await answerCallback(id, 'สิทธิ์ไม่พอ');
+    try {
+      assertCanMutateSettled(tx, { role: (await hasRole(['SuperAdmin'])) ? 'SuperAdmin' : 'Admin' }, null);
+    } catch (e: any) {
+      return await answerCallback(id, e?.message?.includes('SETTLED_LOCKED') ? 'รายการปิดยอดแล้ว — แก้ไม่ได้' : 'แก้ไขไม่ได้');
+    }
     await answerCallback(id, '✏️ แก้ USDT');
     await setSession(chatId, userId, {
       state: 'EDITING', caption: txId,
@@ -1360,6 +1366,11 @@ async function handleCallback(cb: any): Promise<void> {
   // ----- delete / del : allow owner or Admin (or SuperAdmin) -----
   if (action === 'delete' || action === 'del') {
     if (!isOwner && !await hasRole(['SuperAdmin','Admin'])) return await answerCallback(id, 'สิทธิ์ไม่พอ');
+    try {
+      assertCanMutateSettled(tx, { role: (await hasRole(['SuperAdmin'])) ? 'SuperAdmin' : 'Admin' }, null);
+    } catch (e: any) {
+      return await answerCallback(id, e?.message?.includes('SETTLED_LOCKED') ? 'รายการปิดยอดแล้ว — ลบไม่ได้' : 'ลบไม่ได้');
+    }
     await answerCallback(id, '🗑 กำลังลบ...');
     try {
       const r = await deleteTransaction(txId);

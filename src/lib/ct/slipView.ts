@@ -1,6 +1,6 @@
 /**
  * CE VAULT — Settlement Slip Detail (verification layer)
- * OCR VERIFIED ≠ PAYMENT CLEARED
+ * OCR EXTRACTED ≠ PAYMENT CLEARED
  * Full account/name for operators (no mask). Confidence only in DETAILS.
  */
 import type { OutgoingMessage } from '../telegram';
@@ -224,7 +224,7 @@ export function renderSlipCard(model: SlipViewModel): OutgoingMessage {
   const ocrHead = model.ocrOk ? '✓ OCR COMPLETE' : '◌ OCR PROCESSING';
   const lines: string[] = [
     '◈ <b>CE VAULT</b>',
-    `<b>SLIP</b> · ${model.ocrOk ? 'OCR VERIFIED' : 'OCR'}`,
+    `<b>SLIP</b> · ${model.ocrOk ? 'OCR EXTRACTED' : 'OCR'}`,
     ocrHead,
     SEP,
     'ยอดในสลิป',
@@ -260,7 +260,7 @@ export function renderSlipCard(model: SlipViewModel): OutgoingMessage {
   lines.push('<b>CLEARANCE</b>');
   if (sum.none) {
     lines.push('ยังไม่เคลียร์ยอด');
-    lines.push('<i>OCR VERIFIED ≠ PAYMENT CLEARED</i>');
+    lines.push('<i>OCR EXTRACTED ≠ PAYMENT CLEARED</i>');
   } else if (model.lines.length > 1) {
     for (const l of model.lines) {
       lines.push(`<code>${esc(l.settlementId)}</code>`);
@@ -345,7 +345,7 @@ export function renderSlipDetails(model: SlipViewModel): OutgoingMessage {
   lines.push(SEP);
   if (sum.none) {
     lines.push('ยังไม่ CLEARED');
-    lines.push('<i>OCR VERIFIED ≠ PAYMENT CLEARED</i>');
+    lines.push('<i>OCR EXTRACTED ≠ PAYMENT CLEARED</i>');
   } else {
     lines.push(sum.fully ? '✓ FULLY CLEARED' : sum.partial ? '⚠ PARTIALLY CLEARED' : statusMark(l0?.status || 'PENDING'));
     if (l0) lines.push(`Delta          ${esc(deltaLabel(l0.deltaUsdt))} USDT`);
@@ -354,7 +354,7 @@ export function renderSlipDetails(model: SlipViewModel): OutgoingMessage {
   lines.push('');
   lines.push('<b>AUDIT</b>');
   lines.push(SEP);
-  lines.push(`OCR verified   ${esc(model.audit.ocrVerifiedAt || '—')}`);
+  lines.push(`OCR extracted  ${esc(model.audit.ocrVerifiedAt || '—')}`);
   lines.push(`Matched        ${esc(model.audit.matchedAt || '—')}`);
   lines.push(`Cleared        ${esc(model.audit.clearedAt || '—')}`);
   lines.push(`Operator       ${esc(model.audit.operator || '—')}`);

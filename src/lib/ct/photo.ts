@@ -10,6 +10,8 @@ import { opsRates } from './rates';
 import { insertPending, findPendingByFingerprint, type PendingSlip } from './store';
 import { shouldSend, clockBkk } from './format';
 import { canAutoQueue, commitIncomingLock, dueSummary } from './queue';
+import { alertException } from './exceptionAlert';
+import { appendAuditEvent } from './auditEvents';
 import { isOcrJunkAmount } from './settleGuard';
 import { applyQrToOcr, type SlipQrResult } from './slipQr';
 import { inspectSlipImage } from './slipInquiry';
@@ -129,7 +131,6 @@ export async function handleCtPhoto(opts: { chatId: number; userId: number; admi
   }
   const fingerprint = fingerprints[0];
 
-  // Quiet OCR: no AiTransition status spam (OCR → Extract → Calculate → Clear)
   const matchedPin = matchSlipPins(slip.bank, slip.receiverLast4, slip.senderLast4, pins);
   const pinMatch = Boolean(matchedPin);
   const thb = slip.thbAmount && slip.thbAmount > 0 ? slip.thbAmount : null;
@@ -137,6 +138,39 @@ export async function handleCtPhoto(opts: { chatId: number; userId: number; admi
   const qrVerified = Boolean(qr?.inquiry?.valid);
   let gate = gateOcr({ thb, confidence: slip.confidence, pinMatch, hasCurrency: thb != null, qrVerified });
   if (qr?.inquiry && qr.inquiry.valid === false) gate = 'OCR_WEAK';
+  if (gate === 'OCR_WEAK' || (qr?.inquiry && qr.inquiry.valid === false)) {
+    void alertException({
+      code: qr?.inquiry && qr.inquiry.valid === false ? 'QR_INVALID' : 'OCR_WEAK',
+      severity: 'High',
+      chatId,
+      fingerprint,
+      detail: `conf=${slip.confidence ?? 'n/a'}`,
+      action: 'ตรวจสลิปด้วยคน / ส่งรูปใหม่',
+    });
+  } else if (!qrVerified) {
+    void alertException({
+      code: 'PROVIDER_PENDING',
+      severity: 'Medium',
+      chatId,
+      fingerprint,
+      detail: 'OCR-only path — Pending Review',
+      action: 'รอแอดมินยืนยันหรือ QR inquiry',
+    });
+  }
+  void appendAuditEvent({
+    kind: 'slip_ingest',
+    chatId,
+    actorTgId: userId,
+    fingerprint,
+    payload: {
+      gate,
+      thb,
+      confidence: slip.confidence ?? null,
+      providerValid: qrVerified,
+      provider: qr?.inquiry?.provider ?? null,
+      sourceFileId: fileId,
+    },
+  });
   const usdtDue = thb && rates.desk ? shouldSend(thb, rates.desk) : null;
   const notes = [
     isOcrJunkAmount(thb) ? 'OCR_JUNK:AMOUNT_TOO_LARGE' : null,
@@ -170,7 +204,7 @@ export async function handleCtPhoto(opts: { chatId: number; userId: number; admi
     bank_account_id: matchedPin?.id ?? null,
   });
   const last4 = last4Early;
-  if (canAutoQueue(gate, thb, rates.desk) && pinMatch) {
+  if (canAutoQueue(gate, thb, rates.desk, { providerValid: qrVerified }) && pinMatch) {
     const queued = await tryQueue(pending, { chatId, userId, admin, cardId, last4, bank: matchedPin?.bank_name ?? todayPin?.bank_name ?? slip.bank ?? '—' });
     if (queued) return;
   }

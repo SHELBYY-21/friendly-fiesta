@@ -8,6 +8,7 @@ import { fetchMktRate } from './mkt';
 import { notifyIncome, notifyOutflow, notifyEdit, notifyDelete } from './notifier';
 import type { Admin } from '@/types/transactions';
 import { randomBytes } from 'crypto';
+import { assertCanMutateSettled } from './ct/settleLock';
 
 // ─── RATE CACHE (30s) เพื่อลด Binance API calls ───
 let cachedRates: { sellRate: number; marketUsdtRate: number; marketSource: MarketSource } | null = null;
@@ -333,13 +334,19 @@ export async function recordThbDeposit(input: RecordThbInput): Promise<ThbResult
 export async function editTransaction(
   txId: string,
   patch: { newThb?: number; newUsdt: number },
+  opts?: { adminRole?: string | null; reason?: string | null },
 ): Promise<{ tx: any; admin: { name: string; holdingUsdt: number } }> {
   const { data: old } = await supabaseAdmin
     .from('transactions')
-    .select('*, admins(name, holding_usdt)')
+    .select('*, admins(name, holding_usdt, role)')
     .eq('id', txId)
     .single();
   if (!old) throw new Error('ไม่พบธุรกรรม');
+  assertCanMutateSettled(
+    { status: old.status, settled_at: old.settled_at },
+    { role: (opts?.adminRole as any) ?? old.admins?.role ?? null },
+    opts?.reason,
+  );
 
   if (old.ledger_ref) {
     const newThb = old.type === 'THB_DEPOSIT' ? (patch.newThb ?? Number(old.thb_amount)) : 0;
@@ -419,13 +426,18 @@ export async function editTransaction(
 }
 
 /** ลบธุรกรรม (คืน holding/bank balance ให้ถูกต้อง) */
-export async function deleteTransaction(txId: string): Promise<{ name: string; holdingUsdt: number }> {
+export async function deleteTransaction(txId: string, opts?: { adminRole?: string | null; reason?: string | null }): Promise<{ name: string; holdingUsdt: number }> {
   const { data: old } = await supabaseAdmin
     .from('transactions')
-    .select('*, admins(name, holding_usdt)')
+    .select('*, admins(name, holding_usdt, role)')
     .eq('id', txId)
     .single();
   if (!old) throw new Error('ไม่พบธุรกรรม');
+  assertCanMutateSettled(
+    { status: old.status, settled_at: old.settled_at },
+    { role: (opts?.adminRole as any) ?? old.admins?.role ?? null },
+    opts?.reason,
+  );
 
   if (old.ledger_ref) {
     const { error } = await supabaseAdmin.rpc('ce_vault_delete_ledger_transaction', { p_tx_id: txId });

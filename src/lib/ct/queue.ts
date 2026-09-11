@@ -214,7 +214,14 @@ export async function settleAllDue(
   };
 }
 
-export function canAutoQueue(gate: string, thb: number | null, desk: number): boolean {
+/** Auto-queue only when gate is IN_READY AND bank provider verified. OCR-only never locks. */
+export function canAutoQueue(
+  gate: string,
+  thb: number | null,
+  desk: number,
+  opts?: { providerValid?: boolean },
+): boolean {
+  if (!opts?.providerValid) return false;
   return gate === 'IN_READY' && thb != null && thb > 0 && thb <= MAX_SLIP_THB && desk > 0;
 }
 
@@ -228,7 +235,8 @@ export async function rematchOpenSlips(chatId: number): Promise<{ matched: strin
     const last4 = payeeLast4(p.account_masked);
     const hit = matchPinnedBank(p.bank, last4, pins);
     if (!hit) continue;
-    const nextStatus = p.thb_in && p.thb_in > 0 ? 'IN_READY' : 'PIN_MISMATCH';
+    // Pin rematch alone is not bank-verified — keep human review
+    const nextStatus = p.thb_in && p.thb_in > 0 ? 'IN_READY_REVIEW' : 'PIN_MISMATCH';
     await patchSlip(p.id, {
       pin_match: true,
       bank_account_id: hit.id,
