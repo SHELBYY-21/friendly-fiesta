@@ -95,9 +95,11 @@ export function SlipCard({ slip, onClose, queue, onKeep }: {
         <span className="slip-tag">สลิป (SLIP) · {statusLabel(slip.status)}</span>
         <button type="button" className="slip-x" onClick={onClose} aria-label="ปิด">ปิด</button>
       </div>
-      <p className="slip-rail">
+      <p className="slip-rail" aria-label="ขั้นตอนสลิป">
         {STEPS.map((s, i) => (
-          <span key={s} className={i < active ? 'on' : ''}>{(i < active ? '●' : '○') + ' ' + s}</span>
+          <span key={s} data-step={s.toLowerCase()} className={i < active ? 'on' : ''}>
+            <i>{i < active ? '●' : '○'}</i> {s}
+          </span>
         ))}
       </p>
       <div className="slip-rule" />

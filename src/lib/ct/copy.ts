@@ -218,7 +218,7 @@ export function cardInReady(d: {
     esc(d.senderName || '—'),
     '',
     `OCR  ${Math.round(d.confidence)}%`,
-    d.review ? 'ยอดหรือบัญชียังไม่มั่นใจ' : 'สลิปตรงบัญชีแล้ว',
+    d.review ? 'ตรวจก่อนบันทึก (review)' : 'สลิปตรงบัญชีแล้ว',
   ].filter((x) => x !== undefined);
   const lines = [
     head('ยอดรับเข้า', `<code>${esc(displayLedger(d.ledger))}</code>`),
