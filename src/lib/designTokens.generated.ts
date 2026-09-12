@@ -4,9 +4,9 @@ export const ceTokens = {
     "canvas": "#050814",
     "surface": "#0A1220",
     "surfaceRaised": "#0E1A2C",
-    "text": "#D7F4FF",
-    "textMuted": "#A8C6D4",
-    "brand": "#5EE7FF",
+    "text": "#F4E7C4",
+    "textMuted": "#C9B896",
+    "brand": "#E8C96A",
     "success": "#1EE08A",
     "danger": "#FF3355"
   },
@@ -31,7 +31,7 @@ export const ceTokens = {
   },
   "elevation": {
     "panel": "0 16px 48px rgba(0, 0, 0, 0.28)",
-    "brand": "0 0 28px rgba(94, 231, 255, 0.14)"
+    "brand": "0 0 32px rgba(232, 201, 106, 0.22)"
   },
   "typography": {
     "body": "var(--font-noto-thai)",

@@ -8,21 +8,21 @@
   --bg-elevated: #0a1220;
   --bg-subtle: #0e1a2c;
   --panel: rgba(8, 18, 34, 0.82);
-  --fg: #d7f4ff;
-  --fg-muted: #a8c6d4;
-  --fg-subtle: #8aa8b4;
-  --gold: #5ee7ff;
+  --fg: #f4e7c4;
+  --fg-muted: #c9b896;
+  --fg-subtle: #9a8a6a;
+  --gold: #e8c96a;
   --gold-dim: color-mix(in srgb, var(--gold) 16%, transparent);
-  --cyan: #1ee08a;
+  --cyan: #3ecbff;
   --cyan-dim: color-mix(in srgb, var(--cyan) 16%, transparent);
-  --line: rgba(94, 231, 255, 0.18);
+  --line: rgba(232, 201, 106, 0.22);
   --danger: #ff3355;
   --text: var(--fg);
   --muted: var(--fg-muted);
   --border: var(--line);
   --border-strong: rgba(94, 231, 255, 0.42);
   --brand-1: var(--gold);
-  --good: var(--cyan);
+  --good: #1ee08a;
   --surface: var(--bg-subtle);
 
   --radius-xs: 4px;
