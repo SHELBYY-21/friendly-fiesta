@@ -16,6 +16,7 @@ type TapeRow = {
   status: string;
   bank?: string | null;
   last4?: string | null;
+  account?: string | null;
   name?: string | null;
 };
 
@@ -61,8 +62,9 @@ function badgeOf(status: string, pending: boolean) {
 }
 
 function acct(row: TapeRow) {
-  if (row.last4) return (row.bank ? `${row.bank} ` : '') + `····${row.last4}`;
-  return row.short || '—';
+  const no = row.account || row.last4;
+  if (!no) return row.short || '—';
+  return (row.bank ? `${row.bank} ` : '') + no;
 }
 
 function useCountUp(value: number, digits = 2) {

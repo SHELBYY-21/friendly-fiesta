@@ -8,11 +8,18 @@ import { richDone, richInReady, richStart, richWait, richVault } from './cardJso
 import { cardSettlement } from './settlementRich';
 import type { PayoutWallet } from './payoutWallet';
 import { bankLabel } from '../botSecurity';
+import { bankIdentity } from './bankIdentity';
 
 export { cardSettlement };
 
 function msg(text: string, keyboard?: unknown, rich?: OutgoingMessage['rich']): OutgoingMessage {
   return { text, reply_markup: keyboard, rich };
+}
+
+function bankLine(raw: string | null | undefined, account: string): string {
+  const idn = bankIdentity(raw);
+  const label = idn.known ? `${idn.nameTh} (${idn.bankCode})` : bankLabel(raw);
+  return `${esc(label)}  <code>${esc(account)}</code>`;
 }
 
 function head(status: string, meta: string): string {
@@ -209,12 +216,12 @@ export function cardInReady(d: {
     d.balanceThb != null ? `คงเหลือ  ${thbCard(d.balanceThb)} THB` : '',
     '',
     'ผู้รับ',
-    `${esc(bankLabel(d.bank))}  <code>${esc(payeeAcct)}</code>`,
+    bankLine(d.bank, payeeAcct),
     esc(d.name || '—'),
     d.promptpay ? `พร้อมเพย์  <code>${esc(d.promptpay)}</code>` : '',
     '',
     'ผู้โอน',
-    `${esc(bankLabel(d.senderBank || '—'))}  <code>${esc(payerAcct)}</code>`,
+    bankLine(d.senderBank, payerAcct),
     esc(d.senderName || '—'),
     '',
     `OCR  ${Math.round(d.confidence)}%`,

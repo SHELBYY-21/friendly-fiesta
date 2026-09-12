@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import BankLogo from '@/components/BankLogo';
+import { bankIdentity } from '@/lib/ct/bankIdentity';
 
 type Slip = {
   id: string;
@@ -17,6 +19,7 @@ type Slip = {
   bank?: string | null;
   last4?: string | null;
   name?: string | null;
+  account?: string | null;
 };
 
 function n(v: number | null | undefined, d = 0) {
@@ -72,7 +75,9 @@ export function SlipCard({ slip, onClose, queue, onKeep }: {
   const used = queue?.thb ?? 0;
   const left = Math.max(0, target - used);
   const dueAll = queue?.usdt ?? 0;
-  const payee = [slip.bank, slip.last4 || null].filter(Boolean).join(' ');
+  const idn = bankIdentity(slip.bank);
+  const payeeNo = String(slip.account || slip.last4 || '').trim();
+  const payee = [idn.known ? idn.code : slip.bank, payeeNo].filter(Boolean).join(' ');
 
   async function copyRef() {
     if (!ref) return;
@@ -90,7 +95,7 @@ export function SlipCard({ slip, onClose, queue, onKeep }: {
         : 'รายการนี้ปิดแล้ว';
 
   return (
-    <article className="slip term">
+    <article className="slip term" aria-label={`สลิป ${statusLabel(slip.status)} ${payee}`}>
       <div className="slip-head">
         <span className="slip-tag">สลิป (SLIP) · {statusLabel(slip.status)}</span>
         <button type="button" className="slip-x" onClick={onClose} aria-label="ปิด">ปิด</button>
@@ -105,7 +110,13 @@ export function SlipCard({ slip, onClose, queue, onKeep }: {
       <div className="slip-rule" />
       <div className="slip-row"><span>เวลา (TIME)</span><span>{slip.time || '—'}</span></div>
       <div className="slip-row"><span>เลขอ้างอิง (REF)</span><button type="button" className={'slip-copy' + (copied ? ' is-on' : '')} onClick={copyRef}>{copied ? 'คัดอยู่' : ref || '—'}</button></div>
-      <div className="slip-row"><span>บัญชีรับ (PAYEE)</span><span>{payee || '—'}</span></div>
+      <div className="slip-row">
+        <span>บัญชีรับ (PAYEE)</span>
+        <span className="inline-flex items-center gap-2">
+          {slip.bank ? <BankLogo bankName={slip.bank} size={22} eager /> : null}
+          {payee || '—'}
+        </span>
+      </div>
       <div className="slip-row"><span>ชื่อ (NAME)</span><span>{slip.name || '—'}</span></div>
       <div className="slip-rule" />
       <div className="slip-row"><span>รับเข้า (IN)</span><span className="in">{n(slip.thb)} THB</span></div>
