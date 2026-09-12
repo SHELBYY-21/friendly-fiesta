@@ -16,7 +16,10 @@ const {
 } = require('../src/lib/botSecurity');
 const { pickExplicitThbAmount } = require('../src/lib/ocrAmount');
 const UI = require('../src/lib/botUi');
+const { calculateDepositProfit } = require('../src/lib/profit');
+const { calculateFee } = require('../src/lib/fees');
 const {
+  getBotToken,
   getOcrAutoMin,
   getSupabaseAdminKey,
   validateProductionEnvironment,
@@ -218,6 +221,8 @@ assert(parseDeskRate('500') === null, '500 is not a desk rate');
 assert(computeShouldSend(5000, 42) === 119.05, `computeShouldSend(5000, 42) = 119.05 (got ${computeShouldSend(5000, 42)})`);
 assert(computeShouldSend(1000, 35.5) === 28.17, `computeShouldSend(1000, 35.5) = 28.17 (got ${computeShouldSend(1000, 35.5)})`);
 assert(computeShouldSend(0, 35.5) === 0, `computeShouldSend(0, 35.5) = 0`);
+assert(calculateDepositProfit(1000, 28.17, 35.5).netProfitThb === -0.04, 'deposit profit uses decimal rounding');
+assert(calculateFee(1000, 35.5, 28.17).expectedUsdt === 28.17, 'fee expected USDT rounds half up');
 
 const explicit = parseAmounts('+500B -13.6U');
 assert(explicit.thb?.value === 500 && explicit.thb?.sign === 1, 'accepts explicit +500B');
@@ -268,6 +273,7 @@ assert(validateProductionEnvironment(validProductionEnv).length === 0, 'accepts 
 const { DEFAULT_SELL_RATE: _s, DEFAULT_MARKET_RATE: _m, ...prodWithoutDefaults } = validProductionEnv as any;
 assert(validateProductionEnvironment(prodWithoutDefaults).length === 0, 'desk rate is per-room, not required in env');
 assert(getSupabaseAdminKey(validProductionEnv)?.startsWith('sb_secret_') === true, 'accepts new Supabase secret key');
+assert(getBotToken({ TELEGRAM_bot_SECRET: validProductionEnv.BOT_TOKEN }) === validProductionEnv.BOT_TOKEN, 'accepts existing Telegram bot token alias');
 assert(getOcrAutoMin({ OCR_AUTO_MIN: '80' }) === 90, 'never allows OCR threshold below 90%');
 assert(
   validateProductionEnvironment({ ...validProductionEnv, OCR_AUTO_MIN: '80' })
