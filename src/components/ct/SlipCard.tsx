@@ -53,7 +53,7 @@ function refOf(slip: Slip) {
   return slip.short ? '#CE-' + slip.short : '';
 }
 
-export function SlipCard({ slip, onClose, queue, onKeep }: {
+export function TransactionDetail({ slip, onClose, queue, onKeep }: {
   slip: Slip;
   onClose: () => void;
   queue?: { count: number; thb: number; usdt: number; target: number };
@@ -97,7 +97,7 @@ export function SlipCard({ slip, onClose, queue, onKeep }: {
   return (
     <article className="slip term" aria-label={`สลิป ${statusLabel(slip.status)} ${payee}`}>
       <div className="slip-head">
-        <span className="slip-tag">สลิป (SLIP) · {statusLabel(slip.status)}</span>
+        <span className="slip-tag">TRANSACTION · {statusLabel(slip.status)}</span>
         <button type="button" className="slip-x" onClick={onClose} aria-label="ปิด">ปิด</button>
       </div>
       <p className="slip-rail" aria-label="ขั้นตอนสลิป">
@@ -156,3 +156,6 @@ export function SlipCard({ slip, onClose, queue, onKeep }: {
     </article>
   );
 }
+
+/** Backwards-compatible name for existing callers. */
+export const SlipCard = TransactionDetail;

@@ -5,6 +5,7 @@ import { SlipCard } from './SlipCard';
 
 type TapeRow = {
   id: string;
+  ledger?: string | null;
   short: string;
   thb: number | null;
   expectedUsdt?: number | null;
@@ -20,14 +21,15 @@ type TapeRow = {
   name?: string | null;
 };
 
-type QueueFilter = 'ALL' | 'WAIT' | 'HOLD' | 'DONE' | 'ERR';
+type QueueFilter = 'ALL' | 'READY' | 'PENDING' | 'SHORT' | 'SETTLED' | 'REJECTED';
 
 const FILTER_LABEL: Record<QueueFilter, string> = {
-  WAIT: 'คิว',
-  HOLD: 'พัก',
-  DONE: 'เสร็จ',
-  ERR: 'ผิด',
   ALL: 'ทั้งหมด',
+  READY: 'พร้อม',
+  PENDING: 'รอโอน',
+  SHORT: 'ส่งขาด',
+  SETTLED: 'ปิดแล้ว',
+  REJECTED: 'ตรวจทาน',
 };
 
 function n(v: number | null | undefined, d = 0) {
@@ -35,12 +37,24 @@ function n(v: number | null | undefined, d = 0) {
   return Number(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 
-function matches(filter: QueueFilter, status: string, pending: boolean) {
+function isShort(row: TapeRow) {
+  return row.sentUsdt != null && (row.dueUsdt ?? 0) > 0;
+}
+
+function matches(filter: QueueFilter, status: string, pending: boolean, short = false) {
   if (filter === 'ALL') return true;
-  if (filter === 'DONE') return status === 'DONE';
-  if (filter === 'HOLD') return status === 'HOLD';
-  if (filter === 'ERR') return status === 'ERR' || status === 'ERROR' || status === 'SCAN';
-  return status === 'WAIT' || status === 'QUEUE' || status === 'SENT' || status === 'LOCK';
+  if (filter === 'SETTLED') return status === 'DONE' || status === 'SETTLED';
+  if (filter === 'READY') return status === 'IN' || status === 'LOCK';
+  if (filter === 'PENDING') return !short && (status === 'WAIT' || status === 'QUEUE' || status === 'SENT' || pending);
+  if (filter === 'SHORT') return status === 'SHORT' || short;
+  return status === 'HOLD' || status === 'ERR' || status === 'ERROR' || status === 'SCAN';
+}
+
+function matchesSearch(row: TapeRow, query: string) {
+  const term = query.trim().toLowerCase();
+  if (!term) return true;
+  return [row.ledger, row.short, row.thb, row.expectedUsdt, row.sentUsdt, row.bank, row.last4, row.name, row.status]
+    .some((value) => String(value ?? '').toLowerCase().includes(term));
 }
 
 function rowState(status: string, pending: boolean) {
@@ -112,10 +126,11 @@ export function QueueTape({
   onKeep?: (row: TapeRow) => Promise<void> | void;
 }) {
   const holdCount = rows.filter((r) => r.status === 'HOLD').length;
-  const [filter, setFilter] = useState<QueueFilter>(holdCount && due <= 0 ? 'HOLD' : 'ALL');
+  const [filter, setFilter] = useState<QueueFilter>('PENDING');
+  const [search, setSearch] = useState('');
   const [open, setOpen] = useState<TapeRow | null>(null);
   const dueText = useCountUp(due, 2);
-  const shown = useMemo(() => rows.filter((r) => matches(filter, r.status, r.pending)), [rows, filter]);
+  const shown = useMemo(() => rows.filter((r) => matches(filter, r.status, r.pending, isShort(r)) && matchesSearch(r, search)), [rows, filter, search]);
   const pending = useMemo(() => rows.filter((r) => r.pending || r.status === 'WAIT' || r.status === 'QUEUE'), [rows]);
   const batch = {
     count: pending.filter((r) => r.status !== 'HOLD' && r.status !== 'ERR' && r.status !== 'ERROR').length,
@@ -131,12 +146,21 @@ export function QueueTape({
         <p className="qd-clock">{dateLabel} {clock}</p>
       </div>
       <div className="qd-pills" role="tablist">
-        {(['WAIT', 'HOLD', 'DONE', 'ERR', 'ALL'] as QueueFilter[]).map((f) => (
+        {(['PENDING', 'READY', 'SHORT', 'SETTLED', 'REJECTED', 'ALL'] as QueueFilter[]).map((f) => (
           <button key={f} type="button" className={'qd-pill' + (filter === f ? ' is-on' : '')} onClick={() => setFilter(f)}>
-            {FILTER_LABEL[f]}{f === 'HOLD' && holdCount ? ` ${holdCount}` : ''}
+            {FILTER_LABEL[f]}{f === 'REJECTED' && holdCount ? ` ${holdCount}` : ''}
           </button>
         ))}
       </div>
+      <label className="sr-only" htmlFor="queue-search">ค้นหารายการ</label>
+      <input
+        id="queue-search"
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+        placeholder="ค้นหา REF, ยอด, ชื่อ, ธนาคาร, สถานะ"
+        className="field w-full"
+        autoComplete="off"
+      />
       <article className="qd-balance">
         <p className="qd-k">รอโอน USDT</p>
         <p className="qd-amt">{dueText}</p>
@@ -146,7 +170,7 @@ export function QueueTape({
         <span>เวลา</span><span>บัญชี</span><span>บาท</span><span>รอโอน</span><span>สถานะ</span>
       </div>
       <div className="qd-list">
-        {shown.length === 0 ? <p className="qd-empty">{filter === 'WAIT' ? 'ไม่มีคิวรอโอน — ดูแท็บพักถ้าต้องการดึงกลับ' : filter === 'HOLD' ? 'ไม่มีรายการพัก — กดเริ่มรอบใหม่จะจอดคิวไว้ที่นี่' : 'ไม่มีรายการในมุมนี้'}</p> : shown.map((row, i) => {
+        {shown.length === 0 ? <p className="qd-empty">{search ? 'ไม่พบรายการที่ตรงกับคำค้น' : filter === 'PENDING' ? 'ไม่มีรายการรอโอน' : 'ไม่มีรายการในมุมนี้'}</p> : shown.map((row, i) => {
           const badge = badgeOf(row.status, row.pending);
           const dueU = row.dueUsdt ?? row.expectedUsdt ?? row.usdt;
           const state = rowState(row.status, row.pending);
