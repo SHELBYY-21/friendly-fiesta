@@ -16,7 +16,8 @@
     "migrate:staging-node": "node scripts/run-migration.js",
     "composio:smoke": "node scripts/composio-smoke.mjs",
     "composio:connect": "COMPOSIO_CONNECT=1 node scripts/composio-smoke.mjs",
-    "composio:oauth": "node scripts/composio-oauth-debug.mjs"
+    "composio:oauth": "node scripts/composio-oauth-debug.mjs",
+    "migrate:cycles": "MIGRATION_FILE=db/migrations/20260913_ce_vault_cycles.sql node scripts/run-migration.js"
   },
   "dependencies": {
     "@circle-fin/developer-controlled-wallets": "^10.8.0",

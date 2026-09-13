@@ -18,6 +18,7 @@ const { pickExplicitThbAmount } = require('../src/lib/ocrAmount');
 const UI = require('../src/lib/botUi');
 const { calculateDepositProfit } = require('../src/lib/profit');
 const { calculateFee } = require('../src/lib/fees');
+const { vaultKpi } = require('../src/lib/ct/vaultKpi');
 const {
   getBotToken,
   getOcrAutoMin,
@@ -223,6 +224,12 @@ assert(computeShouldSend(1000, 35.5) === 28.17, `computeShouldSend(1000, 35.5) =
 assert(computeShouldSend(0, 35.5) === 0, `computeShouldSend(0, 35.5) = 0`);
 assert(calculateDepositProfit(1000, 28.17, 35.5).netProfitThb === -0.04, 'deposit profit uses decimal rounding');
 assert(calculateFee(1000, 35.5, 28.17).expectedUsdt === 28.17, 'fee expected USDT rounds half up');
+const kpiSample = vaultKpi([
+  { ledger: 'CE-1', short: 'CE-1', thb: 1000, expectedUsdt: 28.17, sentUsdt: 28.17, status: 'SETTLED', pending: false, profitThb: 5 },
+  { ledger: 'CE-2', short: 'CE-2', thb: 500, expectedUsdt: 14.09, sentUsdt: 10, status: 'WAIT', pending: true, profitThb: 2 },
+  { ledger: 'CE-2', short: 'CE-2', thb: 500, expectedUsdt: 14.09, sentUsdt: 10, status: 'WAIT', pending: true, profitThb: 2 },
+]);
+assert(kpiSample.received === 1500 && kpiSample.pending === 4.09 && kpiSample.negative === 4.09, 'vault KPI derives unique ledger totals');
 
 const explicit = parseAmounts('+500B -13.6U');
 assert(explicit.thb?.value === 500 && explicit.thb?.sign === 1, 'accepts explicit +500B');
