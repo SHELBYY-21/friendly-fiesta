@@ -19,6 +19,7 @@ const UI = require('../src/lib/botUi');
 const { calculateDepositProfit } = require('../src/lib/profit');
 const { calculateFee } = require('../src/lib/fees');
 const { vaultKpi } = require('../src/lib/ct/vaultKpi');
+const { VaultEngine } = require('../src/lib/ct/vaultEngine');
 const {
   getBotToken,
   getOcrAutoMin,
@@ -230,6 +231,7 @@ const kpiSample = vaultKpi([
   { ledger: 'CE-2', short: 'CE-2', thb: 500, expectedUsdt: 14.09, sentUsdt: 10, status: 'WAIT', pending: true, profitThb: 2 },
 ]);
 assert(kpiSample.received === 1500 && kpiSample.pending === 4.09 && kpiSample.negative === 4.09, 'vault KPI derives unique ledger totals');
+assert(VaultEngine.verifyReceive({ thb: 1000, rate: 35.5, confidence: 95, pinMatch: true }).expectedUsdt === 28.17, 'VaultEngine uses decimal expected USDT');
 
 const explicit = parseAmounts('+500B -13.6U');
 assert(explicit.thb?.value === 500 && explicit.thb?.sign === 1, 'accepts explicit +500B');
