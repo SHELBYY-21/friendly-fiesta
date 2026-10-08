@@ -1,4 +1,5 @@
 import { last4FromPayeeMask, nameFromPayee } from '../bot/parse';
+import { reportPrivateVisionMetric } from './observability/langfuse';
 
 export interface SlipExtract {
   thbAmount: number | null;
@@ -112,28 +113,48 @@ function parseJsonObject(text: string): any | null {
 async function vision(imageUrl: string, prompt: string): Promise<string | null> {
   const key = process.env.GROK_API_KEY || process.env.XAI_API_KEY;
   if (!key || !imageUrl) return null;
-  const res = await fetch('https://api.x.ai/v1/chat/completions', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${key}`, 'content-type': 'application/json' },
-    body: JSON.stringify({
-      model: pickModel(),
-      temperature: 0,
-      max_tokens: 1400,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: imageUrl, detail: 'high' } },
-        ],
-      }],
-    }),
-  });
-  if (!res.ok) {
-    console.error('Grok vision error:', res.status, await res.text().catch(() => ''));
-    return null;
+  const model = pickModel();
+  const startedAtMs = Date.now();
+  let statusCode: number | null = null;
+  let ok = false;
+
+  try {
+    const res = await fetch('https://api.x.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        temperature: 0,
+        max_tokens: 1400,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: imageUrl, detail: 'high' } },
+          ],
+        }],
+      }),
+    });
+    statusCode = res.status;
+    if (!res.ok) {
+      // Only status, not the raw body: upstream diagnostics may contain OCR PII.
+      console.error('Grok vision HTTP status:', res.status);
+      return null;
+    }
+    const json: any = await res.json();
+    ok = true;
+    return json?.choices?.[0]?.message?.content ?? '';
+  } finally {
+    // Never include prompts, image URLs, parsed slip contents or financial data.
+    void reportPrivateVisionMetric({
+      operation: prompt === PROMPT ? 'bank-slip-ocr' : 'crypto-screenshot-ocr',
+      model,
+      startedAtMs,
+      endedAtMs: Date.now(),
+      statusCode,
+      ok,
+    }).catch(() => undefined);
   }
-  const json: any = await res.json();
-  return json?.choices?.[0]?.message?.content ?? '';
 }
 
 export async function analyzeUsdtWithGrok(imageUrl: string): Promise<UsdtExtract | null> {
