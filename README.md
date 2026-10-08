@@ -14,6 +14,10 @@ CE Vault ops desk. Telegram bot + live vault. Not a customer bot.
 
 Health: `GET /api/health`
 
+Operations: `/dashboard/operations` (ใช้ dashboard session เดิม)
+
+แผนรวมระบบและ rollback: [`docs/unified-app-cutover.md`](docs/unified-app-cutover.md)
+
 ## Flow
 Slip photo → OCR → pin match → DESK rate → keep → sent.
 
@@ -31,7 +35,9 @@ npm run dev
 ```
 
 ## Env
-Copy `.env.local.example`. Required: `BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `ADMIN_TELEGRAM_IDS`, `API_SECRET`, Supabase URL + secret key, `APP_URL`, `GROK_API_KEY`.
+Copy `.env.local.example`. Required: `BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `ADMIN_TELEGRAM_IDS`, `API_SECRET`, Supabase URL + secret key, `APP_URL`, and at least one named OCR provider key.
+
+`APP_URL` ต้องเป็น HTTPS origin ที่เข้าถึงได้จริงและไม่มี path/query ใช้หน้า secret settings ของผู้ให้บริการ deployment สำหรับค่าลับ ห้าม commit `.env.local` คีย์ OCR ชื่อทั่วไปต้องระบุผู้ให้บริการก่อนจึงจะนำไปใช้ได้
 
 ใช้งาน: `OPS_CHAT_ID` (chat โต๊ะ), `DASHBOARD_PIN` (รหัส 6 หลัก).
 
