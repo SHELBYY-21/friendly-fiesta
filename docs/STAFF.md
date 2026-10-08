@@ -1,6 +1,6 @@
 # คู่มือพนักงาน CE Vault
 
-เปิดโต๊ะ: https://ce-vault.vercel.app
+เปิดโต๊ะ: ใช้ URL จาก `APP_URL` ของระบบ production
 
 ## ทุกกะทำอะไร
 1. ใส่รหัส 6 หลัก

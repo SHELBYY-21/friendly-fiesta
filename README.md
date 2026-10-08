@@ -2,13 +2,13 @@
 
 CE Vault ops desk. Telegram bot + live vault. Not a customer bot.
 
-**Prod:** https://ce-vault.vercel.app
+Production runs as a Docker Compose stack with Caddy HTTPS on the configured `DOMAIN`.
 
 ## เปิดใช้จริง
-1. ตั้ง env บน Vercel ตาม README Env — `APP_URL=https://ce-vault.vercel.app`
+1. ตั้ง `.env.production` บน VPS โดยให้ `APP_URL=https://<DOMAIN>`
 2. ตั้ง `OPS_CHAT_ID` เป็น chat กลุ่มโต๊ะ (หลังเลขลบ) ให้ desk กับสลิปจากบอท
 3. ผูก webhook หลัง deploy:
-   `POST https://ce-vault.vercel.app/api/telegram/set-webhook` หัว `x-api-key`
+   สคริปต์ `scripts/deploy-production.sh` จะ migrate, deploy, ตรวจ HTTPS และตั้ง webhook ให้อัตโนมัติ
 4. ในกลุ่ม: `/start` → ปักบัญชีรับ → `/setrate 36.70` → ส่งสลิป → **KEEP** → **บันทึกส่งรวม**
 5. กดเริ่มใหม่ = จอดคิวเป็น HOLD ไม่ลบประวัติ ไม่โอน USDT — ดึงกลับด้วย KEEP บนแท็บ HOLD
 
@@ -33,6 +33,10 @@ npm i
 npm test
 npm run dev
 ```
+
+## Production on Docker VPS
+
+ต้องมี Docker Engine, Docker Compose, DNS ของ `DOMAIN` ชี้ไปยัง VPS และ `.env.production` ที่ไม่อยู่ใน Git จากนั้นรัน `./scripts/deploy-production.sh` หรือกำหนด GitHub Environment `production` พร้อม secrets `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_DEPLOY_PATH` เพื่อ deploy อัตโนมัติทุกครั้งที่ push เข้า `main`.
 
 ## Env
 Copy `.env.local.example`. Required: `BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `ADMIN_TELEGRAM_IDS`, `API_SECRET`, Supabase URL + secret key, `APP_URL`, and at least one named OCR provider key.

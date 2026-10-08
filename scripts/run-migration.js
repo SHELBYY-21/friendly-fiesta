@@ -1,19 +1,18 @@
 #!/usr/bin/env node
-// Run an idempotent SQL migration against STAGING_DATABASE_URL using node-postgres
-// Usage: set STAGING_DATABASE_URL then: node scripts/run-migration.js
+// Run one reviewed, idempotent SQL migration using node-postgres.
 
 const fs = require('fs');
 const path = require('path');
 const { Client } = require('pg');
 
 async function main() {
-  const url = process.env.STAGING_DATABASE_URL;
+  const url = process.env.DATABASE_URL || process.env.STAGING_DATABASE_URL;
   if (!url) {
-    console.error('ERROR: STAGING_DATABASE_URL is not set. Example: postgres://user:pass@host:5432/db');
+    console.error('ERROR: DATABASE_URL (or STAGING_DATABASE_URL) is not set.');
     process.exit(2);
   }
 
-  const requested = process.env.MIGRATION_FILE || 'supabase/patch-v10-production-safety.sql';
+  const requested = process.env.MIGRATION_FILE || 'supabase/patch-v17-sandbox-workflow.sql';
   const file = path?.resolve(__dirname, '..', requested);
   if (!fs?.existsSync(file)) {
     console.error('Migration file not found:', file);

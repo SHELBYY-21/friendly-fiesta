@@ -30,6 +30,7 @@ validateRequiredEnv();
 
 const nextConfig = {
   reactStrictMode: true,
+  output: 'standalone',
   outputFileTracingRoot: path.join(__dirname),
   serverExternalPackages: ['slipverify', 'promptparse', 'jpeg-js', 'jsqr'],
   outputFileTracingExcludes: {

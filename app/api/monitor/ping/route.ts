@@ -12,11 +12,9 @@ const ALLOWED_HOSTS = [
   'api.binance.th',
   'api.circle.com',
   'api-sandbox.circle.com',
-  // Supabase & Vercel
+  // Supabase and public application hosts
   'supabase.co',
   'supabase.in',
-  'vercel.app',
-  'vercel.com',
   // AI providers
   'api.x.ai',
   'api.openai.com',

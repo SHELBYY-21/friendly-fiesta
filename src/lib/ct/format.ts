@@ -124,9 +124,9 @@ export function totalsBanner(d: { inThb: number; outUsdt: number; pendingUsdt: n
 }
 
 export function deskUrl(): string {
-  const raw = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'https://ce-vault.vercel.app';
+  const raw = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || '';
   if (raw.startsWith('https://') && !/localhost/.test(raw)) return raw.replace(/\/$/, '');
-  return 'https://ce-vault.vercel.app';
+  return '';
 }
 
 export function btn(text: string, callback_data: string, style?: BtnStyle) {
