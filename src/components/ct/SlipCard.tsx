@@ -1,4 +1,5 @@
 'use client';
+import BankLogo from '../BankLogo';
 
 import { useState } from 'react';
 
@@ -103,7 +104,7 @@ export function SlipCard({ slip, onClose, queue, onKeep }: {
       <div className="slip-rule" />
       <div className="slip-row"><span>เวลา (TIME)</span><span>{slip.time || '—'}</span></div>
       <div className="slip-row"><span>เลขอ้างอิง (REF)</span><button type="button" className={'slip-copy' + (copied ? ' is-on' : '')} onClick={copyRef}>{copied ? 'คัดอยู่' : ref || '—'}</button></div>
-      <div className="slip-row"><span>บัญชีรับ (PAYEE)</span><span>{payee || '—'}</span></div>
+      <div className="slip-row"><span>บัญชีรับ (PAYEE)</span><span><BankLogo bank={slip.bank} />{payee || '—'}</span></div>
       <div className="slip-row"><span>ชื่อ (NAME)</span><span>{slip.name || '—'}</span></div>
       <div className="slip-rule" />
       <div className="slip-row"><span>รับเข้า (IN)</span><span className="in">{n(slip.thb)} THB</span></div>

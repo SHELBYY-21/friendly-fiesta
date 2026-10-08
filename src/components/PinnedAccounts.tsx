@@ -1,5 +1,7 @@
 'use client';
 
+import BankLogo from './BankLogo';
+
 import SyncBadge, { type SyncStatus } from './SyncBadge';
 
 export interface PinnedAccount {
@@ -71,7 +73,7 @@ export default function PinnedAccounts({
                 onClick={() => void onPin(c.id)}
                 className="keep px-3 py-2 text-xs"
               >
-                ใช้วันนี้ {c.bankName} ····{c.last4}
+                <BankLogo bank={c.bankName} />ใช้วันนี้ {c.bankName} ····{c.last4}
               </button>
             ))}
           </div>
@@ -110,7 +112,7 @@ export default function PinnedAccounts({
                 <span className={`pill ${acc.status === 'active' ? 'pill-wait' : 'pill-done'}`}>ปักอยู่</span>
               </div>
               <p className="mt-1 text-xs text-[color:var(--fg)]">
-                {acc.bankName}{' '}
+                <BankLogo bank={acc.bankName} />{acc.bankName}{' '}
                 <span className="font-mono text-gold">{acc.accountNumber || `····${acc.last4}`}</span>
               </p>
               <p className="mt-1 font-mono text-xs font-medium text-[color:var(--fg)]">
@@ -131,7 +133,7 @@ export default function PinnedAccounts({
               onClick={() => void onPin(c.id)}
               className="keep px-3 py-2 text-xs"
             >
-              ใช้วันนี้ {c.bankName} ····{c.last4}
+              <BankLogo bank={c.bankName} />ใช้วันนี้ {c.bankName} ····{c.last4}
             </button>
           ))}
         </div>

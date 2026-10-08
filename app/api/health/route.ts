@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { validateProductionEnvironment, validateWebhookEnvironment } from '@/lib/runtimeEnv';
 import { configuredSlipProvider } from '@/lib/ct/slipInquiry';
-import { ensureTelegramWebhook } from '@/lib/ct/telegramWebhook';
+import { readTelegramWebhook } from '@/lib/ct/telegramWebhook';
 import { opsChatId } from '@/lib/ct/deskChat';
 import { resolveTyphoonKey } from '@/lib/typhoon';
 import { aksonOcrKey } from '@/lib/aksonOcr';
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
   const extra = validateProductionEnvironment().filter(
     (issue) => !fatal.some((f) => f.key === issue.key && f.code === issue.code),
   );
-  const forceWebhook = req.nextUrl.searchParams.get('forceWebhook') === '1';
+  void req;
 
   let db: 'ok' | 'error' = 'ok';
   let detail: string | undefined;
@@ -45,16 +45,15 @@ export async function GET(req: NextRequest) {
   }
 
   const webhook = fatal.length === 0
-    ? await ensureTelegramWebhook(forceWebhook).catch(() => ({
+    ? await readTelegramWebhook().catch(() => ({
         ok: false,
         url: null,
         pending: null,
         error: 'ENSURE_FAILED',
         lastError: null,
         lastErrorAt: null,
-        set: false,
       }))
-    : { ok: false, url: null, pending: null, error: 'ENV', lastError: null, lastErrorAt: null, set: false };
+    : { ok: false, url: null, pending: null, error: 'ENV', lastError: null, lastErrorAt: null };
   const chatId = await opsChatId(null).catch(() => null);
 
   const latency = Date.now() - startedAt;
@@ -86,7 +85,7 @@ export async function GET(req: NextRequest) {
         ok: webhook.ok,
         url: webhook.url,
         pending: webhook.pending,
-        set: webhook.set,
+        set: false,
         error: webhook.error,
         lastError: liveError,
         lastErrorAt: webhook.lastErrorAt ?? null,
