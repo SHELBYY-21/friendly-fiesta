@@ -19,6 +19,21 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - name: Validate production SSH configuration
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_DEPLOY_PATH: ${{ secrets.VPS_DEPLOY_PATH }}
+        run: |
+          missing=0
+          for name in VPS_SSH_KEY VPS_HOST VPS_USER VPS_DEPLOY_PATH; do
+            if [ -z "${!name}" ]; then
+              printf '::error::Missing required production secret: %s\n' "$name"
+              missing=1
+            fi
+          done
+          exit "$missing"
       - run: npm ci
       - run: npm test
       - run: npm run typecheck
@@ -28,7 +43,6 @@ jobs:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
           VPS_HOST: ${{ secrets.VPS_HOST }}
         run: |
-          test -n "$VPS_SSH_KEY" && test -n "$VPS_HOST"
           install -m 700 -d ~/.ssh
           printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
@@ -39,7 +53,6 @@ jobs:
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_DEPLOY_PATH: ${{ secrets.VPS_DEPLOY_PATH }}
         run: |
-          test -n "$VPS_USER" && test -n "$VPS_DEPLOY_PATH"
           ssh "$VPS_USER@$VPS_HOST" "mkdir -p '$VPS_DEPLOY_PATH'"
           rsync -az --delete --exclude='.env.production' --exclude='.git/' ./ "$VPS_USER@$VPS_HOST:$VPS_DEPLOY_PATH/"
       - name: Migrate and deploy
