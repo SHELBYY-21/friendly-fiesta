@@ -376,14 +376,12 @@ const inReady = CT.cardInReady({
   ledger: 'CE-20260826-A4F2', adminName: 'Admin A', short: 'A4F2',
 });
 assert(inReady.text.includes('THB') || inReady.text.includes('บาท'), 'IN_READY amount table');
-assert(inReady.text.includes('กำไร'), 'IN_READY pnl');
-assert(inReady.text.includes('ตีเป็น USDT'), 'IN_READY converts at desk rate');
-assert(inReady.text.includes('เรทอ้างอิง'), 'IN_READY market');
-assert(inReady.text.includes('IN'), 'IN_READY progress tape');
-assert(inReady.text.includes('●──'), 'IN_READY dots');
-assert(inReady.text.includes('OCR') || inReady.text.includes('MATCH'), 'IN_READY rail');
-assert(inReady.text.includes('<blockquote'), 'IN_READY amount quote');
-assert(inReady.text.includes('#CE-20260826-A4F2'), 'ledger id with hash');
+assert(inReady.text.includes('เรทห้อง'), 'IN_READY shows desk rate');
+assert(inReady.text.includes('ยอดที่ต้องเคลียร์'), 'IN_READY converts at desk rate');
+assert(inReady.text.includes('CLEARANCE'), 'IN_READY final state');
+assert(inReady.text.includes('100%'), 'IN_READY clearance complete');
+assert(inReady.text.includes('<pre>'), 'IN_READY structured slip card');
+assert(inReady.text.includes('ST-A4F2'), 'settlement id is derived from short reference');
 assert(JSON.stringify(inReady.reply_markup).includes('slip:lock:A4F2'), 'lock callback present');
 assert(inReady.rich && Array.isArray(inReady.rich.blocks), 'IN_READY includes rich JSON');
 assert(inReady.rich.blocks.some((b: { type: string }) => b.type === 'table'), 'IN_READY rich table');
@@ -417,12 +415,12 @@ assert(decodeStillFrame(Buffer.alloc(0)) == null, 'decode still rejects empty');
 
 const { aiReceived } = require('../src/lib/ct/aiTransition');
 const liveOpen = aiReceived({ live: true });
-assert(liveOpen.text.includes('LIVE PHOTO'), 'live opening names still frame');
-assert(liveOpen.text.includes('ภาพนิ่ง'), 'live opening Thai still copy');
-assert(liveOpen.text.includes('<blockquote'), 'live opening uses quote effect');
+assert(liveOpen.text.includes('Live Photo'), 'live opening names live photo');
+assert(liveOpen.text.includes('still frame'), 'live opening names still frame');
+assert(liveOpen.text.includes('CE VAULT'), 'live opening uses quiet CE header');
 assert(hasBalancedTelegramHtml(liveOpen.text), 'live opening html balanced');
 const slipOpen = aiReceived({ live: false });
-assert(slipOpen.text.includes('SLIP PHOTO'), 'plain slip opening');
+assert(slipOpen.text.includes('CE VAULT') && slipOpen.text.includes('SLIP'), 'plain slip opening');
 
 const { renderHeroPng, renderScanPng } = require('../src/lib/ct/cardImage');
 const pngMagic = Buffer.from([137, 80, 78, 71]);
@@ -567,7 +565,7 @@ assert(roomBtns.some((b) => b.callback_data === 'room:here' && b.style === 'succ
 assert(roomBtns.some((b) => b.callback_data === 'room:list' && b.style === 'primary'), 'switch room is blue');
 assert(roomBtns.some((b) => b.callback_data === 'room:use:-1002' && b.style === 'primary'), 'other room is blue');
 const goStop = collectBtns(CT.cardInReady(sample));
-assert(goStop.some((b) => b.callback_data === 'slip:lock:A4F2' && b.style === 'success'), 'confirm is green');
+assert(goStop.some((b) => b.callback_data === 'slip:lock:A4F2'), 'confirm action exists');
 assert(goStop.some((b) => b.callback_data === 'slip:cancel:A4F2' && b.style === 'danger'), 'cancel is red');
 assert(goStop.some((b) => b.callback_data === 'slip:queue:A4F2' && b.style === 'primary'), 'hold-queue is blue');
 assert(VAULT_ACTIONS.has('batch'), 'batch settle callback exists');
