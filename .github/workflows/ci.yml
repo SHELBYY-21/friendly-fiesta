@@ -19,4 +19,5 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test --if-present
+      - run: sh -n scripts/deploy-production.sh
       - run: npm run build
