@@ -4,6 +4,7 @@ const ADMIN_COMMANDS = new Set([
   'save_slip', 'pin', 'unpin', 'rate', 'setrate', 'newday', 'reset',
   'setroom', 'export', 'summary', 'recent_slips', 'receiver', 'today', 'ledger',
   'vault', 'pending', 'recent',
+  'history', 'status', 'rates', 'balance', 'demo',
 ]);
 
 export function commandName(text: string | null | undefined): string | null {

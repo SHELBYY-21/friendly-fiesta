@@ -67,6 +67,7 @@ import {
   unpinBankAccount,
 } from '@/lib/banks';
 import { largestPhoto, parseTelegramUpdate } from '@/lib/telegram/update';
+import { handleOperatorCommand } from '@/lib/telegram/operatorCommands';
 
 // ตรวจ USDT (OCR vs พิมพ์เอง) ต้องตรงกันในระดับ 0.0001 (req 13)
 const USDT_TOLERANCE = 0.0001;
@@ -227,6 +228,14 @@ async function handleUpdate(update: any): Promise<void> {
       await sendMessage(chatId, UI.error('คำสั่งนี้ใช้ได้เฉพาะผู้ดูแลระบบ — ติดต่อ SuperAdmin เพื่อเพิ่มสิทธิ์'));
     }
     return;
+  }
+
+  if (text) {
+    const operatorReply = await handleOperatorCommand({ chatId, userId, text, updateId: update?.update_id });
+    if (operatorReply) {
+      await sendMessage(chatId, operatorReply);
+      return;
+    }
   }
 
   if (admin && text) {

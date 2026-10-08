@@ -7,6 +7,11 @@ export const GROUP_COMMANDS: Array<{ command: string; description: string }> = [
   { command: 'save_slip', description: 'บันทึกสลิปมือ' },
   { command: 'recent_slips', description: 'สลิปล่าสุด' },
   { command: 'summary', description: 'สรุปยอดวันนี้' },
+  { command: 'history', description: 'ค้นประวัติผู้รับ' },
+  { command: 'status', description: 'ตรวจสถานะรายการ' },
+  { command: 'rates', description: 'ดูเรตปัจจุบัน' },
+  { command: 'balance', description: 'ดูยอดบัญชีรวม' },
+  { command: 'demo', description: 'ดูคำสั่งแบบอ่านอย่างเดียว' },
 ];
 
 export const PRIVATE_COMMANDS: Array<{ command: string; description: string }> = [
