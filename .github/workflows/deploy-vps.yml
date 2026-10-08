@@ -73,8 +73,12 @@ jobs:
             echo '::error::VPS_DEPLOY_PATH must be an approved dedicated absolute directory without traversal' >&2
             exit 1
           fi
-          if [[ "$RUN_DB_MIGRATIONS" == "true" ]] &&
+          if [[ -n "$APPROVED_MIGRATION_SHA256" ]] &&
              [[ ! "$APPROVED_MIGRATION_SHA256" =~ ^[a-fA-F0-9]{64}$ ]]; then
+            echo '::error::Invalid migration SHA-256 input' >&2
+            exit 1
+          fi
+          if [[ "$RUN_DB_MIGRATIONS" == "true" && -z "$APPROVED_MIGRATION_SHA256" ]]; then
             echo '::error::Migration requires an exact reviewed file SHA-256' >&2
             exit 1
           fi
