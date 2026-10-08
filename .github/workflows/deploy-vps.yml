@@ -1,9 +1,28 @@
 name: Deploy production VPS
 
+# Deployment is explicit until a real host, DNS, verified SSH fingerprint,
+# backup/rollback process and encrypted secrets have been established.
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
+    inputs:
+      run_migrations:
+        description: "Apply reviewed SQL migration with exact SHA-256 approval"
+        required: true
+        default: false
+        type: boolean
+      migration_sha256:
+        description: "SHA-256 of supabase/patch-v17-sandbox-workflow.sql (only when enabled)"
+        required: false
+        default: ""
+        type: string
+      register_webhook:
+        description: "Update Telegram webhook after successful health check"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
 
 concurrency:
   group: ce-vault-production
@@ -13,51 +32,116 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: production
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
-      - name: Validate production SSH configuration
+
+      - name: Validate production destination and approved options
+        shell: bash
         env:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_DEPLOY_PATH: ${{ secrets.VPS_DEPLOY_PATH }}
+          RUN_DB_MIGRATIONS: ${{ inputs.run_migrations }}
+          APPROVED_MIGRATION_SHA256: ${{ inputs.migration_sha256 }}
         run: |
+          set -euo pipefail
           missing=0
-          for name in VPS_SSH_KEY VPS_HOST VPS_USER VPS_DEPLOY_PATH; do
+          for name in VPS_SSH_KEY VPS_SSH_KNOWN_HOSTS VPS_HOST VPS_USER VPS_DEPLOY_PATH; do
             if [ -z "${!name}" ]; then
               printf '::error::Missing required production secret: %s\n' "$name"
               missing=1
             fi
           done
-          exit "$missing"
+          [ "$missing" -eq 0 ] || exit 1
+          if [[ ! "$VPS_HOST" =~ ^[A-Za-z0-9.-]+$ ]] || [[ "$VPS_HOST" == -* ]]; then
+            echo '::error::VPS_HOST is not a DNS name or IP address' >&2
+            exit 1
+          fi
+          if [[ ! "$VPS_USER" =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]]; then
+            echo '::error::VPS_USER is not a valid SSH username' >&2
+            exit 1
+          fi
+          if [[ ! "$VPS_DEPLOY_PATH" =~ ^/(opt|srv|var/www|home/[A-Za-z0-9_-]+)(/[A-Za-z0-9._-]+)+$ ]] ||
+             [[ "$VPS_DEPLOY_PATH" == *..* ]]; then
+            echo '::error::VPS_DEPLOY_PATH must be an approved dedicated absolute directory without traversal' >&2
+            exit 1
+          fi
+          if [[ "$RUN_DB_MIGRATIONS" == "true" ]] &&
+             [[ ! "$APPROVED_MIGRATION_SHA256" =~ ^[a-fA-F0-9]{64}$ ]]; then
+            echo '::error::Migration requires an exact reviewed file SHA-256' >&2
+            exit 1
+          fi
+
       - run: npm ci
-      - run: npm test
       - run: npm run typecheck
+      - run: npm test
       - run: npm run build
-      - name: Configure SSH
+
+      - name: Configure pinned SSH host identity
+        shell: bash
         env:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
           VPS_HOST: ${{ secrets.VPS_HOST }}
         run: |
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
-      - name: Upload reviewed source
+          set -euo pipefail
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$VPS_SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+          ssh-keygen -y -f "$HOME/.ssh/id_ed25519" >/dev/null
+          if ! ssh-keygen -F "$VPS_HOST" -f "$HOME/.ssh/known_hosts" >/dev/null; then
+            echo '::error::Pinned SSH host key does not match the destination hostname' >&2
+            exit 1
+          fi
+
+      - name: Verify dedicated VPS directory is already provisioned
+        shell: bash
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_DEPLOY_PATH: ${{ secrets.VPS_DEPLOY_PATH }}
         run: |
-          ssh "$VPS_USER@$VPS_HOST" "mkdir -p '$VPS_DEPLOY_PATH'"
-          rsync -az --delete --exclude='.env.production' --exclude='.git/' ./ "$VPS_USER@$VPS_HOST:$VPS_DEPLOY_PATH/"
-      - name: Migrate and deploy
+          set -euo pipefail
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes \
+            -o ConnectTimeout=10 "$VPS_USER@$VPS_HOST" \
+            "test -d '$VPS_DEPLOY_PATH' && test -f '$VPS_DEPLOY_PATH/.env.production'" || {
+              echo '::error::Provision the dedicated directory and private .env.production first' >&2
+              exit 1
+            }
+
+      - name: Upload source without deleting remote files or secrets
+        shell: bash
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_DEPLOY_PATH: ${{ secrets.VPS_DEPLOY_PATH }}
-        run: ssh "$VPS_USER@$VPS_HOST" "cd '$VPS_DEPLOY_PATH' && chmod +x scripts/deploy-production.sh && ./scripts/deploy-production.sh"
+        run: |
+          set -euo pipefail
+          rsync -az \
+            -e 'ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes' \
+            --exclude='/.git/' --exclude='/.next/' --exclude='/node_modules/' \
+            --exclude='/.env*' --exclude='*.pem' --exclude='*.key' \
+            ./ "$VPS_USER@$VPS_HOST:$VPS_DEPLOY_PATH/"
+
+      - name: Deploy with explicit migration and webhook approvals
+        shell: bash
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_DEPLOY_PATH: ${{ secrets.VPS_DEPLOY_PATH }}
+          RUN_DB_MIGRATIONS: ${{ inputs.run_migrations }}
+          APPROVED_MIGRATION_SHA256: ${{ inputs.migration_sha256 }}
+          REGISTER_TELEGRAM_WEBHOOK: ${{ inputs.register_webhook }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes \
+            "$VPS_USER@$VPS_HOST" \
+            "cd '$VPS_DEPLOY_PATH' && RUN_DB_MIGRATIONS='$RUN_DB_MIGRATIONS' APPROVED_MIGRATION_SHA256='$APPROVED_MIGRATION_SHA256' REGISTER_TELEGRAM_WEBHOOK='$REGISTER_TELEGRAM_WEBHOOK' sh scripts/deploy-production.sh"
